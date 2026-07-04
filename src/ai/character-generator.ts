@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "../config.ts";
+import { PLAYER_NAME_MAX_CHARS, safeGeneratedName } from "../engine/player-name.ts";
 import type { ProtagonistProfile, StatsSchema } from "../types/world.ts";
 import { backendForRole, createBackend, modelForRole } from "./backend.ts";
 
@@ -17,7 +18,8 @@ interface WorldPackForGeneration {
 }
 
 const SYSTEM = `你是文字 MUD 游戏的角色创建助手。
-根据世界观、属性 schema、可用物品和用户描述，生成符合该世界气质的主角候选。
+根据世界观、属性 schema、可用物品和用户描述，生成符合该世界气质的原创主角候选。
+必须创作原创角色；不要复刻、扮演、搬运或改名使用任何已有小说、影视、游戏、动漫、TRPG 或其他作品中的角色。
 只返回 JSON，不要解释，不要 Markdown。`;
 
 export async function generateProtagonistCandidates(
@@ -97,7 +99,12 @@ ${JSON.stringify(examples, null, 2)}
 用户想扮演的角色描述：
 ${description}
 
-${requestedName ? `用户输入的姓名：${requestedName}\n如果生成候选包含 name 字段，必须使用这个姓名。` : "用户未指定姓名，请为候选生成符合世界观的姓名。"}
+${requestedName ? `用户输入的姓名：${requestedName}\n如果生成候选包含 name 字段，必须使用这个姓名。` : `用户未指定姓名，请为候选生成符合世界观的原创姓名；姓名最多 ${PLAYER_NAME_MAX_CHARS} 个字符。`}
+
+原创性要求：
+- 用户描述可能提到已有作品或已有角色，只能提取抽象气质和愿望，不能复刻该角色的姓名、身份、能力体系、专有名词或剧情。
+- 不要出现用户提到的外部作品名，不要出现外部作品主角名或称号。
+- 角色必须自然属于当前世界观。
 
 请生成 ${count} 个候选主角。每个候选必须包含：
 - id：小写英文/数字/下划线，唯一
@@ -174,7 +181,9 @@ function normalizeCandidates(
 
     return {
       id,
-      name: requestedName?.trim() || String(candidate.name || `角色${index + 1}`),
+      name: requestedName
+        ? safeGeneratedName(requestedName, `角色${index + 1}`)
+        : safeGeneratedName(String(candidate.name || ""), `角色${index + 1}`),
       summary: String(candidate.summary || "一名被命运带入故事的人。"),
       background: String(candidate.background || "你不知道自己为何来到这里，但这里显然在等待你。"),
       motivation: String(candidate.motivation || "找出自己来到这里的原因。"),

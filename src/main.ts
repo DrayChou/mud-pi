@@ -9,6 +9,7 @@ import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
 import { listWorldPacks, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, saveState, appendTurn, initSave } from "./store/persist.ts";
+import { validatePlayerName } from "./engine/player-name.ts";
 import { applyMutations, applyMutation } from "./store/apply.ts";
 import { executeCommand } from "./engine/commands.ts";
 import { Interpreter } from "./ai/interpreter.ts";
@@ -220,7 +221,7 @@ function createFallbackCustomProfile(
   requestedName: string | undefined,
   description: string
 ): ProtagonistProfile {
-  const name = requestedName?.trim() || "自定义旅人";
+  const name = validatePlayerName(requestedName ?? "").value || "自定义旅人";
   return {
     id: "custom_player",
     name,
@@ -238,10 +239,19 @@ async function askPlayerName(
   cliPlayerName: string | undefined,
   defaultName: string
 ): Promise<string | undefined> {
-  if (cliPlayerName?.trim()) return cliPlayerName.trim();
+  if (cliPlayerName?.trim()) {
+    const result = validatePlayerName(cliPlayerName);
+    if (!result.ok) throw new Error(`--name 无效：${result.reason}`);
+    return result.value;
+  }
+
   const suffix = defaultName ? `（留空使用：${defaultName}）` : "（可留空让 AI 命名）";
-  const answer = (await rl.question(`输入玩家姓名${suffix}: `)).trim();
-  return answer || undefined;
+  while (true) {
+    const answer = await rl.question(`输入玩家姓名${suffix}: `);
+    const result = validatePlayerName(answer);
+    if (result.ok) return result.value;
+    print(`\x1b[31m${result.reason}\x1b[0m`);
+  }
 }
 
 // ── Main loop ──────────────────────────────────────────────────────────────
