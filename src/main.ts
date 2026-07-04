@@ -134,7 +134,7 @@ async function chooseCharacterSetup(
       const defaultIndex = defaultProfile
         ? Math.max(0, summary.protagonists.findIndex((p) => p.id === defaultProfile.id)) + 1
         : undefined;
-      const answer = (await rl.question(`选择主角 [${defaultIndex ?? "C"}]: `)).trim();
+      const answer = (await rl.question(`选择主角编号，或直接输入姓名使用默认主角 [${defaultIndex ?? "C"}]: `)).trim();
       const choice = answer || (defaultIndex ? String(defaultIndex) : "C");
 
       if (choice.toLowerCase() === "c") {
@@ -143,10 +143,23 @@ async function chooseCharacterSetup(
         continue;
       }
 
-      const index = Number(choice) - 1;
+      const numericChoice = Number(choice);
+      if (!Number.isInteger(numericChoice)) {
+        const nameResult = validatePlayerName(choice);
+        if (nameResult.ok && nameResult.value) {
+          if (defaultProfile) {
+            return { playerName: nameResult.value, profile: defaultProfile };
+          }
+          return { playerName: nameResult.value };
+        }
+        print(nameResult.reason ?? "请输入主角编号，或输入 C 创建自定义角色。");
+        continue;
+      }
+
+      const index = numericChoice - 1;
       const selected = summary.protagonists[index];
       if (!selected) {
-        print("无效选择，请重新输入。");
+        print("无效选择，请输入列表中的编号，或输入 C 创建自定义角色。");
         continue;
       }
 
