@@ -4,17 +4,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  AuthStorage,
-  createAgentSession,
-  DefaultResourceLoader,
-  getAgentDir,
-  ModelRegistry,
-  SessionManager,
-  SettingsManager,
-} from "@earendil-works/pi-coding-agent";
 import type { Config } from "../config.ts";
 import type { ProtagonistProfile, StatsSchema } from "../types/world.ts";
+import { backendForRole, createBackend, modelForRole } from "./backend.ts";
 
 interface WorldPackForGeneration {
   name: string;
@@ -38,57 +30,17 @@ export async function generateProtagonistCandidates(
   const pack = await readWorldPack(worldPack);
   const lore = readLore(worldPack);
 
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage);
-  const available = await modelRegistry.getAvailable();
-  const model = available.find(
-    (m) =>
-      m.provider === config.dmProvider &&
-      (m.id === config.dmModel || m.name === config.dmModel)
-  );
-  if (!model) {
-    const names = available.map((m) => `${m.provider}/${m.id}`).join(", ");
-    throw new Error(
-      `Character generator model not found: ${config.dmProvider}/${config.dmModel}\n` +
-        `Available: ${names || "(none — install/login to Pi first)"}`
-    );
-  }
-  const loader = new DefaultResourceLoader({
-    cwd: process.cwd(),
-    agentDir: getAgentDir(),
-    systemPromptOverride: () => SYSTEM,
-  });
-  await loader.reload();
-
-  const { session } = await createAgentSession({
+  const backend = createBackend(backendForRole(config, "character"));
+  const { provider, model } = modelForRole(config, "character");
+  const response = await backend.ask({
+    role: "character",
+    systemPrompt: SYSTEM,
+    userPrompt: buildPrompt(pack, lore, description, requestedName, count),
+    provider,
     model,
     thinkingLevel: config.dmThinking,
-    authStorage,
-    modelRegistry,
-    resourceLoader: loader,
-    noTools: "all",
-    sessionManager: SessionManager.inMemory(),
-    settingsManager: SettingsManager.inMemory({
-      compaction: { enabled: false },
-    }),
+    jsonOnly: true,
   });
-
-  let response = "";
-  const unsub = session.subscribe((event) => {
-    if (
-      event.type === "message_update" &&
-      event.assistantMessageEvent.type === "text_delta"
-    ) {
-      response += event.assistantMessageEvent.delta;
-    }
-  });
-
-  try {
-    await session.prompt(buildPrompt(pack, lore, description, requestedName, count));
-  } finally {
-    unsub();
-    session.dispose();
-  }
 
   return normalizeCandidates(parseCandidates(response), pack, requestedName, count);
 }

@@ -1,18 +1,9 @@
 // ─────────────────────────────────────────────────────────────
-// interpreter.ts — cheap Pi SDK model: text → ParsedCommand
-// Fresh session per parse keeps command classification stateless.
+// interpreter.ts — cheap stateless model: text → ParsedCommand
 // ─────────────────────────────────────────────────────────────
 
-import {
-  AuthStorage,
-  createAgentSession,
-  DefaultResourceLoader,
-  getAgentDir,
-  ModelRegistry,
-  SessionManager,
-  SettingsManager,
-} from "@earendil-works/pi-coding-agent";
 import type { Config } from "../config.ts";
+import { backendForRole, createBackend, modelForRole } from "./backend.ts";
 
 export interface ParsedCommand {
   verb: string;
@@ -47,13 +38,9 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
 
 export class Interpreter {
   private config!: Config;
-  private authStorage!: ReturnType<typeof AuthStorage.create>;
-  private modelRegistry!: ReturnType<typeof ModelRegistry.create>;
 
   async init(config: Config): Promise<void> {
     this.config = config;
-    this.authStorage = AuthStorage.create();
-    this.modelRegistry = ModelRegistry.create(this.authStorage);
   }
 
   async parse(input: string): Promise<ParsedCommand> {
@@ -63,12 +50,7 @@ export class Interpreter {
     if (fast) return { ...fast, raw: input };
 
     try {
-      const result = await callInterpreterModel(
-        this.config,
-        this.authStorage,
-        this.modelRegistry,
-        input
-      );
+      const result = await callInterpreterModel(this.config, input);
       return { ...result, raw: input };
     } catch (e) {
       console.warn("[interpreter] model error, fallback:", e);
@@ -108,64 +90,23 @@ function fastParse(
   return null;
 }
 
-// ── LLM call through Pi SDK ────────────────────────────────────────────────
+// ── LLM call through configured backend ───────────────────────────────────
 
 async function callInterpreterModel(
   config: Config,
-  authStorage: AuthStorage,
-  modelRegistry: ModelRegistry,
   input: string
 ): Promise<Omit<ParsedCommand, "raw">> {
-  const available = await modelRegistry.getAvailable();
-  const model = available.find(
-    (m) =>
-      m.provider === config.interpreterProvider &&
-      (m.id === config.interpreterModel || m.name === config.interpreterModel)
-  );
-  if (!model) {
-    const names = available.map((m) => `${m.provider}/${m.id}`).join(", ");
-    throw new Error(
-      `Interpreter model not found: ${config.interpreterProvider}/${config.interpreterModel}\n` +
-        `Available: ${names || "(none — install/login to Pi first)"}`
-    );
-  }
-
-  const loader = new DefaultResourceLoader({
-    cwd: process.cwd(),
-    agentDir: getAgentDir(),
-    systemPromptOverride: () => SYSTEM,
-  });
-  await loader.reload();
-
-  const { session } = await createAgentSession({
+  const backend = createBackend(backendForRole(config, "interpreter"));
+  const { provider, model } = modelForRole(config, "interpreter");
+  const response = await backend.ask({
+    role: "interpreter",
+    systemPrompt: SYSTEM,
+    userPrompt: input,
+    provider,
     model,
     thinkingLevel: "off",
-    authStorage,
-    modelRegistry,
-    resourceLoader: loader,
-    noTools: "all",
-    sessionManager: SessionManager.inMemory(),
-    settingsManager: SettingsManager.inMemory({
-      compaction: { enabled: false },
-    }),
+    jsonOnly: true,
   });
-
-  let response = "";
-  const unsub = session.subscribe((event) => {
-    if (
-      event.type === "message_update" &&
-      event.assistantMessageEvent.type === "text_delta"
-    ) {
-      response += event.assistantMessageEvent.delta;
-    }
-  });
-
-  try {
-    await session.prompt(input);
-  } finally {
-    unsub();
-    session.dispose();
-  }
 
   return parseModelJson(response);
 }

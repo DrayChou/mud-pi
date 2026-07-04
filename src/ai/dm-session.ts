@@ -1,45 +1,18 @@
 // ─────────────────────────────────────────────────────────────
-// dm-session.ts — Pi SDK DM session wrapper
+// dm-session.ts — DM session wrapper over configurable AI backend
 // ─────────────────────────────────────────────────────────────
 
-import {
-  createAgentSession,
-  AuthStorage,
-  ModelRegistry,
-  SessionManager,
-  SettingsManager,
-  DefaultResourceLoader,
-  getAgentDir,
-} from "@earendil-works/pi-coding-agent";
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "../config.ts";
+import type { AiSession } from "./backend.ts";
+import { backendForRole, createBackend, modelForRole } from "./backend.ts";
 
 export class DmSession {
-  private session!: AgentSession;
+  private session!: AiSession;
   private initialized = false;
 
   async init(config: Config, worldPack: string): Promise<void> {
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
-
-    // Resolve model — throws if not found
-    const available = await modelRegistry.getAvailable();
-    const model = available.find(
-      (m) =>
-        m.provider === config.dmProvider &&
-        (m.id === config.dmModel || m.name === config.dmModel)
-    );
-    if (!model) {
-      const names = available.map((m) => `${m.provider}/${m.id}`).join(", ");
-      throw new Error(
-        `DM model not found: ${config.dmProvider}/${config.dmModel}\n` +
-          `Available: ${names || "(none — install/login to Pi first)"}`
-      );
-    }
-
-    // Load lore.md from world pack as system prompt context
     const lorePath = join(
       import.meta.dir,
       "../../worlds",
@@ -51,47 +24,22 @@ export class DmSession {
       : "";
 
     const dmSystemPrompt = buildDmSystemPrompt(loreContent);
+    const backend = createBackend(backendForRole(config, "dm"));
+    const { provider, model } = modelForRole(config, "dm");
 
-    const loader = new DefaultResourceLoader({
-      cwd: process.cwd(),
-      agentDir: getAgentDir(),
-      systemPromptOverride: () => dmSystemPrompt,
-    });
-    await loader.reload();
-
-    const { session } = await createAgentSession({
+    this.session = await backend.createSession({
+      role: "dm",
+      systemPrompt: dmSystemPrompt,
+      provider,
       model,
       thinkingLevel: config.dmThinking,
-      authStorage,
-      modelRegistry,
-      resourceLoader: loader,
-      noTools: "all",
-      sessionManager: SessionManager.inMemory(),
-      settingsManager: SettingsManager.inMemory({
-        compaction: { enabled: true },
-      }),
     });
-
-    this.session = session;
     this.initialized = true;
   }
 
   async ask(prompt: string): Promise<string> {
     if (!this.initialized) throw new Error("DmSession not initialized");
-
-    let response = "";
-    const unsub = this.session.subscribe((event) => {
-      if (
-        event.type === "message_update" &&
-        event.assistantMessageEvent.type === "text_delta"
-      ) {
-        response += event.assistantMessageEvent.delta;
-      }
-    });
-
-    await this.session.prompt(prompt);
-    unsub();
-    return response.trim();
+    return await this.session.ask(prompt);
   }
 
   dispose(): void {

@@ -2,7 +2,7 @@
 
 ## 概览
 
-mud-pi 是一个由 Pi SDK 驱动的文字 MUD 引擎。世界观只提供开场设定，后续地图、剧情、NPC 全部由 DM（AI）在游戏中动态生成和累积。
+mud-pi 是一个由可配置 AI backend（Pi SDK 或 Codex CLI）驱动的文字 MUD 引擎。世界观只提供开场设定，后续地图、剧情、NPC 全部由 DM（AI）在游戏中动态生成和累积。
 
 ---
 
@@ -18,7 +18,7 @@ mud-pi 是一个由 Pi SDK 驱动的文字 MUD 引擎。世界观只提供开场
 [Engine]       ← 纯 TypeScript 代码
    │              职责：执行游戏规则，产生 EngineMutation[]
    ▼
-[DM]           ← Pi SDK，强模型（sonnet / opus），有记忆，有压缩
+[DM]           ← AI backend，强模型（Pi 或 Codex）
    │              职责：接收世界快照+事件 → 叙事文字 + WorldUpdate JSON
    ▼
 [apply + persist]
@@ -135,18 +135,18 @@ saves/{worldId}/
 
 ---
 
-## Pi DM 上下文窗口
+## DM 上下文窗口
 
-Pi session 三层，生命周期不同：
+DM backend 接收三层上下文。Pi backend 使用长会话并可自动压缩；Codex backend 通过每轮 `codex exec --ephemeral` 调用，因此主要依赖外部 state 注入保持连续性：
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │  SYSTEM PROMPT（永久）                                │
 │  lore.md 世界观 + DM 行为指令 + 输出格式要求          │
 ├──────────────────────────────────────────────────────┤
-│  CONVERSATION HISTORY（Pi 自动管理 + 自动压缩）       │
-│  每轮的 [user] prompt → [dm] narration+update        │
-│  超过阈值时 Pi 压缩为摘要，保留叙事连续性             │
+│  CONVERSATION HISTORY（backend 相关）                 │
+│  Pi: 长会话 + 自动压缩；Codex: 每轮 one-shot           │
+│  事实连续性不依赖内部记忆，见外部记忆策略              │
 ├──────────────────────────────────────────────────────┤
 │  CURRENT TURN PROMPT（每轮从 state.json 构建）        │
 │  见下方                                               │
@@ -210,22 +210,19 @@ Pi session 三层，生命周期不同：
 
 ---
 
-## Pi DM 压缩策略
+## 外部记忆策略
 
-Pi 的压缩丢失：逐字对话细节
-Pi 的压缩保留：叙事连续性摘要（"玩家探索了车站三节车厢，发现铁门有异"）
-
-因此游戏事实**不依赖** Pi 的内部记忆——`worldFacts` 和 `plotThreads` 从 `state.json` 外挂注入：
+游戏事实**不依赖** AI backend 的内部记忆。Pi backend 可以保留长会话并自动压缩；Codex backend 是 one-shot CLI 调用。为了两者都稳定，`worldFacts`、`plotThreads`、`roomState`、`player.profile` 每轮都从 `state.json` 重注入：
 
 ```
-Pi 内部记忆（会压缩）        外部记忆（每轮重注入）
-─────────────────────  +  ─────────────────────────
-叙事连续性、情感氛围         worldFacts（具体事实）
-角色关系的"感觉"             plotThreads（剧情线状态）
-DM 的创作风格记忆            roomState（当前房间信息）
+backend 内部上下文（可能压缩或不存在）  +  外部记忆（每轮重注入）
+───────────────────────────────  +  ─────────────────────────
+叙事连续性、情感氛围                  worldFacts（具体事实）
+角色关系的"感觉"                      plotThreads（剧情线状态）
+DM 的创作风格                          roomState + player.profile
 ```
 
-两层互补：Pi 负责"感觉对"，外部记忆负责"事实准确"。
+两层互补：backend 负责"感觉对"，外部记忆负责"事实准确"。
 
 ---
 
@@ -241,26 +238,28 @@ worlds/{pack-name}/
 
 ---
 
-## 后续设计：AI backend 抽象
+## AI backend 抽象
 
-当前实现直接使用 Pi SDK：DM 和 Interpreter 都通过 Pi 的认证与模型 registry 获取可用模型。
-
-下一步可以把 AI 调用层抽象为：
+DM、Interpreter、CharacterGenerator 都通过统一 `AiBackend` 接口调用模型：
 
 ```typescript
 interface AiBackend {
-  ask(input: {
-    systemPrompt: string;
-    userPrompt: string;
-    model?: string;
-    jsonSchemaPath?: string;
-  }): Promise<string>;
+  createSession(options: AiSessionOptions): Promise<AiSession>;
+  ask(options: AiPromptOptions): Promise<string>;
 }
 ```
 
-首选实现仍是 `PiBackend`；可选实现为 `CodexCliBackend`，用于本地已安装并登录 Codex 的用户。Codex backend 应通过 `codex exec --ephemeral --sandbox read-only --ask-for-approval never` 调用，并对 Interpreter 使用结构化 JSON 输出约束。
+当前实现：
 
-暂不把 Codex 放进首版主链路，避免把 agent CLI 行为当成稳定 LLM SDK。接入前需要验证：输出稳定性、启动延迟、sandbox 与本地 Codex 配置对游戏结果的影响。
+- `PiBackend`：使用 Pi SDK、Pi auth/model registry、无工具模式；DM 可保留长会话。
+- `CodexBackend`：使用本地 Codex CLI，执行 `codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval never`；每次调用只读、临时、不会修改项目文件。
+
+配置方式：
+
+- `AI_BACKEND=pi|codex` 设置默认 backend。
+- `DM_BACKEND`、`INTERPRETER_BACKEND`、`CHARACTER_BACKEND` 可按角色覆盖。
+- Pi backend 使用 `DM_PROVIDER`/`DM_MODEL` 和 `INTERPRETER_PROVIDER`/`INTERPRETER_MODEL`。
+- Codex backend 使用 `CODEX_MODEL` 或角色级 `CODEX_DM_MODEL`、`CODEX_INTERPRETER_MODEL`、`CODEX_CHARACTER_MODEL`；留空则使用 Codex 默认模型。
 
 ---
 
@@ -314,9 +313,12 @@ mud-pi/
 │   │   ├── commands.ts     # verb → EngineMutation[]
 │   │   └── world-loader.ts # worlds/*.json → 初始 WorldState
 │   ├── ai/
+│   │   ├── backend.ts             # AI backend 抽象与路由
+│   │   ├── pi-backend.ts          # Pi SDK backend
+│   │   ├── codex-backend.ts       # Codex CLI backend
 │   │   ├── character-generator.ts # 用户描述 → 主角候选
 │   │   ├── interpreter.ts         # 小模型：input → ParsedCommand
-│   │   ├── dm-session.ts          # Pi SDK DM 会话封装
+│   │   ├── dm-session.ts          # DM 会话封装
 │   │   ├── dm-prompt.ts           # state → DM prompt 字符串
 │   │   └── dm-parser.ts           # DM 返回 → DmMutation[]
 │   └── server/

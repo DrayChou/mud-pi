@@ -16,6 +16,7 @@ import { DmSession } from "./ai/dm-session.ts";
 import { buildDmPrompt } from "./ai/dm-prompt.ts";
 import { parseDmResponse } from "./ai/dm-parser.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
+import { backendLabel } from "./ai/backend.ts";
 import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 import type { EngineMutation } from "./types/mutations.ts";
 
@@ -243,8 +244,9 @@ async function main() {
     dm.init(config, worldPack),
     interpreter.init(config),
   ]);
-  print(`DM：${config.dmProvider}/${config.dmModel}`);
-  print(`指令解析：${config.interpreterProvider}/${config.interpreterModel}`);
+  print(`DM：${backendLabel(config, "dm")}`);
+  print(`指令解析：${backendLabel(config, "interpreter")}`);
+  print(`角色生成：${backendLabel(config, "character")}`);
 
   // Show starting room
   printRoom(state);

@@ -1,6 +1,6 @@
 # mud-pi
 
-AI 驱动的文字 MUD 引擎。世界观只提供开场设定，地图、剧情、NPC 由 DM（Pi AI）在游戏中动态生成。
+AI 驱动的文字 MUD 引擎。世界观只提供开场设定，地图、剧情、NPC 由 DM（Pi 或 Codex AI backend）在游戏中动态生成。
 
 ## 项目地址
 
@@ -8,7 +8,7 @@ AI 驱动的文字 MUD 引擎。世界观只提供开场设定，地图、剧情
 
 ## 前置条件
 
-使用本项目之前，用户需要先安装并配置好 [Pi](https://pi.dev)，并在 Pi 里完成大模型 provider 的登录或 API key 配置。本项目不会提交、保存或要求你把密钥写进仓库；这里只读取 Pi 已经配置好的模型能力。
+使用本项目之前，用户需要先安装并配置好至少一个 AI backend：默认推荐 [Pi](https://pi.dev)；如果客户只有 Codex，也可以使用本地 Codex CLI。本项目不会提交、保存或要求你把密钥写进仓库；只读取用户本机已经登录/配置好的 AI 能力。
 
 ### 1. 安装 Bun
 
@@ -37,7 +37,9 @@ curl -fsSL https://pi.dev/install.sh | sh
 - <https://pi.dev>
 - <https://www.npmjs.com/package/@earendil-works/pi-coding-agent>
 
-### 3. 配置 Pi 的大模型访问
+### 3. 配置 AI backend
+
+#### 方式 A：Pi（默认）
 
 先打开 Pi 并完成登录或 API key 配置：
 
@@ -54,6 +56,23 @@ pi
 
 也可以通过环境变量/API key 使用 Pi 支持的 provider。模型列表和自定义 provider 配置请参考 Pi 官方文档中的 Providers & Models / Custom Models。
 
+#### 方式 B：Codex CLI
+
+如果客户本地只有 Codex，先确认已安装并登录 Codex：
+
+```bash
+codex login
+codex doctor
+```
+
+然后在 `.env` 中设置：
+
+```env
+AI_BACKEND=codex
+# 可选：不填则使用 Codex 默认模型
+# CODEX_MODEL=gpt-5.1
+```
+
 ## 快速开始
 
 ```bash
@@ -63,7 +82,7 @@ bun install
 # 2. 复制配置模板
 cp .env.example .env
 
-# 3. 编辑 .env：只需要配置要使用的大模型和小模型名称
+# 3. 编辑 .env：选择 AI_BACKEND=pi 或 codex，并配置模型名称
 #    大模型负责 DM 叙事与世界推进；小模型负责玩家指令解析。
 
 # 4. 启动
@@ -88,25 +107,33 @@ bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
 
 ## 配置说明（.env）
 
-本项目通过 Pi SDK 调用模型。请先在 Pi 中完成 provider 登录或模型配置，然后在 `.env` 里填写要使用的 provider/model 名称即可。
+本项目支持 Pi SDK 和 Codex CLI 两种 backend。请先在对应工具中完成登录/模型配置，然后在 `.env` 中选择 backend 和模型名。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `DM_PROVIDER` | DM 大模型 provider | `openai-proxy` |
-| `DM_MODEL` | DM 大模型名称，负责叙事和世界推进 | `claude-sonnet-4.6` |
-| `INTERPRETER_PROVIDER` | 指令解析小模型 provider | `openai-proxy` |
-| `INTERPRETER_MODEL` | 指令解析小模型名称，负责把玩家输入解析为结构化命令 | `gpt-5.4-mini` |
+| `AI_BACKEND` | 默认 AI backend：`pi` 或 `codex` | `pi` |
+| `DM_BACKEND` | 可选：DM 单独使用的 backend | 继承 `AI_BACKEND` |
+| `INTERPRETER_BACKEND` | 可选：指令解析单独使用的 backend | 继承 `AI_BACKEND` |
+| `CHARACTER_BACKEND` | 可选：角色生成单独使用的 backend | 继承 `AI_BACKEND` |
+| `DM_PROVIDER` | Pi backend 下 DM 大模型 provider | `openai-proxy` |
+| `DM_MODEL` | Pi backend 下 DM 大模型名称 | `claude-sonnet-4.6` |
+| `INTERPRETER_PROVIDER` | Pi backend 下指令解析小模型 provider | `openai-proxy` |
+| `INTERPRETER_MODEL` | Pi backend 下指令解析小模型名称 | `gpt-5.4-mini` |
+| `CODEX_MODEL` | Codex backend 默认模型；留空使用 Codex 自己的默认模型 | — |
+| `CODEX_DM_MODEL` | 可选：Codex backend 下 DM 模型 | 继承 `CODEX_MODEL` |
+| `CODEX_INTERPRETER_MODEL` | 可选：Codex backend 下指令解析模型 | 继承 `CODEX_MODEL` |
+| `CODEX_CHARACTER_MODEL` | 可选：Codex backend 下角色生成模型 | 继承 `CODEX_MODEL` |
 | `DM_THINKING` | DM 思考深度：off/minimal/low/medium/high | `low` |
 | `WORLD_PACK` | 默认世界包 | `station-dream` |
 | `DEFAULT_PLAYER_NAME` | 默认玩家名 | `旅行者` |
 
-> 提示：可先运行 `pi`，再用 `/model` 查看当前账号可用的 provider 和 model id。`.env` 应保留在本地，不要提交。
+Pi 用户可先运行 `pi`，再用 `/model` 查看可用 provider/model id。Codex 用户可运行 `codex doctor` 检查本机登录和运行状态。`.env` 应保留在本地，不要提交。
 
 ## 隐私与安全
 
 - `.env`、本地存档 `saves/`、`node_modules/` 等已在 `.gitignore` 中排除。
 - 不要把 API key、OAuth token、cookie、私钥或本地 Pi 登录态提交到仓库。
-- Pi 的认证信息通常保存在用户本机的 Pi 配置目录中，本项目只通过 Pi SDK 读取可用模型，不把认证信息写入项目文件。
+- Pi / Codex 的认证信息保存在用户本机对应工具的配置目录中，本项目不会把认证信息写入项目文件。
 - 游戏存档可能包含玩家输入、生成剧情和测试内容，默认不提交。
 
 ## 游戏指令
@@ -164,9 +191,12 @@ src/
 │   ├── commands.ts     # 指令 → EngineMutation[]
 │   └── world-loader.ts # 世界包加载
 ├── ai/
+│   ├── backend.ts             # AI backend 抽象
+│   ├── pi-backend.ts          # Pi SDK backend
+│   ├── codex-backend.ts       # Codex CLI backend
 │   ├── character-generator.ts # 用户描述 → 主角候选
 │   ├── interpreter.ts         # 小模型：文本 → ParsedCommand
-│   ├── dm-session.ts          # Pi SDK DM 会话
+│   ├── dm-session.ts          # DM 会话封装
 │   ├── dm-prompt.ts           # 构建每轮 DM prompt
 │   └── dm-parser.ts           # DM 返回 → DmMutation[]
 └── main.ts             # CLI 入口
@@ -198,21 +228,15 @@ src/
 }
 ```
 
-## 下一步开发计划
+## Codex 兼容说明
 
-### 可选 Codex CLI backend
+当 `AI_BACKEND=codex` 时，mud-pi 会通过本地 `codex exec` 调用 Codex，并使用：
 
-当前版本默认使用 Pi SDK 作为 AI backend。后续计划增加可选的 Codex CLI backend：当用户本地已经安装并登录 Codex 时，可以用 `codex exec` 执行 DM 叙事或指令解析。
+```bash
+codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval never
+```
 
-设计方向：
-
-- 抽象统一的 `AiBackend` 接口，让 DM 和 Interpreter 不直接绑定 Pi SDK。
-- 保留 Pi 为默认 backend，Codex 作为可选 backend。
-- Codex 运行时使用非交互模式，例如 `codex exec --ephemeral --sandbox read-only --ask-for-approval never`。
-- 指令解析优先使用结构化输出能力，确保仍返回稳定 JSON。
-- 文档和配置中明确区分 Pi 模型名与 Codex 模型名，避免混用。
-
-暂不在当前版本启用 Codex，原因是 Codex CLI 是 agent 形态，不是纯 LLM SDK；需要额外验证启动延迟、输出稳定性、sandbox 行为和本地配置影响。
+这样 Codex 只作为只读 AI 生成 backend 使用，不会让 Codex 修改项目文件。DM、指令解析、角色生成都可以统一走 Codex；也可以用 `DM_BACKEND` / `INTERPRETER_BACKEND` / `CHARACTER_BACKEND` 混用 Pi 和 Codex。
 
 ## 开发命令
 
