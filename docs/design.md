@@ -298,6 +298,22 @@ interface AiBackend {
 
 ---
 
+## 世界包校验
+
+`loadWorldPackSummary()` 和 `loadWorldPack()` 都会先校验世界包，避免启动后才在运行时崩溃。校验项包括：
+
+- `bornPoint` 必须指向存在的 room。
+- room exits 必须指向存在的 room。
+- NPC `roomId` 必须存在。
+- item `inRoom` 必须存在。
+- `defaultProtagonistId` 必须存在于 `protagonists[]`。
+- protagonist id、room id、NPC id、item id、stat key 必须唯一。
+- `playerStats`、NPC stats、protagonist `initialStats` 只能使用 schema 中定义的 stat key，或 `{stat}Max` 形式的最大值 override。
+- stat 当前值必须落在 `min` 和对应最大值之间；若需要强 NPC，可显式写 `hpMax` / `mpMax` / `sanMax` 等 override。
+- protagonist `initialInventory` 只能引用存在的 item id。
+
+---
+
 ## 项目目录结构
 
 ```

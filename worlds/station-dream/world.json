@@ -135,7 +135,9 @@
       "stats": {
         "hp": 999,
         "attack": 0,
-        "defense": 99
+        "defense": 99,
+        "hpMax": 999,
+        "defenseMax": 99
       }
     },
     {

@@ -143,7 +143,9 @@
         "hp": 15,
         "san": 999,
         "luck": 0,
-        "brawl": 40
+        "brawl": 40,
+        "hpMax": 15,
+        "sanMax": 999
       }
     }
   ],

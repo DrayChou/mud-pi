@@ -148,6 +148,13 @@ async function createCustomCharacter(
       );
     } catch (e: any) {
       print(`\x1b[31m生成失败：${e.message}\x1b[0m`);
+      const fallback = (await rl.question("使用你的描述创建基础自定义角色？[Y/n]: ")).trim().toLowerCase();
+      if (fallback !== "n") {
+        return {
+          playerName: requestedName,
+          profile: createFallbackCustomProfile(requestedName, description),
+        };
+      }
       const retry = (await rl.question("重新输入描述？[Y/n]: ")).trim().toLowerCase();
       if (retry === "n") return null;
       continue;
@@ -173,6 +180,23 @@ async function createCustomCharacter(
       return { playerName: selected.name, profile: selected };
     }
   }
+}
+
+function createFallbackCustomProfile(
+  requestedName: string | undefined,
+  description: string
+): ProtagonistProfile {
+  const name = requestedName?.trim() || "自定义旅人";
+  return {
+    id: "custom_player",
+    name,
+    summary: description,
+    background: `你带着这个身份进入故事：${description}`,
+    motivation: "找出自己来到这里的原因，并决定接下来要成为什么样的人。",
+    initialStats: {},
+    initialInventory: [],
+    openingHook: `${name}站在故事的入口，关于自己的答案还没有写完。`,
+  };
 }
 
 async function askPlayerName(

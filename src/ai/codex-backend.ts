@@ -79,7 +79,7 @@ function runCodexExec(options: AiSessionOptions, prompt: string): string {
   return output;
 }
 
-function buildCodexCommand(options: AiSessionOptions, outputFile: string): string[] {
+export function buildCodexCommand(options: AiSessionOptions, outputFile: string): string[] {
   const cmd = [
     "codex",
     "exec",
@@ -105,7 +105,7 @@ function buildCodexCommand(options: AiSessionOptions, outputFile: string): strin
   return cmd;
 }
 
-function buildCodexPrompt(options: AiSessionOptions, userPrompt: string): string {
+export function buildCodexPrompt(options: AiSessionOptions, userPrompt: string): string {
   const jsonInstruction = options.jsonOnly
     ? "\n\n重要：最终回答只能输出可解析 JSON，不要 Markdown，不要解释。"
     : "";

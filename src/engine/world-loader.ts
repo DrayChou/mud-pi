@@ -12,6 +12,7 @@ import type {
   StatsSchema,
   WorldState,
 } from "../types/world.ts";
+import { validateWorldPack } from "./world-validator.ts";
 
 interface WorldPackNpc {
   id: string;
@@ -52,7 +53,9 @@ async function readWorldPack(packName: string): Promise<WorldPackJson> {
   const packDir = join(import.meta.dir, "../../worlds", packName);
   const f = Bun.file(join(packDir, "world.json"));
   if (!(await f.exists())) throw new Error(`World pack not found: worlds/${packName}/world.json`);
-  return (await f.json()) as WorldPackJson;
+  const pack = (await f.json()) as WorldPackJson;
+  validateWorldPack(pack, packName);
+  return pack;
 }
 
 export async function loadWorldPackSummary(packName: string): Promise<WorldPackSummary> {
@@ -116,9 +119,6 @@ export async function loadWorldPack(
   }
   if (protagonist) {
     for (const itemId of protagonist.initialInventory ?? []) {
-      if (!items[itemId]) {
-        throw new Error(`Protagonist ${protagonist.id} references unknown item: ${itemId}`);
-      }
       startingInventory.add(itemId);
     }
   }
