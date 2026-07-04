@@ -3,9 +3,11 @@
 // Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>]
 // ─────────────────────────────────────────────────────────────
 
-import { createInterface } from "node:readline";
+import { createInterface as createLineInterface } from "node:readline";
+import { createInterface as createPromptInterface } from "node:readline/promises";
 import { loadConfig } from "./config.ts";
-import { loadWorldPack } from "./engine/world-loader.ts";
+import type { Config } from "./config.ts";
+import { loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, saveState, appendTurn, initSave } from "./store/persist.ts";
 import { applyMutations, applyMutation } from "./store/apply.ts";
 import { executeCommand } from "./engine/commands.ts";
@@ -13,7 +15,8 @@ import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { buildDmPrompt } from "./ai/dm-prompt.ts";
 import { parseDmResponse } from "./ai/dm-parser.ts";
-import type { WorldState } from "./types/world.ts";
+import { generateProtagonistCandidates } from "./ai/character-generator.ts";
+import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 import type { EngineMutation } from "./types/mutations.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
@@ -56,6 +59,132 @@ function printRoom(state: WorldState) {
   console.log();
 }
 
+interface CharacterSetup {
+  playerName?: string;
+  profile?: ProtagonistProfile;
+}
+
+async function chooseCharacterSetup(
+  config: Config,
+  worldPack: string,
+  cliPlayerName?: string
+): Promise<CharacterSetup> {
+  const summary = await loadWorldPackSummary(worldPack);
+  const defaultProfile =
+    summary.protagonists.find((p) => p.id === summary.defaultProtagonistId) ??
+    summary.protagonists[0];
+
+  // Non-interactive runs keep the old behavior and avoid blocking stdin.
+  if (!process.stdin.isTTY) {
+    return { playerName: cliPlayerName, profile: defaultProfile };
+  }
+
+  print(`\n角色创建：${summary.name}`);
+  const rl = createPromptInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    while (true) {
+      if (summary.protagonists.length > 0) {
+        print("\n可选预设主角：");
+        summary.protagonists.forEach((p, index) => {
+          const marker = p.id === summary.defaultProtagonistId ? "（默认）" : "";
+          print(`  ${index + 1}. ${p.name}${marker} — ${p.summary}`);
+        });
+      } else {
+        print("\n这个世界包还没有预设主角。");
+      }
+      print("  C. 输入自己的角色描述，由 AI 生成候选主角");
+
+      const defaultIndex = defaultProfile
+        ? Math.max(0, summary.protagonists.findIndex((p) => p.id === defaultProfile.id)) + 1
+        : undefined;
+      const answer = (await rl.question(`选择主角 [${defaultIndex ?? "C"}]: `)).trim();
+      const choice = answer || (defaultIndex ? String(defaultIndex) : "C");
+
+      if (choice.toLowerCase() === "c") {
+        const custom = await createCustomCharacter(config, worldPack, rl, cliPlayerName);
+        if (custom) return custom;
+        continue;
+      }
+
+      const index = Number(choice) - 1;
+      const selected = summary.protagonists[index];
+      if (!selected) {
+        print("无效选择，请重新输入。");
+        continue;
+      }
+
+      const playerName = await askPlayerName(rl, cliPlayerName, selected.name);
+      return { playerName, profile: selected };
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+async function createCustomCharacter(
+  config: Config,
+  worldPack: string,
+  rl: ReturnType<typeof createPromptInterface>,
+  cliPlayerName?: string
+): Promise<CharacterSetup | null> {
+  while (true) {
+    const requestedName = await askPlayerName(rl, cliPlayerName, "");
+    const description = (await rl.question(
+      "描述你想扮演的角色（例如：一个逃避过去的调查员 / 想回家的通勤者；留空返回）: "
+    )).trim();
+    if (!description) return null;
+
+    print("\nAI 正在根据世界观生成候选主角...");
+    let candidates: ProtagonistProfile[];
+    try {
+      candidates = await generateProtagonistCandidates(
+        config,
+        worldPack,
+        description,
+        requestedName,
+        3
+      );
+    } catch (e: any) {
+      print(`\x1b[31m生成失败：${e.message}\x1b[0m`);
+      const retry = (await rl.question("重新输入描述？[Y/n]: ")).trim().toLowerCase();
+      if (retry === "n") return null;
+      continue;
+    }
+
+    print("\nAI 生成的候选主角：");
+    candidates.forEach((p, index) => {
+      print(`  ${index + 1}. ${p.name} — ${p.summary}`);
+      print(`     动机：${p.motivation}`);
+    });
+    print("  R. 重新输入描述");
+    print("  B. 返回预设主角列表");
+
+    while (true) {
+      const answer = (await rl.question("选择候选 [1]: ")).trim().toLowerCase() || "1";
+      if (answer === "r") break;
+      if (answer === "b") return null;
+      const selected = candidates[Number(answer) - 1];
+      if (!selected) {
+        print("无效选择，请重新输入。");
+        continue;
+      }
+      return { playerName: selected.name, profile: selected };
+    }
+  }
+}
+
+async function askPlayerName(
+  rl: ReturnType<typeof createPromptInterface>,
+  cliPlayerName: string | undefined,
+  defaultName: string
+): Promise<string | undefined> {
+  if (cliPlayerName?.trim()) return cliPlayerName.trim();
+  const suffix = defaultName ? `（留空使用：${defaultName}）` : "（可留空让 AI 命名）";
+  const answer = (await rl.question(`输入玩家姓名${suffix}: `)).trim();
+  return answer || undefined;
+}
+
 // ── Main loop ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -79,7 +208,6 @@ async function main() {
   }
 
   const worldPack = args.worldPack ?? config.worldPack;
-  const playerName = args.playerName ?? config.defaultPlayerName;
 
   // Load or create save
   let state: WorldState;
@@ -94,9 +222,16 @@ async function main() {
     state = loaded;
     print(`继续游戏（第 ${state.turn} 轮）`);
   } else {
-    print(`创建新游戏：世界包 [${worldPack}]，玩家 [${playerName}]`);
-    state = await loadWorldPack(worldPack, playerName);
+    print(`创建新游戏：世界包 [${worldPack}]`);
+    const character = await chooseCharacterSetup(config, worldPack, args.playerName);
+    state = await loadWorldPack(worldPack, {
+      fallbackPlayerName: config.defaultPlayerName,
+      playerName: character.playerName,
+      protagonistProfile: character.profile,
+    });
     await initSave(state);
+    print(`玩家：${state.player.name}`);
+    if (state.player.profile) print(`主角：${state.player.profile.summary}`);
     print(`存档ID：${state.worldId}`);
   }
 
@@ -125,7 +260,7 @@ async function main() {
   print(`\x1b[32m${opening.narration}\x1b[0m\n`);
 
   // ── Input loop ─────────────────────────────────────────────
-  const rl = createInterface({
+  const rl = createLineInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: "\x1b[1m> \x1b[0m",

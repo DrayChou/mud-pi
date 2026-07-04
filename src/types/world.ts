@@ -97,12 +97,24 @@ export interface WorldFact {
   createdTurn: number;
 }
 
+export interface ProtagonistProfile {
+  id: string;
+  name: string;
+  summary: string;
+  background: string;
+  motivation: string;
+  initialStats?: Stats;
+  initialInventory?: string[];
+  openingHook?: string;
+}
+
 export interface PlayerState {
   id: string;
   name: string;
   roomId: string;
   stats: Stats;       // e.g. { hp: 85, mp: 40, san: 60 }
   maxStats: Stats;    // e.g. { hpMax: 100, mpMax: 50, sanMax: 100 }
+  profile?: ProtagonistProfile; // snapshot from world pack at save creation
   inventory: string[];
   equipment: Record<string, string>;
 }

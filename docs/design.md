@@ -168,8 +168,15 @@ Pi session 三层，生命周期不同：
 出口：south → Compartment2, dream → DreamWorkshop
 房间内：阴影（alive），铁门
 
+[主角设定]                         ← 来自 state.player.profile（存档快照）
+姓名：林舟
+身份概括：想回家的乘客
+背景：你不确定自己为什么在车站醒来...
+动机：找到回家的站台
+
 [玩家状态]                         ← 来自 state.player
-HP: 85/100 | 背包: [锈铁刀, 车票]
+姓名：林舟
+生命: 85/100 | 背包: [锈铁刀, 车票]
 
 [本轮引擎事件]                     ← 来自本轮 engineMutations
 - 玩家检查了铁门
@@ -257,12 +264,13 @@ interface AiBackend {
 
 ---
 
-## 后续设计：故事包主角设定
+## 角色创建与故事包主角设定
 
-当前玩家只有名称和 schema 驱动的属性。为了让 DM 叙事更贴合角色，世界包后续应支持预设主角列表：
+新游戏启动后进入角色创建流程，而不是通过启动参数塞入主角信息。世界包可以提供预设主角列表；用户也可以输入自己的姓名和角色描述，由 AI 按世界观生成候选主角，再从候选中选择。
 
 ```json
 {
+  "defaultProtagonistId": "lost_commuter",
   "protagonists": [
     {
       "id": "lost_commuter",
@@ -278,13 +286,16 @@ interface AiBackend {
 }
 ```
 
-开局方式建议：
+开局流程：
 
-1. `--protagonist <id>` 直接选择预设。
-2. 未指定时显示故事包内的备选主角列表。
-3. 可选问答模式：AI 根据用户回答推荐预设主角或生成轻量变体。
+1. 加载世界包摘要与 `protagonists[]`。
+2. 展示故事包预设主角，默认选中 `defaultProtagonistId`。
+3. 用户可输入自己的玩家姓名覆盖预设名。
+4. 用户也可选择“输入自己的角色描述”，由 AI 生成 2-3 个符合世界观的候选主角。
+5. 用户从 AI 候选中再次选择，或返回重新输入描述。
+6. 最终主角作为 `state.player.profile` 快照保存，并在每轮 DM prompt 中注入。
 
-主角信息需要进入 `WorldState.player` 或独立 `playerProfile` 快照，并在每轮 DM prompt 的 `[玩家状态]` 中注入。存档保存的是创建时的主角快照，而不是只保存 `protagonistId`，这样故事包更新不会改变旧存档。
+存档保存的是创建时的主角快照，而不是只保存 `protagonistId`，这样故事包更新不会改变旧存档。
 
 ---
 
@@ -303,10 +314,11 @@ mud-pi/
 │   │   ├── commands.ts     # verb → EngineMutation[]
 │   │   └── world-loader.ts # worlds/*.json → 初始 WorldState
 │   ├── ai/
-│   │   ├── interpreter.ts  # 小模型：input → ParsedCommand
-│   │   ├── dm-session.ts   # Pi SDK DM 会话封装
-│   │   ├── dm-prompt.ts    # state → DM prompt 字符串
-│   │   └── dm-parser.ts    # DM 返回 → DmMutation[]
+│   │   ├── character-generator.ts # 用户描述 → 主角候选
+│   │   ├── interpreter.ts         # 小模型：input → ParsedCommand
+│   │   ├── dm-session.ts          # Pi SDK DM 会话封装
+│   │   ├── dm-prompt.ts           # state → DM prompt 字符串
+│   │   └── dm-parser.ts           # DM 返回 → DmMutation[]
 │   └── server/
 │       └── telnet.ts       # TCP/Telnet 服务器
 ├── worlds/

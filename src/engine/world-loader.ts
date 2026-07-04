@@ -3,7 +3,15 @@
 // ─────────────────────────────────────────────────────────────
 
 import { join } from "node:path";
-import type { WorldState, NpcDef, RoomDef, ItemDef, StatsSchema, Stats } from "../types/world.ts";
+import type {
+  ItemDef,
+  NpcDef,
+  ProtagonistProfile,
+  RoomDef,
+  Stats,
+  StatsSchema,
+  WorldState,
+} from "../types/world.ts";
 
 interface WorldPackNpc {
   id: string;
@@ -19,28 +27,66 @@ interface WorldPackJson {
   bornPoint: string;
   schema: StatsSchema;
   playerStats?: Record<string, number>; // overrides schema defaults
+  defaultProtagonistId?: string;
+  protagonists?: ProtagonistProfile[];
   rooms: Array<{ id: string; title: string; desc: string; exits: Record<string, string>; tags?: string[] }>;
   npcs: WorldPackNpc[];
   items: Array<{ id: string; name: string; desc: string; inRoom?: string; inInventory?: boolean }>;
 }
 
-export async function loadWorldPack(packName: string, playerName: string): Promise<WorldState> {
+export interface WorldPackSummary {
+  name: string;
+  bornPoint: string;
+  defaultProtagonistId: string | undefined;
+  protagonists: ProtagonistProfile[];
+}
+
+export interface LoadWorldPackOptions {
+  playerName?: string;
+  fallbackPlayerName: string;
+  protagonistId?: string;
+  protagonistProfile?: ProtagonistProfile;
+}
+
+async function readWorldPack(packName: string): Promise<WorldPackJson> {
   const packDir = join(import.meta.dir, "../../worlds", packName);
   const f = Bun.file(join(packDir, "world.json"));
   if (!(await f.exists())) throw new Error(`World pack not found: worlds/${packName}/world.json`);
+  return (await f.json()) as WorldPackJson;
+}
 
-  const pack = (await f.json()) as WorldPackJson;
+export async function loadWorldPackSummary(packName: string): Promise<WorldPackSummary> {
+  const pack = await readWorldPack(packName);
+  return {
+    name: pack.name,
+    bornPoint: pack.bornPoint,
+    defaultProtagonistId: pack.defaultProtagonistId,
+    protagonists: pack.protagonists ?? [],
+  };
+}
+
+export async function loadWorldPack(
+  packName: string,
+  options: LoadWorldPackOptions
+): Promise<WorldState> {
+  const pack = await readWorldPack(packName);
   const schema: StatsSchema = pack.schema;
+  const protagonist = options.protagonistProfile ?? resolveProtagonist(pack, options.protagonistId);
+  const playerName = options.playerName?.trim() || protagonist?.name || options.fallbackPlayerName;
 
   // Build default stats from schema
-  function buildDefaultStats(overrides?: Record<string, number>): Stats {
+  function buildDefaultStats(...overrides: Array<Record<string, number> | undefined>): Stats {
     const s: Stats = {};
-    for (const def of schema.defs) s[def.key] = overrides?.[def.key] ?? def.default;
+    for (const def of schema.defs) {
+      s[def.key] = firstNumber(overrides, def.key) ?? def.default;
+    }
     return s;
   }
-  function buildMaxStats(overrides?: Record<string, number>): Stats {
+  function buildMaxStats(...overrides: Array<Record<string, number> | undefined>): Stats {
     const s: Stats = {};
-    for (const def of schema.defs) s[`${def.key}Max`] = overrides?.[`${def.key}Max`] ?? def.max;
+    for (const def of schema.defs) {
+      s[`${def.key}Max`] = firstNumber(overrides, `${def.key}Max`) ?? def.max;
+    }
     return s;
   }
 
@@ -63,10 +109,18 @@ export async function loadWorldPack(packName: string, playerName: string): Promi
   }
 
   const items: Record<string, ItemDef> = {};
-  const startingInventory: string[] = [];
+  const startingInventory = new Set<string>();
   for (const i of pack.items) {
     items[i.id] = { id: i.id, name: i.name, desc: i.desc };
-    if (i.inInventory) startingInventory.push(i.id);
+    if (i.inInventory) startingInventory.add(i.id);
+  }
+  if (protagonist) {
+    for (const itemId of protagonist.initialInventory ?? []) {
+      if (!items[itemId]) {
+        throw new Error(`Protagonist ${protagonist.id} references unknown item: ${itemId}`);
+      }
+      startingInventory.add(itemId);
+    }
   }
 
   return {
@@ -78,9 +132,10 @@ export async function loadWorldPack(packName: string, playerName: string): Promi
       id: "player1",
       name: playerName,
       roomId: pack.bornPoint,
-      stats: buildDefaultStats(pack.playerStats),
-      maxStats: buildMaxStats(pack.playerStats),
-      inventory: startingInventory,
+      stats: buildDefaultStats(pack.playerStats, protagonist?.initialStats),
+      maxStats: buildMaxStats(pack.playerStats, protagonist?.initialStats),
+      profile: protagonist ? structuredClone(protagonist) : undefined,
+      inventory: [...startingInventory],
       equipment: {},
     },
     rooms,
@@ -89,4 +144,31 @@ export async function loadWorldPack(packName: string, playerName: string): Promi
     plotThreads: {},
     worldFacts: [],
   };
+}
+
+function resolveProtagonist(
+  pack: WorldPackJson,
+  explicitId: string | undefined
+): ProtagonistProfile | undefined {
+  const protagonists = pack.protagonists ?? [];
+  if (protagonists.length === 0) {
+    if (explicitId) throw new Error(`World pack has no protagonists: ${explicitId}`);
+    return undefined;
+  }
+
+  const id = explicitId || pack.defaultProtagonistId || protagonists[0]?.id;
+  const protagonist = protagonists.find((p) => p.id === id);
+  if (!protagonist) {
+    const available = protagonists.map((p) => p.id).join(", ");
+    throw new Error(`Protagonist not found: ${id}. Available: ${available}`);
+  }
+  return protagonist;
+}
+
+function firstNumber(overrides: Array<Record<string, number> | undefined>, key: string): number | undefined {
+  for (let i = overrides.length - 1; i >= 0; i--) {
+    const value = overrides[i]?.[key];
+    if (typeof value === "number") return value;
+  }
+  return undefined;
 }

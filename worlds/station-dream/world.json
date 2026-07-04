@@ -6,7 +6,9 @@
       {
         "key": "hp",
         "label": "生命",
-        "min": 0, "max": 100, "default": 100,
+        "min": 0,
+        "max": 100,
+        "default": 100,
         "display": "bar",
         "onDeplete": "death",
         "role": "pool"
@@ -14,7 +16,9 @@
       {
         "key": "attack",
         "label": "攻击",
-        "min": 0, "max": 50, "default": 8,
+        "min": 0,
+        "max": 50,
+        "default": 8,
         "display": "number",
         "onDeplete": "narrative",
         "role": "attack"
@@ -22,7 +26,9 @@
       {
         "key": "defense",
         "label": "防御",
-        "min": 0, "max": 30, "default": 2,
+        "min": 0,
+        "max": 30,
+        "default": 2,
         "display": "number",
         "onDeplete": "narrative",
         "role": "defense"
@@ -30,40 +36,93 @@
     ]
   },
   "playerStats": {
-    "hp": 100, "attack": 8, "defense": 2
+    "hp": 100,
+    "attack": 8,
+    "defense": 2
   },
+  "defaultProtagonistId": "lost_commuter",
+  "protagonists": [
+    {
+      "id": "lost_commuter",
+      "name": "迟归的通勤者",
+      "summary": "每天搭乘末班车的人，却忘了自己真正要回哪里。",
+      "background": "你总觉得自己错过了一站。口袋里的旧车票没有目的地，只有被汗水浸皱的边角。",
+      "motivation": "找回那个本该抵达的地方，以及你为何一直不愿下车。",
+      "initialStats": {
+        "hp": 100,
+        "attack": 6,
+        "defense": 3
+      },
+      "initialInventory": [
+        "ticket"
+      ],
+      "openingHook": "你在空白时刻表前醒来，手里攥着一张没有目的地的旧车票。"
+    },
+    {
+      "id": "runaway_guard",
+      "name": "逃班的列车员",
+      "summary": "曾属于这座车站的人，正在躲避一次永远不会结束的检票。",
+      "background": "你记得制服、哨声和一串不该打开的车厢钥匙，却记不起自己从哪一天开始逃跑。",
+      "motivation": "弄清列车为何停在这里，并确认自己是否仍是这座车站的一部分。",
+      "initialStats": {
+        "hp": 100,
+        "attack": 9,
+        "defense": 2
+      },
+      "initialInventory": [],
+      "openingHook": "售票员看见你时，第一次从窗口后抬起了头。"
+    }
+  ],
   "rooms": [
     {
       "id": "StationHall",
       "title": "车站入口大厅",
       "desc": "一个昏黄灯光下的老式车站大厅。斑驳的墙壁上挂着一块巨大的时刻表，所有的时间栏都是空白的。售票窗口后面坐着一个沉默的售票员。",
-      "exits": { "east": "Platform" },
-      "tags": ["indoor", "start"]
+      "exits": {
+        "east": "Platform"
+      },
+      "tags": [
+        "indoor",
+        "start"
+      ]
     },
     {
       "id": "Platform",
       "title": "候车站台",
       "desc": "一条长长的水泥站台，铁轨延伸向远处的黑暗中。空气中飘着淡淡的煤烟味，几盏锈蚀的路灯在风中摇曳。",
-      "exits": { "west": "StationHall", "north": "Compartment1" }
+      "exits": {
+        "west": "StationHall",
+        "north": "Compartment1"
+      }
     },
     {
       "id": "Compartment1",
       "title": "列车第一节车厢",
       "desc": "陈旧的绿皮列车车厢，木质座椅上积了厚厚的灰尘。窗外是永恒的黑夜，偶尔有什么东西掠过玻璃。",
-      "exits": { "south": "Platform", "north": "Compartment2" }
+      "exits": {
+        "south": "Platform",
+        "north": "Compartment2"
+      }
     },
     {
       "id": "Compartment2",
       "title": "列车第二节车厢",
       "desc": "这节车厢里的灯只有一盏还亮着，发出橘黄色的微光。角落里堆着一些遗落的行李，没有人来认领。",
-      "exits": { "south": "Compartment1", "north": "Compartment3" }
+      "exits": {
+        "south": "Compartment1",
+        "north": "Compartment3"
+      }
     },
     {
       "id": "Compartment3",
       "title": "列车第三节车厢",
       "desc": "列车的最后一节车厢，前方是一道焊死的铁门。墙上有人用指甲刻下：「每一次出发都是一次回归。」",
-      "exits": { "south": "Compartment2" },
-      "tags": ["key_location"]
+      "exits": {
+        "south": "Compartment2"
+      },
+      "tags": [
+        "key_location"
+      ]
     }
   ],
   "npcs": [
@@ -73,7 +132,11 @@
       "roomId": "StationHall",
       "personality": "神秘、惜字如金、说话充满隐喻，见过无数旅客，知道这趟列车通往每个人内心最深处",
       "hostile": false,
-      "stats": { "hp": 999, "attack": 0, "defense": 99 }
+      "stats": {
+        "hp": 999,
+        "attack": 0,
+        "defense": 99
+      }
     },
     {
       "id": "shadow",
@@ -81,7 +144,11 @@
       "roomId": "Compartment3",
       "personality": "黑暗中扭曲的人形轮廓，沉默而充满敌意，是某种迷失意志的化身",
       "hostile": true,
-      "stats": { "hp": 30, "attack": 8, "defense": 2 }
+      "stats": {
+        "hp": 30,
+        "attack": 8,
+        "defense": 2
+      }
     },
     {
       "id": "lost_soul",
@@ -89,7 +156,11 @@
       "roomId": "Compartment2",
       "personality": "茫然徘徊的灵魂，眼中只剩空洞，有时会攻击靠近的人",
       "hostile": true,
-      "stats": { "hp": 20, "attack": 5, "defense": 0 }
+      "stats": {
+        "hp": 20,
+        "attack": 5,
+        "defense": 0
+      }
     }
   ],
   "items": [

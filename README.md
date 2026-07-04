@@ -80,9 +80,11 @@ bun run dev
 
 ```bash
 bun start --world station-dream   # 指定世界包
-bun start --name 旅行者            # 指定玩家名
 bun start --save station-dream-001 # 读取存档
+bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
 ```
+
+新游戏启动后会进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。
 
 ## 配置说明（.env）
 
@@ -162,37 +164,25 @@ src/
 │   ├── commands.ts     # 指令 → EngineMutation[]
 │   └── world-loader.ts # 世界包加载
 ├── ai/
-│   ├── interpreter.ts  # 小模型：文本 → ParsedCommand
-│   ├── dm-session.ts   # Pi SDK DM 会话
-│   ├── dm-prompt.ts    # 构建每轮 DM prompt
-│   └── dm-parser.ts    # DM 返回 → DmMutation[]
+│   ├── character-generator.ts # 用户描述 → 主角候选
+│   ├── interpreter.ts         # 小模型：文本 → ParsedCommand
+│   ├── dm-session.ts          # Pi SDK DM 会话
+│   ├── dm-prompt.ts           # 构建每轮 DM prompt
+│   └── dm-parser.ts           # DM 返回 → DmMutation[]
 └── main.ts             # CLI 入口
 ```
 
-## 下一步开发计划
+## 角色创建
 
-### 1. 可选 Codex CLI backend
+每个世界包可以在 `world.json` 中提供 `defaultProtagonistId` 和 `protagonists[]`。新游戏启动后，玩家会在 CLI 中选择预设主角，或输入自己的姓名和角色描述，让 AI 生成符合世界观的候选角色。
 
-当前版本默认使用 Pi SDK 作为 AI backend。后续计划增加可选的 Codex CLI backend：当用户本地已经安装并登录 Codex 时，可以用 `codex exec` 执行 DM 叙事或指令解析。
+角色信息会保存到 `state.player.profile` 快照中，并注入每轮 DM prompt，使叙事能稳定参考角色背景、动机、初始物品和开场钩子。存档保存的是创建时的角色快照，因此故事包后续更新不会改变旧存档。
 
-设计方向：
-
-- 抽象统一的 `AiBackend` 接口，让 DM 和 Interpreter 不直接绑定 Pi SDK。
-- 保留 Pi 为默认 backend，Codex 作为可选 backend。
-- Codex 运行时使用非交互模式，例如 `codex exec --ephemeral --sandbox read-only --ask-for-approval never`。
-- 指令解析优先使用结构化输出能力，确保仍返回稳定 JSON。
-- 文档和配置中明确区分 Pi 模型名与 Codex 模型名，避免混用。
-
-暂不在初始版本启用 Codex，原因是 Codex CLI 是 agent 形态，不是纯 LLM SDK；需要额外验证启动延迟、输出稳定性、sandbox 行为和本地配置影响。
-
-### 2. 世界包主角信息 / 预设主角列表
-
-当前版本只使用 `DEFAULT_PLAYER_NAME` 创建玩家。后续计划让每个故事包提供主角设定，以便 DM 叙事更符合角色背景。
-
-推荐的世界包扩展方向：
+世界包主角示例：
 
 ```json
 {
+  "defaultProtagonistId": "lost_commuter",
   "protagonists": [
     {
       "id": "lost_commuter",
@@ -208,13 +198,21 @@ src/
 }
 ```
 
-计划支持三种开局方式：
+## 下一步开发计划
 
-1. `--protagonist <id>`：用户直接选择故事包内的预设主角。
-2. 未指定时展示备选主角列表，让用户手动选择。
-3. 可选问答模式：用户回答 2-4 个问题，由 AI 推荐一个预设主角或生成轻量变体。
+### 可选 Codex CLI backend
 
-主角信息应注入 DM prompt，使叙事能够稳定参考角色背景、动机、初始物品和开场钩子。存档中应保存最终选定的主角快照，避免故事包后续更新影响旧存档。
+当前版本默认使用 Pi SDK 作为 AI backend。后续计划增加可选的 Codex CLI backend：当用户本地已经安装并登录 Codex 时，可以用 `codex exec` 执行 DM 叙事或指令解析。
+
+设计方向：
+
+- 抽象统一的 `AiBackend` 接口，让 DM 和 Interpreter 不直接绑定 Pi SDK。
+- 保留 Pi 为默认 backend，Codex 作为可选 backend。
+- Codex 运行时使用非交互模式，例如 `codex exec --ephemeral --sandbox read-only --ask-for-approval never`。
+- 指令解析优先使用结构化输出能力，确保仍返回稳定 JSON。
+- 文档和配置中明确区分 Pi 模型名与 Codex 模型名，避免混用。
+
+暂不在当前版本启用 Codex，原因是 Codex CLI 是 agent 形态，不是纯 LLM SDK；需要额外验证启动延迟、输出稳定性、sandbox 行为和本地配置影响。
 
 ## 开发命令
 
@@ -222,5 +220,6 @@ src/
 bun install       # 安装依赖
 bun run dev       # watch 模式启动
 bun start         # 启动游戏
+bun test          # 运行测试
 bun run typecheck # TypeScript 类型检查
 ```

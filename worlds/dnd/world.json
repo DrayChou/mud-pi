@@ -6,7 +6,9 @@
       {
         "key": "hp",
         "label": "生命",
-        "min": 0, "max": 40, "default": 28,
+        "min": 0,
+        "max": 40,
+        "default": 28,
         "display": "bar",
         "onDeplete": "death",
         "role": "pool"
@@ -14,7 +16,9 @@
       {
         "key": "mp",
         "label": "法力",
-        "min": 0, "max": 20, "default": 12,
+        "min": 0,
+        "max": 20,
+        "default": 12,
         "display": "bar",
         "onDeplete": "incapacitate",
         "role": "pool"
@@ -22,7 +26,9 @@
       {
         "key": "str",
         "label": "力量",
-        "min": 1, "max": 20, "default": 14,
+        "min": 1,
+        "max": 20,
+        "default": 14,
         "display": "number",
         "onDeplete": "narrative",
         "role": "attack"
@@ -30,7 +36,9 @@
       {
         "key": "ac",
         "label": "护甲",
-        "min": 0, "max": 20, "default": 12,
+        "min": 0,
+        "max": 20,
+        "default": 12,
         "display": "number",
         "onDeplete": "narrative",
         "role": "defense"
@@ -38,33 +46,87 @@
     ]
   },
   "playerStats": {
-    "hp": 28, "mp": 12, "str": 14, "ac": 12
+    "hp": 28,
+    "mp": 12,
+    "str": 14,
+    "ac": 12
   },
+  "defaultProtagonistId": "road_sellsword",
+  "protagonists": [
+    {
+      "id": "road_sellsword",
+      "name": "莱昂·灰刃",
+      "summary": "靠悬赏过活的流浪剑士，只相信到手的金币和手里的短剑。",
+      "background": "你在暴雨夜抵达醉龙客栈，背包里只剩一把短剑和一张欠条。镇上的悬赏令看起来危险，但报酬足够诱人。",
+      "motivation": "接下悬赏，赚到离开这座小镇的钱。",
+      "initialStats": {
+        "hp": 32,
+        "mp": 4,
+        "str": 16,
+        "ac": 13
+      },
+      "initialInventory": [
+        "shortsword"
+      ],
+      "openingHook": "你推开酒馆门时，告示板上那张血字悬赏正好被风吹落。"
+    },
+    {
+      "id": "hedge_mage_apprentice",
+      "name": "米拉·烛页",
+      "summary": "半吊子的乡野法师学徒，追着一团禁忌绿光来到镇上。",
+      "background": "你的老师失踪前留下了一瓶治愈药水和一句警告：不要相信二楼走廊尽头的绿光。你当然来了。",
+      "motivation": "找回老师，证明自己不只是个会点小把戏的学徒。",
+      "initialStats": {
+        "hp": 22,
+        "mp": 18,
+        "str": 8,
+        "ac": 11
+      },
+      "initialInventory": [
+        "healing_potion"
+      ],
+      "openingHook": "二楼传来的低语念出了你的名字，而你还没告诉任何人。"
+    }
+  ],
   "rooms": [
     {
       "id": "TavernCommonRoom",
       "title": "醉龙客栈 — 公共大厅",
       "desc": "烟雾弥漫的酒馆，火炉劈啪作响。冒险者、商人和形迹可疑的人聚在一起。告示板上钉满了悬赏令，其中一张用鲜血写成。",
-      "exits": { "north": "TavernUpstairs", "east": "MarketSquare" },
-      "tags": ["start", "indoor", "safe"]
+      "exits": {
+        "north": "TavernUpstairs",
+        "east": "MarketSquare"
+      },
+      "tags": [
+        "start",
+        "indoor",
+        "safe"
+      ]
     },
     {
       "id": "TavernUpstairs",
       "title": "醉龙客栈 — 二楼走廊",
       "desc": "吱呀作响的木地板，油灯昏黄。某个房间的门缝下透出不自然的绿光，隐约能听见低语声。",
-      "exits": { "south": "TavernCommonRoom" }
+      "exits": {
+        "south": "TavernCommonRoom"
+      }
     },
     {
       "id": "MarketSquare",
       "title": "集市广场",
       "desc": "石板铺就的广场，商贩的叫卖声混杂着铁锤敲击声。广场中央立着一根木桩，最近有人被绑在上面。城卫军在周边巡逻，神色凝重。",
-      "exits": { "west": "TavernCommonRoom", "north": "CityGates" }
+      "exits": {
+        "west": "TavernCommonRoom",
+        "north": "CityGates"
+      }
     },
     {
       "id": "CityGates",
       "title": "城门",
       "desc": "厚重的铁木城门，半开着。城门卫睡着了——或者假装睡着。远处的荒野中隐约可见火光，数量远多于正常的营地。",
-      "exits": { "south": "MarketSquare" }
+      "exits": {
+        "south": "MarketSquare"
+      }
     }
   ],
   "npcs": [
@@ -74,7 +136,12 @@
       "roomId": "TavernCommonRoom",
       "personality": "粗犷热心，知道小镇所有八卦，对冒险者保持友善但收费公道",
       "hostile": false,
-      "stats": { "hp": 20, "mp": 0, "str": 16, "ac": 10 }
+      "stats": {
+        "hp": 20,
+        "mp": 0,
+        "str": 16,
+        "ac": 10
+      }
     },
     {
       "id": "goblin_scout",
@@ -82,7 +149,12 @@
       "roomId": "CityGates",
       "personality": "狡猾胆小，单独时会试图逃跑，被逼急了才会战斗",
       "hostile": true,
-      "stats": { "hp": 7, "mp": 0, "str": 8, "ac": 13 }
+      "stats": {
+        "hp": 7,
+        "mp": 0,
+        "str": 8,
+        "ac": 13
+      }
     },
     {
       "id": "mysterious_mage",
@@ -90,7 +162,12 @@
       "roomId": "TavernUpstairs",
       "personality": "冷漠高傲，正在研究某种禁忌魔法，不喜欢被打扰",
       "hostile": false,
-      "stats": { "hp": 12, "mp": 30, "str": 8, "ac": 11 }
+      "stats": {
+        "hp": 12,
+        "mp": 30,
+        "str": 8,
+        "ac": 11
+      }
     }
   ],
   "items": [

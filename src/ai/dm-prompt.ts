@@ -74,9 +74,22 @@ export function buildDmPrompt(
     parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${npcBlock}`);
   }
 
+  // ── Protagonist profile ──
+  if (state.player.profile) {
+    const p = state.player.profile;
+    parts.push(
+      `[主角设定]\n` +
+        `姓名：${state.player.name}\n` +
+        `身份概括：${p.summary}\n` +
+        `背景：${p.background}\n` +
+        `动机：${p.motivation}` +
+        (p.openingHook ? `\n开场钩子：${p.openingHook}` : "")
+    );
+  }
+
   // ── Player state ──
   const inv = state.player.inventory.map((id) => state.items[id]?.name ?? id).join("，");
-  parts.push(`[玩家状态]\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
+  parts.push(`[玩家状态]\n姓名：${state.player.name}\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
 
   // ── Combat context ──
   if (combatContext) {
