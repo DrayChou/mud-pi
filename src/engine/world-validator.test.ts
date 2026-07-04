@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { loadWorldPack, loadWorldPackSummary } from "./world-loader.ts";
+import { listWorldPacks, loadWorldPack, loadWorldPackSummary } from "./world-loader.ts";
 import { validateWorldPack, type WorldPackForValidation } from "./world-validator.ts";
 
 const BUILTIN_WORLDS = ["station-dream", "cthulhu", "dnd", "elysium"];
 
 describe("validateWorldPack", () => {
+  test("lists built-in world packs for startup selection", async () => {
+    const worlds = await listWorldPacks();
+    expect(worlds.map((w) => w.id)).toEqual(["cthulhu", "dnd", "elysium", "station-dream"]);
+    expect(worlds.every((w) => w.name.length > 0)).toBe(true);
+  });
   test("all built-in world packs validate and load", async () => {
     for (const world of BUILTIN_WORLDS) {
       const summary = await loadWorldPackSummary(world);

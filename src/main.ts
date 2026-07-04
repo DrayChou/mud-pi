@@ -7,7 +7,7 @@ import { createInterface as createLineInterface } from "node:readline";
 import { createInterface as createPromptInterface } from "node:readline/promises";
 import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
-import { loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
+import { listWorldPacks, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, saveState, appendTurn, initSave } from "./store/persist.ts";
 import { applyMutations, applyMutation } from "./store/apply.ts";
 import { executeCommand } from "./engine/commands.ts";
@@ -63,6 +63,40 @@ function printRoom(state: WorldState) {
 interface CharacterSetup {
   playerName?: string;
   profile?: ProtagonistProfile;
+}
+
+async function chooseWorldPack(defaultWorldPack: string, cliWorldPack?: string): Promise<string> {
+  if (cliWorldPack?.trim()) return cliWorldPack.trim();
+
+  // Non-interactive runs use .env/default config and avoid blocking stdin.
+  if (!process.stdin.isTTY) return defaultWorldPack;
+
+  const worlds = await listWorldPacks();
+  if (worlds.length === 0) throw new Error("No world packs found in worlds/");
+
+  const defaultIndex = Math.max(0, worlds.findIndex((w) => w.id === defaultWorldPack)) + 1;
+  const rl = createPromptInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    while (true) {
+      print("\n选择剧本：");
+      worlds.forEach((world, index) => {
+        const marker = world.id === defaultWorldPack ? "（默认）" : "";
+        print(`  ${index + 1}. ${world.name}${marker} [${world.id}]`);
+      });
+
+      const answer = (await rl.question(`选择剧本 [${defaultIndex || 1}]: `)).trim();
+      const index = answer ? Number(answer) - 1 : Math.max(0, defaultIndex - 1);
+      const selected = worlds[index];
+      if (!selected) {
+        print("无效选择，请重新输入。");
+        continue;
+      }
+      return selected.id;
+    }
+  } finally {
+    rl.close();
+  }
 }
 
 async function chooseCharacterSetup(
@@ -232,8 +266,6 @@ async function main() {
     process.exit(1);
   }
 
-  const worldPack = args.worldPack ?? config.worldPack;
-
   // Load or create save
   let state: WorldState;
 
@@ -247,6 +279,7 @@ async function main() {
     state = loaded;
     print(`继续游戏（第 ${state.turn} 轮）`);
   } else {
+    const worldPack = await chooseWorldPack(config.worldPack, args.worldPack);
     print(`创建新游戏：世界包 [${worldPack}]`);
     const character = await chooseCharacterSetup(config, worldPack, args.playerName);
     state = await loadWorldPack(worldPack, {
@@ -265,7 +298,7 @@ async function main() {
   const dm = new DmSession();
   const interpreter = new Interpreter();
   await Promise.all([
-    dm.init(config, worldPack),
+    dm.init(config, state.worldPack),
     interpreter.init(config),
   ]);
   print(`DM：${backendLabel(config, "dm")}`);

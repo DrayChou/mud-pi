@@ -2,6 +2,7 @@
 // world-loader.ts — load a world pack into initial WorldState
 // ─────────────────────────────────────────────────────────────
 
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   ItemDef,
@@ -36,6 +37,7 @@ interface WorldPackJson {
 }
 
 export interface WorldPackSummary {
+  id: string;
   name: string;
   bornPoint: string;
   defaultProtagonistId: string | undefined;
@@ -58,9 +60,25 @@ async function readWorldPack(packName: string): Promise<WorldPackJson> {
   return pack;
 }
 
+export async function listWorldPacks(): Promise<WorldPackSummary[]> {
+  const worldsDir = join(import.meta.dir, "../../worlds");
+  const entries = await readdir(worldsDir, { withFileTypes: true });
+  const summaries: WorldPackSummary[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const worldFile = Bun.file(join(worldsDir, entry.name, "world.json"));
+    if (!(await worldFile.exists())) continue;
+    summaries.push(await loadWorldPackSummary(entry.name));
+  }
+
+  return summaries.sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export async function loadWorldPackSummary(packName: string): Promise<WorldPackSummary> {
   const pack = await readWorldPack(packName);
   return {
+    id: packName,
     name: pack.name,
     bornPoint: pack.bornPoint,
     defaultProtagonistId: pack.defaultProtagonistId,

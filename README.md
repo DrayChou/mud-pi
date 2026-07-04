@@ -86,6 +86,7 @@ cp .env.example .env
 #    大模型负责 DM 叙事与世界推进；小模型负责玩家指令解析。
 
 # 4. 启动
+# 新游戏会先选择剧本，再创建角色
 bun start
 ```
 
@@ -103,7 +104,7 @@ bun start --save station-dream-001 # 读取存档
 bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
 ```
 
-新游戏启动后会进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。
+新游戏启动后会先进入剧本选择流程；选择剧本后再进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。非交互环境会自动使用 `.env` 中的 `WORLD_PACK`。
 
 ## 配置说明（.env）
 
@@ -124,7 +125,7 @@ bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
 | `CODEX_INTERPRETER_MODEL` | 可选：Codex backend 下指令解析模型 | 继承 `CODEX_MODEL` |
 | `CODEX_CHARACTER_MODEL` | 可选：Codex backend 下角色生成模型 | 继承 `CODEX_MODEL` |
 | `DM_THINKING` | DM 思考深度：off/minimal/low/medium/high | `low` |
-| `WORLD_PACK` | 默认世界包 | `station-dream` |
+| `WORLD_PACK` | 默认世界包；非交互启动或直接回车时使用 | `station-dream` |
 | `DEFAULT_PLAYER_NAME` | 默认玩家名 | `旅行者` |
 
 Pi 用户可先运行 `pi`，再用 `/model` 查看可用 provider/model id。Codex 用户可运行 `codex doctor` 检查本机登录和运行状态。`.env` 应保留在本地，不要提交。

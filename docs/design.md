@@ -234,7 +234,7 @@ worlds/{pack-name}/
 └── lore.md       ← 世界观文档，直接注入 Pi system prompt
 ```
 
-启动时 `--world station-dream` 加载对应世界包，创建新存档。
+启动新游戏时，如果没有传 `--world` 且当前是交互式 TTY，会先枚举 `worlds/*/world.json` 并让用户选择剧本；非交互环境使用 `.env` 的 `WORLD_PACK`，避免脚本/CI 卡住。
 
 ---
 
@@ -287,12 +287,13 @@ interface AiBackend {
 
 开局流程：
 
-1. 加载世界包摘要与 `protagonists[]`。
-2. 展示故事包预设主角，默认选中 `defaultProtagonistId`。
-3. 用户可输入自己的玩家姓名覆盖预设名。
-4. 用户也可选择“输入自己的角色描述”，由 AI 生成 2-3 个符合世界观的候选主角。
-5. 用户从 AI 候选中再次选择，或返回重新输入描述。
-6. 最终主角作为 `state.player.profile` 快照保存，并在每轮 DM prompt 中注入。
+1. 如果没有传 `--world`，先展示可用剧本列表，用户选择剧本。
+2. 加载所选世界包摘要与 `protagonists[]`。
+3. 展示故事包预设主角，默认选中 `defaultProtagonistId`。
+4. 用户可输入自己的玩家姓名覆盖预设名。
+5. 用户也可选择“输入自己的角色描述”，由 AI 生成 2-3 个符合世界观的候选主角。
+6. 用户从 AI 候选中再次选择，或返回重新输入描述。
+7. 最终主角作为 `state.player.profile` 快照保存，并在每轮 DM prompt 中注入。
 
 存档保存的是创建时的主角快照，而不是只保存 `protagonistId`，这样故事包更新不会改变旧存档。
 
