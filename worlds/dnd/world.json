@@ -1,0 +1,116 @@
+{
+  "name": "龙与地下城",
+  "bornPoint": "TavernCommonRoom",
+  "schema": {
+    "defs": [
+      {
+        "key": "hp",
+        "label": "生命",
+        "min": 0, "max": 40, "default": 28,
+        "display": "bar",
+        "onDeplete": "death",
+        "role": "pool"
+      },
+      {
+        "key": "mp",
+        "label": "法力",
+        "min": 0, "max": 20, "default": 12,
+        "display": "bar",
+        "onDeplete": "incapacitate",
+        "role": "pool"
+      },
+      {
+        "key": "str",
+        "label": "力量",
+        "min": 1, "max": 20, "default": 14,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      },
+      {
+        "key": "ac",
+        "label": "护甲",
+        "min": 0, "max": 20, "default": 12,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "defense"
+      }
+    ]
+  },
+  "playerStats": {
+    "hp": 28, "mp": 12, "str": 14, "ac": 12
+  },
+  "rooms": [
+    {
+      "id": "TavernCommonRoom",
+      "title": "醉龙客栈 — 公共大厅",
+      "desc": "烟雾弥漫的酒馆，火炉劈啪作响。冒险者、商人和形迹可疑的人聚在一起。告示板上钉满了悬赏令，其中一张用鲜血写成。",
+      "exits": { "north": "TavernUpstairs", "east": "MarketSquare" },
+      "tags": ["start", "indoor", "safe"]
+    },
+    {
+      "id": "TavernUpstairs",
+      "title": "醉龙客栈 — 二楼走廊",
+      "desc": "吱呀作响的木地板，油灯昏黄。某个房间的门缝下透出不自然的绿光，隐约能听见低语声。",
+      "exits": { "south": "TavernCommonRoom" }
+    },
+    {
+      "id": "MarketSquare",
+      "title": "集市广场",
+      "desc": "石板铺就的广场，商贩的叫卖声混杂着铁锤敲击声。广场中央立着一根木桩，最近有人被绑在上面。城卫军在周边巡逻，神色凝重。",
+      "exits": { "west": "TavernCommonRoom", "north": "CityGates" }
+    },
+    {
+      "id": "CityGates",
+      "title": "城门",
+      "desc": "厚重的铁木城门，半开着。城门卫睡着了——或者假装睡着。远处的荒野中隐约可见火光，数量远多于正常的营地。",
+      "exits": { "south": "MarketSquare" }
+    }
+  ],
+  "npcs": [
+    {
+      "id": "barkeep",
+      "name": "酒馆老板加雷斯",
+      "roomId": "TavernCommonRoom",
+      "personality": "粗犷热心，知道小镇所有八卦，对冒险者保持友善但收费公道",
+      "hostile": false,
+      "stats": { "hp": 20, "mp": 0, "str": 16, "ac": 10 }
+    },
+    {
+      "id": "goblin_scout",
+      "name": "哥布林斥候",
+      "roomId": "CityGates",
+      "personality": "狡猾胆小，单独时会试图逃跑，被逼急了才会战斗",
+      "hostile": true,
+      "stats": { "hp": 7, "mp": 0, "str": 8, "ac": 13 }
+    },
+    {
+      "id": "mysterious_mage",
+      "name": "神秘法师",
+      "roomId": "TavernUpstairs",
+      "personality": "冷漠高傲，正在研究某种禁忌魔法，不喜欢被打扰",
+      "hostile": false,
+      "stats": { "hp": 12, "mp": 30, "str": 8, "ac": 11 }
+    }
+  ],
+  "items": [
+    {
+      "id": "shortsword",
+      "name": "短剑",
+      "desc": "一把标准的冒险者短剑，刃口锋利，握柄磨损。",
+      "inInventory": true
+    },
+    {
+      "id": "healing_potion",
+      "name": "治愈药水",
+      "desc": "红色的玻璃瓶，饮用后恢复 2d4+2 点生命值。",
+      "inInventory": true
+    },
+    {
+      "id": "bounty_notice",
+      "name": "悬赏令",
+      "desc": "「悬赏：追踪并消灭盘踞在枯树林的哥布林首领，赏金 50 金币。—镇长印」",
+      "inRoom": "TavernCommonRoom"
+    }
+  ]
+}

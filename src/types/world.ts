@@ -1,0 +1,121 @@
+// ─────────────────────────────────────────────────────────────
+// World State — the canonical snapshot stored in state.json
+// ─────────────────────────────────────────────────────────────
+
+export type RoomSource = "static" | "dm_generated";
+
+// ── Stats Schema (defined in world.json, drives all attribute behavior) ────
+
+export type StatDisplayStyle = "bar" | "number" | "hidden";
+export type StatLossEffect =
+  | "death"      // reach 0 → player/NPC dies
+  | "incapacitate" // reach 0 → unable to act
+  | "narrative"; // reach 0 → DM decides what happens (no engine effect)
+
+export interface StatDef {
+  key: string;            // internal key, e.g. "hp", "san", "mp"
+  label: string;          // display name, e.g. "生命", "理智", "法力"
+  min: number;            // usually 0
+  max: number;            // default max, overridable per-entity
+  default: number;        // starting value
+  display: StatDisplayStyle;
+  onDeplete: StatLossEffect;
+  // For combat: which stat the entity uses to deal/receive damage
+  // "attack" stat contributes to outgoing damage
+  // "defense" stat reduces incoming damage
+  role?: "pool" | "attack" | "defense";
+}
+
+export interface StatsSchema {
+  defs: StatDef[];
+}
+
+// ── Runtime stat bag — key → current value ────────────────────────────────
+
+export type Stats = Record<string, number>;
+
+// Helper: build a Stats object from defaults in the schema
+export function defaultStats(schema: StatsSchema): Stats {
+  const s: Stats = {};
+  for (const def of schema.defs) {
+    s[def.key] = def.default;
+  }
+  return s;
+}
+
+export function maxStats(schema: StatsSchema): Stats {
+  const s: Stats = {};
+  for (const def of schema.defs) {
+    s[`${def.key}Max`] = def.max;
+  }
+  return s;
+}
+
+// ── Entity definitions ─────────────────────────────────────────────────────
+
+export interface RoomDef {
+  id: string;
+  title: string;
+  desc: string;
+  exits: Record<string, string>;
+  source: RoomSource;
+  createdTurn?: number;
+  tags?: string[];
+}
+
+export interface NpcDef {
+  id: string;
+  name: string;
+  roomId: string;
+  alive: boolean;
+  personality: string;
+  source: RoomSource;
+  stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
+  maxStats: Stats;    // e.g. { hpMax: 30 }
+  hostile: boolean;
+}
+
+export interface ItemDef {
+  id: string;
+  name: string;
+  desc: string;
+}
+
+export type PlotStatus = "active" | "resolved" | "dormant";
+
+export interface PlotThread {
+  id: string;
+  title: string;
+  status: PlotStatus;
+  summary: string;
+  updatedTurn: number;
+}
+
+export interface WorldFact {
+  text: string;
+  tile: string | null;
+  createdTurn: number;
+}
+
+export interface PlayerState {
+  id: string;
+  name: string;
+  roomId: string;
+  stats: Stats;       // e.g. { hp: 85, mp: 40, san: 60 }
+  maxStats: Stats;    // e.g. { hpMax: 100, mpMax: 50, sanMax: 100 }
+  inventory: string[];
+  equipment: Record<string, string>;
+}
+
+export interface WorldState {
+  worldId: string;
+  worldPack: string;
+  turn: number;
+  schema: StatsSchema; // loaded from world.json, stays constant
+  player: PlayerState;
+  rooms: Record<string, RoomDef>;
+  npcs: Record<string, NpcDef>;
+  items: Record<string, ItemDef>;
+  plotThreads: Record<string, PlotThread>;
+  worldFacts: WorldFact[];
+}

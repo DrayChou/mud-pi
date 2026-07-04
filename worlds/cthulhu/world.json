@@ -1,0 +1,102 @@
+{
+  "name": "克苏鲁的呼唤",
+  "bornPoint": "ArkhamStreet",
+  "schema": {
+    "defs": [
+      {
+        "key": "hp",
+        "label": "体力",
+        "min": 0, "max": 10, "default": 10,
+        "display": "bar",
+        "onDeplete": "death",
+        "role": "pool"
+      },
+      {
+        "key": "san",
+        "label": "理智",
+        "min": 0, "max": 100, "default": 80,
+        "display": "bar",
+        "onDeplete": "incapacitate",
+        "role": "pool"
+      },
+      {
+        "key": "luck",
+        "label": "幸运",
+        "min": 0, "max": 100, "default": 50,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      },
+      {
+        "key": "brawl",
+        "label": "肉搏",
+        "min": 0, "max": 100, "default": 25,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      }
+    ]
+  },
+  "playerStats": {
+    "hp": 10, "san": 80, "luck": 50, "brawl": 25
+  },
+  "rooms": [
+    {
+      "id": "ArkhamStreet",
+      "title": "阿卡姆 — 黑暗大街",
+      "desc": "1920年代的新英格兰小城。煤气灯在雾中摇曳，鹅卵石街道上几乎看不见行人。报纸头条写着最近的失踪事件，墨迹仿佛还未干透。",
+      "exits": { "north": "MiskULibrary", "east": "HarborsideWharf" },
+      "tags": ["start", "outdoor"]
+    },
+    {
+      "id": "MiskULibrary",
+      "title": "米斯卡托尼克大学图书馆",
+      "desc": "书架延伸至黑暗中，古老的皮革与霉味混杂。某些书架用铁链锁着，标签上写着「限制阅览」。馆员的眼睛似乎比常人更大一些。",
+      "exits": { "south": "ArkhamStreet" }
+    },
+    {
+      "id": "HarborsideWharf",
+      "title": "港口码头",
+      "desc": "腐烂的木板，停泊的渔船。夜里可以听到从深海传来的击打声，节奏不像任何已知的生命形式。水面上漂着某种不明的黏液。",
+      "exits": { "west": "ArkhamStreet" }
+    }
+  ],
+  "npcs": [
+    {
+      "id": "librarian",
+      "name": "图书馆员亨利",
+      "roomId": "MiskULibrary",
+      "personality": "神经质、博学、知道太多不该知道的事，每次被追问都会出汗",
+      "hostile": false,
+      "stats": { "hp": 4, "san": 20, "luck": 30, "brawl": 10 }
+    },
+    {
+      "id": "deep_one",
+      "name": "深渊之物",
+      "roomId": "HarborsideWharf",
+      "personality": "古老的海洋生命，半鱼半人，其存在本身就能侵蚀理智，它不攻击体力，只攻击san",
+      "hostile": true,
+      "stats": { "hp": 15, "san": 999, "luck": 0, "brawl": 40 }
+    }
+  ],
+  "items": [
+    {
+      "id": "newspaper",
+      "name": "阿卡姆公报",
+      "desc": "头版：「第三名教授神秘失踪，警方排除谋杀可能」。",
+      "inInventory": true
+    },
+    {
+      "id": "revolver",
+      "name": "左轮手枪",
+      "desc": "一把.38口径左轮，六发子弹，枪管还有烧焦的痕迹。",
+      "inRoom": "HarborsideWharf"
+    },
+    {
+      "id": "necronomicon_fragment",
+      "name": "死灵之书残页",
+      "desc": "烧焦的羊皮纸，上面的文字似乎在移动。阅读它会损耗理智，但也许能揭示某些秘密。",
+      "inRoom": "MiskULibrary"
+    }
+  ]
+}

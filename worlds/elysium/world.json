@@ -1,0 +1,133 @@
+{
+  "name": "极乐迪斯科",
+  "bornPoint": "HotelRoom",
+  "schema": {
+    "defs": [
+      {
+        "key": "health",
+        "label": "健康",
+        "min": 0, "max": 10, "default": 5,
+        "display": "bar",
+        "onDeplete": "death",
+        "role": "pool"
+      },
+      {
+        "key": "morale",
+        "label": "士气",
+        "min": 0, "max": 10, "default": 3,
+        "display": "bar",
+        "onDeplete": "incapacitate",
+        "role": "pool"
+      },
+      {
+        "key": "intellect",
+        "label": "智识",
+        "min": 0, "max": 10, "default": 4,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      },
+      {
+        "key": "physique",
+        "label": "体魄",
+        "min": 0, "max": 10, "default": 3,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "defense"
+      },
+      {
+        "key": "motorics",
+        "label": "运动",
+        "min": 0, "max": 10, "default": 3,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      },
+      {
+        "key": "psyche",
+        "label": "感知",
+        "min": 0, "max": 10, "default": 4,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "attack"
+      }
+    ]
+  },
+  "playerStats": {
+    "health": 5, "morale": 3,
+    "intellect": 4, "physique": 3, "motorics": 3, "psyche": 4
+  },
+  "rooms": [
+    {
+      "id": "HotelRoom",
+      "title": "廉价旅馆 — 221号房",
+      "desc": "你醒来，什么都不记得。地板上散落着衣服和空瓶子。镜子里的人看起来像个灾难。窗外是一座叫马蒂内斯的城市，灰蒙蒙的，带着工业时代的锈迹。",
+      "exits": { "south": "HotelLobby" },
+      "tags": ["start", "indoor"]
+    },
+    {
+      "id": "HotelLobby",
+      "title": "旅馆大厅",
+      "desc": "破旧的前台，招待员用一种奇怪的眼神看你。墙上有一张失踪人口的通缉令。咖啡机发出嘶嘶声，像在抱怨什么。",
+      "exits": { "north": "HotelRoom", "east": "RueDesEmbassades" }
+    },
+    {
+      "id": "RueDesEmbassades",
+      "title": "大使馆街",
+      "desc": "被封锁线围起来的巷子。一具尸体挂在树上已经三天了，没人来处理。警察局的封锁带在风中飘动。路边的罢工工人用煤炭取暖，眼神空洞又坚定。",
+      "exits": { "west": "HotelLobby", "north": "HarbourDocks" }
+    },
+    {
+      "id": "HarbourDocks",
+      "title": "港口码头",
+      "desc": "锈蚀的起重机，半沉的驳船。码头工人的罢工已经持续了第四十二天。海风里有盐和石油的味道，还有某种说不清楚的绝望。",
+      "exits": { "south": "RueDesEmbassades" }
+    }
+  ],
+  "npcs": [
+    {
+      "id": "kim_kitsuragi",
+      "name": "金·纪苍木中尉",
+      "roomId": "RueDesEmbassades",
+      "personality": "你的搭档，洛桑方法论警官，冷静、实际、对你的失忆保持礼貌的困惑，但仍然尽职地配合调查",
+      "hostile": false,
+      "stats": { "health": 8, "morale": 7, "intellect": 7, "physique": 5, "motorics": 6, "psyche": 5 }
+    },
+    {
+      "id": "innkeeper",
+      "name": "旅馆招待员西尔维",
+      "roomId": "HotelLobby",
+      "personality": "疲惫、愤世嫉俗，因为你欠了三天房费而对你心存怨恨，但不至于不友好",
+      "hostile": false,
+      "stats": { "health": 5, "morale": 4, "intellect": 4, "physique": 3, "motorics": 3, "psyche": 4 }
+    },
+    {
+      "id": "strike_leader",
+      "name": "罢工领袖尤斯波夫",
+      "roomId": "HarbourDocks",
+      "personality": "意志坚定的工会组织者，对警察高度警惕，但如果你能证明自己站在工人一边，他会提供帮助",
+      "hostile": false,
+      "stats": { "health": 7, "morale": 9, "intellect": 6, "physique": 7, "motorics": 4, "psyche": 5 }
+    }
+  ],
+  "items": [
+    {
+      "id": "badge",
+      "name": "警徽",
+      "desc": "皱巴巴的警察徽章。上面的名字——哈里·杜博瓦——对你没有任何意义。",
+      "inInventory": true
+    },
+    {
+      "id": "necktie",
+      "name": "领带",
+      "desc": "一条花哨的领带，挂在吊扇上。它似乎在对你说话。",
+      "inRoom": "HotelRoom"
+    },
+    {
+      "id": "case_file",
+      "name": "案件档案",
+      "desc": "一份被水浸过的档案：「调查人员：杜博瓦警探。任务：调查大使馆街吊尸案。」其余内容模糊不清。",
+      "inRoom": "HotelLobby"
+    }
+  ]
+}
