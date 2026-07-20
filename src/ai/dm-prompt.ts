@@ -306,6 +306,7 @@ ${(state.itemRewardRules?.templates ?? []).map((template) => `- ${template.id}ï¼
 </NARRATION>
 <WORLD_UPDATE>
 {
+  "gmOperations": [],
   "worldFacts": [],
   "factsRemoved": [],
   "plotThreads": [],

@@ -9,10 +9,13 @@ import { projectPublicEvents } from "../engine/public-events.ts";
 import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { isMigratedTableMutation, settleRuntimeMutation } from "../store/domain-settlement.ts";
+import { settleGmBatch } from "../store/gm-protocol.ts";
 import { nextLegacyProposalId } from "../store/legacy-settlement.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
 import type { GameEvent } from "../types/events.ts";
 import type { AnyMutation, EngineMutation } from "../types/mutations.ts";
+import type { ProposalBatchEnvelope } from "../types/proposals.ts";
+import type { GmTableProposal } from "../types/gm-proposals.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
@@ -99,6 +102,7 @@ export class GameRuntime {
         proposalId: nextLegacyProposalId(sourceId),
         correlationId,
         sourceId,
+        sourceKind: this.state.npcs[sourceId] ? "npc" : undefined,
       }, this.storyOutcomes);
       if (!settlement.accepted) continue;
       accepted.push(mutation as never);
@@ -229,6 +233,24 @@ export class GameRuntime {
       this.state.player.id
     );
 
+    const gmBatchEvents: GameEvent[] = [];
+    if (dmResponse.gmOperations.length > 0) {
+      const batch: ProposalBatchEnvelope<GmTableProposal> = {
+        batchId: nextLegacyProposalId("dm-batch"),
+        correlationId,
+        source: { kind: "dm", id: "dm" },
+        expectedRevision: this.state.revision,
+        observedTurn: this.state.turn,
+        proposals: dmResponse.gmOperations.map((payload) => ({ proposalId: nextLegacyProposalId("dm-operation"), payload })),
+      };
+      const batchSettlement = settleGmBatch(this.state, batch, this.storyOutcomes);
+      for (const settlement of batchSettlement.settlements) {
+        if (!settlement.accepted) continue;
+        const context = publicProjectionContext(this.state);
+        gmBatchEvents.push(...settlement.committedEvents.flatMap((event) => projectPublicEvents(event, context)));
+      }
+    }
+
     const outcomeMutations = dmResponse.mutations.filter(
       (mutation) => mutation.kind === "dm/outcome_reached"
     );
@@ -257,7 +279,7 @@ export class GameRuntime {
       }
     }
 
-    const postDmEvents = [...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
+    const postDmEvents = [...gmBatchEvents, ...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
     const proposedPostDmProgressMutations = evaluateProgress(this.state, postDmEvents);
     const postDmProgressSettlement = this.settleLegacyMutations(
       proposedPostDmProgressMutations,

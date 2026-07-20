@@ -1,7 +1,7 @@
 import { applyMutation } from "./apply.ts";
 import { settle, type Settlement } from "./settlement.ts";
 import type { AnyMutation } from "../types/mutations.ts";
-import type { ProposalSource } from "../types/proposals.ts";
+import type { ProposalSource, ProposalSourceKind } from "../types/proposals.ts";
 import type { WorldEvent } from "../types/world-events.ts";
 import type { ItemLocation, WorldState } from "../types/world.ts";
 
@@ -10,6 +10,7 @@ export interface LegacyProposalMetadata {
   correlationId: string;
   causationId?: string;
   sourceId?: string;
+  sourceKind?: ProposalSourceKind;
   sessionId?: string;
 }
 
@@ -26,6 +27,7 @@ const migratedTableMutationKinds = new Set<AnyMutation["kind"]>([
   "engine/item_consumed",
   "dm/room_exit_added",
   "dm/npc_moved",
+  "engine/npc_moved",
   "engine/player_stat_changed",
   "engine/npc_stat_changed",
   "dm/npc_stat_changed",
@@ -46,7 +48,7 @@ function same(a: unknown, b: unknown): boolean {
 
 function sourceFor(mutation: AnyMutation, metadata: LegacyProposalMetadata): ProposalSource {
   return {
-    kind: mutation.kind.startsWith("dm/") ? "dm" : "engine",
+    kind: metadata.sourceKind ?? (mutation.kind.startsWith("dm/") ? "dm" : "engine"),
     id: metadata.sourceId ?? (mutation.kind.startsWith("dm/") ? "dm" : "legacy_engine"),
     sessionId: metadata.sessionId,
   };

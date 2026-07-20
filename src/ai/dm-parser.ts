@@ -2,6 +2,7 @@
 // dm-parser.ts — parse raw DM response into DmMutation[]
 // ─────────────────────────────────────────────────────────────
 
+import type { GmTableProposal } from "../types/gm-proposals.ts";
 import type { DmMutation } from "../types/mutations.ts";
 import type {
   DataTrait,
@@ -19,6 +20,7 @@ import type {
 export interface DmResponse {
   narration: string;
   mutations: DmMutation[];
+  gmOperations: GmTableProposal[];
   raw: string;
 }
 
@@ -29,6 +31,7 @@ function extractTag(text: string, tag: string): string | null {
 }
 
 interface RawWorldUpdate {
+  gmOperations?: unknown[];
   worldFacts?: Array<{ text: string; tile?: string | null }>;
   factsRemoved?: string[];
   plotThreads?: Array<{ id: string; title?: string; status?: string; summary?: string }>;
@@ -70,11 +73,14 @@ export function parseDmResponse(
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
   const mutations: DmMutation[] = [];
+  let gmOperations: GmTableProposal[] = [];
 
   if (updateStr) {
     try {
+      const update = JSON.parse(updateStr) as RawWorldUpdate;
+      gmOperations = parseGmOperations(update.gmOperations);
       buildMutations(
-        JSON.parse(updateStr) as RawWorldUpdate,
+        update,
         mutations,
         schema,
         currentRoomId,
@@ -87,7 +93,21 @@ export function parseDmResponse(
     }
   }
 
-  return { narration, mutations, raw };
+  return { narration, mutations, gmOperations, raw };
+}
+
+const gmOperationKinds = new Set<GmTableProposal["kind"]>([
+  "record_fact", "remove_fact", "set_exit", "adjust_parameter", "move_npc",
+  "transfer_card", "consume_card", "emit_signal", "complete_objective", "reach_outcome",
+  "move_player", "create_item", "grant_item_reward", "pick_up_item", "drop_item", "equip_item", "consume_item",
+]);
+
+function parseGmOperations(value: unknown): GmTableProposal[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((operation): operation is GmTableProposal => {
+    if (!operation || typeof operation !== "object") return false;
+    return gmOperationKinds.has((operation as { kind?: GmTableProposal["kind"] }).kind as GmTableProposal["kind"]);
+  }).slice(0, 16).map((operation) => structuredClone(operation));
 }
 
 function buildDefaultStats(schema: StatsSchema, overrides?: Record<string, number>) {

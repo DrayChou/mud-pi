@@ -18,6 +18,7 @@ export function isMigratedTableMutation(mutation: AnyMutation): boolean {
     || mutation.kind === "engine/item_consumed"
     || mutation.kind === "dm/room_exit_added"
     || mutation.kind === "dm/npc_moved"
+    || mutation.kind === "engine/npc_moved"
     || mutation.kind === "engine/player_stat_changed"
     || mutation.kind === "engine/npc_stat_changed"
     || mutation.kind === "dm/npc_stat_changed"
@@ -41,7 +42,7 @@ function settleTyped<TProposal>(
       correlationId: metadata.correlationId,
       causationId: metadata.causationId,
       source: {
-        kind: metadata.sourceId === "dm" || metadata.sourceId === "opening-dm" ? "dm" : "engine",
+        kind: metadata.sourceKind ?? (metadata.sourceId === "dm" || metadata.sourceId === "opening-dm" ? "dm" : "engine"),
         id: metadata.sourceId ?? "runtime",
         sessionId: metadata.sessionId,
       },
@@ -65,7 +66,7 @@ function settleTypedGm(
     correlationId: metadata.correlationId,
     causationId: metadata.causationId,
     source: {
-      kind: metadata.sourceId === "dm" || metadata.sourceId === "opening-dm" ? "dm" : "engine",
+      kind: metadata.sourceKind ?? (metadata.sourceId === "dm" || metadata.sourceId === "opening-dm" ? "dm" : "engine"),
       id: metadata.sourceId ?? "runtime",
       sessionId: metadata.sessionId,
     },
@@ -104,6 +105,7 @@ export function settleRuntimeMutation(
     case "engine/npc_stat_changed":
     case "dm/npc_stat_changed":
       return settleTypedGm(state, { kind: "adjust_parameter", entityId: mutation.npcId, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.delta < 0 ? `harm:${mutation.kind}` : mutation.kind }, metadata, storyOutcomes);
+    case "engine/npc_moved":
     case "dm/npc_moved":
       return settleTypedGm(state, { kind: "move_npc", npcId: mutation.npcId, toRoomId: mutation.toRoomId }, metadata, storyOutcomes);
     case "dm/fact_added":

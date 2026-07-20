@@ -29,7 +29,12 @@ function lifecycleAfter(state: Readonly<WorldState>, parameterId: string, after:
 
 export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelope, context) => {
   const proposal = envelope.payload;
-  if (envelope.source.kind !== "dm" && envelope.source.kind !== "engine" && envelope.source.kind !== "world_script") {
+  if (
+    envelope.source.kind !== "dm"
+    && envelope.source.kind !== "engine"
+    && envelope.source.kind !== "world_script"
+    && !(envelope.source.kind === "npc" && proposal.kind === "move_npc" && envelope.source.id === proposal.npcId)
+  ) {
     return reject("permission_denied", `${envelope.source.kind} cannot use the GM table protocol.`);
   }
 
