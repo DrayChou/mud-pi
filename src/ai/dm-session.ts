@@ -2,30 +2,72 @@
 // dm-session.ts — DM session wrapper over configurable AI backend
 // ─────────────────────────────────────────────────────────────
 
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "../config.ts";
-import type { AiSession } from "./backend.ts";
+import {
+  ensureAgentSessionDir,
+  loadAgentManifest,
+  resolveAgentSessionPath,
+  saveAgentManifest,
+  toAgentRelativePath,
+} from "../store/agents.ts";
+import type { AiSession, AiSessionPersistenceOptions } from "./backend.ts";
 import { backendForRole, createBackend, modelForRole } from "./backend.ts";
+
+export interface DmSessionInitOptions {
+  config: Config;
+  worldId: string;
+  worldPack: string;
+  resume: boolean;
+}
+
+export interface DmSessionInitResult {
+  resumed: boolean;
+  recoveryNeeded: boolean;
+  sessionFile?: string;
+}
 
 export class DmSession {
   private session!: AiSession;
   private initialized = false;
 
-  async init(config: Config, worldPack: string): Promise<void> {
-    const lorePath = join(
-      import.meta.dir,
-      "../../worlds",
-      worldPack,
-      "lore.md"
-    );
-    const loreContent = existsSync(lorePath)
-      ? readFileSync(lorePath, "utf-8")
-      : "";
+  async init(options: DmSessionInitOptions): Promise<DmSessionInitResult> {
+    const { config, worldId, worldPack, resume } = options;
+    const lorePath = join(import.meta.dir, "../../worlds", worldPack, "lore.md");
+    const loreContent = existsSync(lorePath) ? readFileSync(lorePath, "utf-8") : "";
 
     const dmSystemPrompt = buildDmSystemPrompt(loreContent);
-    const backend = createBackend(backendForRole(config, "dm"));
+    const backendName = backendForRole(config, "dm");
+    const backend = createBackend(backendName);
     const { provider, model } = modelForRole(config, "dm");
+    const manifest = await loadAgentManifest(worldId);
+
+    let resumed = false;
+    let recoveryNeeded = false;
+    let persistence: AiSessionPersistenceOptions | undefined;
+
+    if (backendName === "pi") {
+      const sessionDir = await ensureAgentSessionDir(worldId);
+      const stored = resume && manifest.dm?.backend === "pi"
+        ? manifest.dm.sessionFile
+        : undefined;
+
+      if (stored) {
+        const sessionFile = resolveAgentSessionPath(worldId, stored);
+        if (existsSync(sessionFile)) {
+          persistence = { mode: "open", sessionDir, sessionFile };
+          resumed = true;
+        } else {
+          console.warn(`[dm] Pi session file missing; creating a recovery session: ${sessionFile}`);
+          persistence = { mode: "create", sessionDir };
+          recoveryNeeded = true;
+        }
+      } else {
+        persistence = { mode: "create", sessionDir };
+        recoveryNeeded = resume;
+      }
+    }
 
     this.session = await backend.createSession({
       role: "dm",
@@ -33,8 +75,28 @@ export class DmSession {
       provider,
       model,
       thinkingLevel: config.dmThinking,
+      persistence,
     });
     this.initialized = true;
+
+    if (backendName === "pi" && this.session.info.sessionFile) {
+      const now = Date.now();
+      const previousCreatedAt = manifest.dm?.createdAt;
+      manifest.dm = {
+        backend: "pi",
+        sessionFile: toAgentRelativePath(worldId, this.session.info.sessionFile),
+        sessionId: this.session.info.sessionId,
+        createdAt: resumed && previousCreatedAt ? previousCreatedAt : now,
+        updatedAt: now,
+      };
+      await saveAgentManifest(worldId, manifest);
+    }
+
+    return {
+      resumed,
+      recoveryNeeded,
+      sessionFile: this.session.info.sessionFile,
+    };
   }
 
   async ask(prompt: string): Promise<string> {

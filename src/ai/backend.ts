@@ -6,7 +6,13 @@ import type { Config, AiBackendName } from "../config.ts";
 import { CodexBackend } from "./codex-backend.ts";
 import { PiBackend } from "./pi-backend.ts";
 
-export type AiRole = "dm" | "interpreter" | "character";
+export type AiRole = "dm" | "npc" | "interpreter" | "character";
+
+export interface AiSessionPersistenceOptions {
+  mode: "memory" | "create" | "open";
+  sessionDir?: string;
+  sessionFile?: string;
+}
 
 export interface AiSessionOptions {
   role: AiRole;
@@ -15,13 +21,21 @@ export interface AiSessionOptions {
   model?: string;
   thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high";
   jsonOnly?: boolean;
+  persistence?: AiSessionPersistenceOptions;
 }
 
 export interface AiPromptOptions extends AiSessionOptions {
   userPrompt: string;
 }
 
+export interface AiSessionInfo {
+  sessionId?: string;
+  sessionFile?: string;
+  persistent: boolean;
+}
+
 export interface AiSession {
+  readonly info: AiSessionInfo;
   ask(prompt: string): Promise<string>;
   dispose(): void;
 }
@@ -44,6 +58,7 @@ export function createBackend(name: AiBackendName): AiBackend {
 export function backendForRole(config: Config, role: AiRole): AiBackendName {
   switch (role) {
     case "dm":
+    case "npc":
       return config.dmBackend;
     case "interpreter":
       return config.interpreterBackend;
@@ -60,6 +75,7 @@ export function modelForRole(
   if (backend === "codex") {
     switch (role) {
       case "dm":
+      case "npc":
         return { model: config.codexDmModel };
       case "interpreter":
         return { model: config.codexInterpreterModel };
@@ -70,6 +86,7 @@ export function modelForRole(
 
   switch (role) {
     case "dm":
+    case "npc":
     case "character":
       return { provider: config.dmProvider, model: config.dmModel };
     case "interpreter":

@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
-import type { WorldState } from "../types/world.ts";
+import type { ItemLocation, WorldState } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
 
 function savesDir(worldId: string): string {
@@ -27,11 +27,48 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   const f = Bun.file(stateFile(worldId));
   if (!(await f.exists())) return null;
   try {
-    return await f.json() as WorldState;
+    const state = await f.json() as WorldState;
+    await normalizeItemLocations(state);
+    return state;
   } catch {
     console.error(`[persist] corrupt state.json for ${worldId}`);
     return null;
   }
+}
+
+async function normalizeItemLocations(state: WorldState): Promise<void> {
+  const packLocations = new Map<string, ItemLocation>();
+  const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
+  if (await worldFile.exists()) {
+    const pack = await worldFile.json() as {
+      items?: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
+    };
+    for (const item of pack.items ?? []) {
+      if (item.inRoom) packLocations.set(item.id, { kind: "room", roomId: item.inRoom });
+      else if (item.inInventory) packLocations.set(item.id, { kind: "inventory", ownerId: state.player.id });
+    }
+  }
+
+  const equippedSlots = new Map(
+    Object.entries(state.player.equipment).map(([slot, itemId]) => [itemId, slot])
+  );
+  for (const item of Object.values(state.items)) {
+    if (isItemLocation(item.location)) continue;
+    const equippedSlot = equippedSlots.get(item.id);
+    if (equippedSlot) {
+      item.location = { kind: "equipped", ownerId: state.player.id, slot: equippedSlot };
+    } else if (state.player.inventory.includes(item.id)) {
+      item.location = { kind: "inventory", ownerId: state.player.id };
+    } else {
+      item.location = packLocations.get(item.id) ?? { kind: "destroyed" };
+    }
+  }
+}
+
+function isItemLocation(value: unknown): value is ItemLocation {
+  if (!value || typeof value !== "object" || !("kind" in value)) return false;
+  const kind = (value as { kind?: unknown }).kind;
+  return kind === "room" || kind === "inventory" || kind === "equipped" || kind === "destroyed";
 }
 
 export async function saveState(state: WorldState): Promise<void> {

@@ -11,8 +11,12 @@ describe("loadWorldPack protagonists", () => {
     expect(state.player.profile?.id).toBe("lost_commuter");
     expect(state.player.name).toBe("迟归的通勤者");
     expect(state.player.inventory).toContain("ticket");
+    expect(state.items.ticket?.location).toEqual({ kind: "inventory", ownerId: "player1" });
+    expect(state.items.rusty_knife?.location).toEqual({ kind: "room", roomId: "Compartment1" });
     expect(state.player.stats.attack).toBe(6);
     expect(state.player.stats.defense).toBe(3);
+    expect(state.npcs.ticket_clerk?.controller).toBe("pi_session");
+    expect(state.npcs.ticket_clerk?.persona?.goals).toHaveLength(2);
   });
 
   test("lets the player name override the protagonist default name", async () => {

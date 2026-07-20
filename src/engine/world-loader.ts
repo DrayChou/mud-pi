@@ -6,7 +6,9 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   ItemDef,
+  NpcController,
   NpcDef,
+  NpcPersona,
   ProtagonistProfile,
   RoomDef,
   Stats,
@@ -21,6 +23,8 @@ interface WorldPackNpc {
   roomId: string;
   personality: string;
   hostile?: boolean;
+  controller?: NpcController;
+  persona?: NpcPersona;
   stats?: Record<string, number>;
 }
 
@@ -122,6 +126,8 @@ export async function loadWorldPack(
       roomId: n.roomId,
       alive: true,
       personality: n.personality,
+      controller: n.controller ?? "dm",
+      persona: n.persona,
       source: "static",
       hostile: n.hostile ?? false,
       stats: buildDefaultStats(n.stats),
@@ -132,13 +138,27 @@ export async function loadWorldPack(
   const items: Record<string, ItemDef> = {};
   const startingInventory = new Set<string>();
   for (const i of pack.items) {
-    items[i.id] = { id: i.id, name: i.name, desc: i.desc };
     if (i.inInventory) startingInventory.add(i.id);
+    items[i.id] = {
+      id: i.id,
+      name: i.name,
+      desc: i.desc,
+      location: i.inRoom
+        ? { kind: "room", roomId: i.inRoom }
+        : i.inInventory
+          ? { kind: "inventory", ownerId: "player1" }
+          : { kind: "destroyed" },
+    };
   }
   if (protagonist) {
     for (const itemId of protagonist.initialInventory ?? []) {
       startingInventory.add(itemId);
     }
+  }
+  // A selected protagonist's inventory takes precedence over static room placement.
+  for (const itemId of startingInventory) {
+    const item = items[itemId];
+    if (item) item.location = { kind: "inventory", ownerId: "player1" };
   }
 
   return {

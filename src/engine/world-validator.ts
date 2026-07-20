@@ -2,7 +2,12 @@
 // world-validator.ts — validate world pack references before runtime
 // ─────────────────────────────────────────────────────────────
 
-import type { ProtagonistProfile, StatsSchema } from "../types/world.ts";
+import type {
+  NpcController,
+  NpcPersona,
+  ProtagonistProfile,
+  StatsSchema,
+} from "../types/world.ts";
 
 export interface WorldPackForValidation {
   name: string;
@@ -12,7 +17,13 @@ export interface WorldPackForValidation {
   defaultProtagonistId?: string;
   protagonists?: ProtagonistProfile[];
   rooms: Array<{ id: string; exits: Record<string, string>; tags?: string[] }>;
-  npcs: Array<{ id: string; roomId: string; stats?: Record<string, number> }>;
+  npcs: Array<{
+    id: string;
+    roomId: string;
+    controller?: NpcController;
+    persona?: NpcPersona;
+    stats?: Record<string, number>;
+  }>;
   items: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
 }
 
@@ -68,6 +79,12 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     npcIds.add(npc.id);
     if (!roomIds.has(npc.roomId)) {
       errors.push(`npc ${npc.id} roomId references missing room: ${npc.roomId}`);
+    }
+    if (npc.controller && !["dm", "pi_session", "rule"].includes(npc.controller)) {
+      errors.push(`npc ${npc.id} has invalid controller: ${npc.controller}`);
+    }
+    if (npc.controller === "pi_session" && !npc.persona) {
+      errors.push(`npc ${npc.id} uses pi_session but has no persona`);
     }
     validateStats(`npc ${npc.id} stats`, npc.stats, pack.schema, statKeys, errors);
   }

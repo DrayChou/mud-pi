@@ -59,6 +59,13 @@ describe("validateWorldPack", () => {
 
     expect(() => validateWorldPack(pack, "broken-stats")).toThrow(/playerStats.hp 999 is outside 0-10/);
   });
+
+  test("requires a persona for persistent NPC sessions", () => {
+    const pack = basePack();
+    pack.npcs[0]!.controller = "pi_session";
+
+    expect(() => validateWorldPack(pack, "missing-persona")).toThrow(/uses pi_session but has no persona/);
+  });
 });
 
 function basePack(): WorldPackForValidation {

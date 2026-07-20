@@ -67,6 +67,13 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
+    case "engine/npc_moved": {
+      const npc = state.npcs[mut.npcId];
+      if (!npc || !npc.alive || !state.rooms[mut.toRoomId]) return;
+      npc.roomId = mut.toRoomId;
+      break;
+    }
+
     case "engine/npc_stat_changed": {
       const npc = state.npcs[mut.npcId];
       if (!npc) return;
@@ -90,24 +97,53 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
     case "engine/combat_started": break; // informational only
 
     case "engine/item_picked_up": {
+      const item = state.items[mut.itemId];
+      if (!item || item.location.kind !== "room" || item.location.roomId !== p.roomId) {
+        console.warn(`[apply] cannot pick up unavailable item: ${mut.itemId}`);
+        return;
+      }
       if (!p.inventory.includes(mut.itemId)) p.inventory.push(mut.itemId);
+      item.location = { kind: "inventory", ownerId: p.id };
       break;
     }
 
     case "engine/item_dropped": {
+      const item = state.items[mut.itemId];
+      const owned = item &&
+        (item.location.kind === "inventory" || item.location.kind === "equipped") &&
+        item.location.ownerId === p.id;
+      if (!owned || mut.roomId !== p.roomId || !state.rooms[mut.roomId]) {
+        console.warn(`[apply] cannot drop unavailable item: ${mut.itemId}`);
+        return;
+      }
       p.inventory = p.inventory.filter((id) => id !== mut.itemId);
       for (const [slot, id] of Object.entries(p.equipment)) {
         if (id === mut.itemId) delete p.equipment[slot];
       }
+      item.location = { kind: "room", roomId: mut.roomId };
       break;
     }
 
     case "engine/item_equipped": {
-      if (!p.inventory.includes(mut.itemId)) {
+      const item = state.items[mut.itemId];
+      if (
+        !item ||
+        !p.inventory.includes(mut.itemId) ||
+        item.location.kind !== "inventory" ||
+        item.location.ownerId !== p.id
+      ) {
         console.warn(`[apply] cannot equip: ${mut.itemId} not in inventory`);
         return;
       }
+      const previouslyEquipped = p.equipment[mut.slot];
+      if (previouslyEquipped && previouslyEquipped !== mut.itemId) {
+        const previousItem = state.items[previouslyEquipped];
+        if (previousItem?.location.kind === "equipped") {
+          previousItem.location = { kind: "inventory", ownerId: p.id };
+        }
+      }
       p.equipment[mut.slot] = mut.itemId;
+      item.location = { kind: "equipped", ownerId: p.id, slot: mut.slot };
       break;
     }
 
@@ -155,12 +191,20 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/npc_moved": {
       const npc = state.npcs[mut.npcId];
+      if (npc?.controller === "pi_session") {
+        console.warn(`[apply] DM cannot move independently controlled NPC: ${mut.npcId}`);
+        return;
+      }
       if (npc) npc.roomId = mut.toRoomId;
       break;
     }
 
     case "dm/npc_killed": {
       const npc = state.npcs[mut.npcId];
+      if (npc?.controller === "pi_session") {
+        console.warn(`[apply] DM cannot kill independently controlled NPC: ${mut.npcId}`);
+        return;
+      }
       if (npc) {
         npc.alive = false;
         for (const def of state.schema.defs) {
@@ -172,6 +216,10 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/npc_stat_changed": {
       const npc = state.npcs[mut.npcId];
+      if (npc?.controller === "pi_session") {
+        console.warn(`[apply] DM cannot change independently controlled NPC stats: ${mut.npcId}`);
+        return;
+      }
       if (!npc) return;
       const cur = npc.stats[mut.stat] ?? 0;
       npc.stats[mut.stat] = clampStat(state, mut.stat, cur + mut.delta);

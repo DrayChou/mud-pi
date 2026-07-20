@@ -7,7 +7,13 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { AiBackend, AiPromptOptions, AiSession, AiSessionOptions } from "./backend.ts";
+import type {
+  AiBackend,
+  AiPromptOptions,
+  AiSession,
+  AiSessionInfo,
+  AiSessionOptions,
+} from "./backend.ts";
 
 let codexAvailableChecked = false;
 
@@ -30,6 +36,8 @@ export class CodexBackend implements AiBackend {
 }
 
 class CodexAiSession implements AiSession {
+  readonly info: AiSessionInfo = { persistent: false };
+
   constructor(private options: AiSessionOptions) {}
 
   async ask(prompt: string): Promise<string> {

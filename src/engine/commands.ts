@@ -66,12 +66,23 @@ function cmdGet(state: WorldState, cmd: ParsedCommand): CommandResult {
   const itemName = cmd.args.item;
   if (!itemName) return { mutations: [], directReply: "拾取什么？" };
 
-  const item = Object.values(state.items).find(
+  const matchingItems = Object.values(state.items).filter(
     (i) => i.name.includes(itemName) || i.id.includes(itemName)
   );
-  if (!item) return { mutations: [], directReply: `这里没有"${itemName}"。` };
-  if (state.player.inventory.includes(item.id))
-    return { mutations: [], directReply: "你已经拿着它了。" };
+  const item = matchingItems.find(
+    (i) => i.location.kind === "room" && i.location.roomId === state.player.roomId
+  );
+  if (!item) {
+    const owned = matchingItems.some(
+      (i) =>
+        (i.location.kind === "inventory" || i.location.kind === "equipped") &&
+        i.location.ownerId === state.player.id
+    );
+    return {
+      mutations: [],
+      directReply: owned ? "你已经拿着它了。" : `这里没有"${itemName}"。`,
+    };
+  }
 
   return { mutations: [{ kind: "engine/item_picked_up", itemId: item.id }] };
 }
@@ -100,6 +111,9 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
     return item && (item.name.includes(itemName) || item.id.includes(itemName));
   });
   if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
+  if (state.items[itemId]?.location.kind === "equipped") {
+    return { mutations: [], directReply: "你已经装备着它了。" };
+  }
 
   return { mutations: [{ kind: "engine/item_equipped", itemId, slot: "weapon" }] };
 }

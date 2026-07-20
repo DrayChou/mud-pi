@@ -8,16 +8,20 @@ import { createInterface as createPromptInterface } from "node:readline/promises
 import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
 import { listWorldPacks, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
-import { loadState, saveState, appendTurn, initSave } from "./store/persist.ts";
+import { loadState, loadTurns, saveState, appendTurn, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
 import { applyMutations, applyMutation } from "./store/apply.ts";
 import { executeCommand } from "./engine/commands.ts";
+import { executeNpcDecision } from "./engine/npc-intents.ts";
+import { deriveGameEvents } from "./engine/game-events.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
-import { buildDmPrompt } from "./ai/dm-prompt.ts";
+import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
+import { buildDmPrompt, buildDmRecoveryPrompt } from "./ai/dm-prompt.ts";
 import { parseDmResponse } from "./ai/dm-parser.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
 import { backendLabel } from "./ai/backend.ts";
+import type { NpcPublicAction } from "./types/npc.ts";
 import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 import type { EngineMutation } from "./types/mutations.ts";
 
@@ -52,6 +56,12 @@ function printRoom(state: WorldState) {
   console.log(room.desc);
   const exits = Object.keys(room.exits);
   console.log(`\x1b[36m[出口: ${exits.length > 0 ? exits.join("  ") : "无"}]\x1b[0m`);
+  const itemsHere = Object.values(state.items).filter(
+    (item) => item.location.kind === "room" && item.location.roomId === room.id
+  );
+  if (itemsHere.length > 0) {
+    console.log(`\x1b[35m[物品: ${itemsHere.map((item) => item.name).join("  ")}]\x1b[0m`);
+  }
   const npcsHere = Object.values(state.npcs).filter(
     (n) => n.roomId === state.player.roomId && n.alive
   );
@@ -291,6 +301,7 @@ async function main() {
 
   // Load or create save
   let state: WorldState;
+  const isNewGame = !args.saveId;
 
   if (args.saveId) {
     print(`载入存档：${args.saveId}`);
@@ -320,10 +331,23 @@ async function main() {
   print("\n初始化 AI 会话（使用 Pi 配置）...");
   const dm = new DmSession();
   const interpreter = new Interpreter();
-  await Promise.all([
-    dm.init(config, state.worldPack),
+  const npcSessions = new NpcSessionRegistry();
+  npcSessions.init(config, state.worldId);
+  const [dmInit] = await Promise.all([
+    dm.init({
+      config,
+      worldId: state.worldId,
+      worldPack: state.worldPack,
+      resume: !isNewGame,
+    }),
     interpreter.init(config),
   ]);
+
+  if (dmInit.recoveryNeeded) {
+    print("检测到旧存档或缺失的 DM Session，正在从权威存档恢复 Pi 上下文...");
+    const turns = await loadTurns(state.worldId);
+    await dm.ask(buildDmRecoveryPrompt(state, turns.slice(-20)));
+  }
   print(`DM：${backendLabel(config, "dm")}`);
   print(`指令解析：${backendLabel(config, "interpreter")}`);
   print(`角色生成：${backendLabel(config, "character")}`);
@@ -332,14 +356,16 @@ async function main() {
   printRoom(state);
   print(`输入 help 查看指令，输入 status 查看属性`);
 
-  // First turn: DM opens the scene
-  print("\nDM 正在开场...\n");
-  const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", []);
-  const openingRaw = await dm.ask(openingPrompt);
-  const opening = parseDmResponse(openingRaw, state.schema);
-  applyMutations(state, opening.mutations);
-  await saveState(state);
-  print(`\x1b[32m${opening.narration}\x1b[0m\n`);
+  // Only a new game gets an opening turn. A resumed Pi session continues as-is.
+  if (isNewGame) {
+    print("\nDM 正在开场...\n");
+    const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", []);
+    const openingRaw = await dm.ask(openingPrompt);
+    const opening = parseDmResponse(openingRaw, state.schema);
+    applyMutations(state, opening.mutations);
+    await saveState(state);
+    print(`\x1b[32m${opening.narration}\x1b[0m\n`);
+  }
 
   // ── Input loop ─────────────────────────────────────────────
   const rl = createLineInterface({
@@ -356,7 +382,7 @@ async function main() {
     if (!input) { rl.resume(); rl.prompt(); return; }
 
     try {
-      await processInput(state, input, dm, interpreter);
+      await processInput(state, input, dm, interpreter, npcSessions);
     } catch (e: any) {
       print(`\x1b[31m[错误] ${e.message}\x1b[0m`);
     }
@@ -370,6 +396,7 @@ async function main() {
   rl.on("close", () => {
     print("\n再见。");
     dm.dispose();
+    npcSessions.dispose();
     process.exit(0);
   });
 }
@@ -380,7 +407,8 @@ async function processInput(
   state: WorldState,
   input: string,
   dm: DmSession,
-  interpreter: Interpreter
+  interpreter: Interpreter,
+  npcSessions: NpcSessionRegistry
 ): Promise<void> {
   // 1. Parse input
   const parsed = await interpreter.parse(input);
@@ -393,6 +421,8 @@ async function processInput(
     if (result.directReply === "__QUIT__") {
       print("存档已保存，再见。");
       await saveState(state);
+      dm.dispose();
+      npcSessions.dispose();
       process.exit(0);
     }
     print(result.directReply);
@@ -400,25 +430,65 @@ async function processInput(
   }
 
   // 4. Apply engine mutations (before DM sees the world)
+  const stateBeforeTurn = structuredClone(state);
   const engineMuts = result.mutations as EngineMutation[];
   applyMutations(state, engineMuts);
 
-  // 5. Ask DM to narrate + expand world
+  // 5. Let an addressed important NPC respond through its own persistent session.
+  const npcDecisions = parsed.verb === "say"
+    ? await npcSessions.respondToPlayerSay(
+        state,
+        parsed.args.message ?? input,
+        parsed.args.target
+      )
+    : [];
+  const npcActions: NpcPublicAction[] = [];
+  const npcMutations: EngineMutation[] = [];
+  for (const decision of npcDecisions) {
+    const npcResult = executeNpcDecision(state, decision);
+    applyMutations(state, npcResult.mutations);
+    npcMutations.push(...npcResult.mutations);
+    npcActions.push(npcResult.action);
+  }
+
+  // 6. Ask DM to narrate the player action and already-decided NPC response.
   process.stdout.write("\x1b[2m");
-  const dmPrompt = buildDmPrompt(state, input, engineMuts, result.combatContext);
+  const dmPrompt = buildDmPrompt(
+    state,
+    input,
+    engineMuts,
+    result.combatContext,
+    npcActions
+  );
   const dmRaw = await dm.ask(dmPrompt);
   process.stdout.write("\x1b[0m");
 
-  // 6. Parse DM response → DmMutations
+  // 7. Parse DM response → DmMutations
   const dmResponse = parseDmResponse(dmRaw, state.schema);
 
-  // 7. Apply DM mutations
+  // 8. Apply DM mutations
   applyMutations(state, dmResponse.mutations);
 
-  // 8. Advance turn
+  const speechTarget = parsed.verb === "say" && parsed.args.target
+    ? Object.values(stateBeforeTurn.npcs).find(
+        (npc) =>
+          npc.roomId === stateBeforeTurn.player.roomId &&
+          (npc.id.includes(parsed.args.target!) || npc.name.includes(parsed.args.target!))
+      )?.id
+    : undefined;
+  const gameEvents = deriveGameEvents(
+    stateBeforeTurn,
+    [...engineMuts, ...npcMutations, ...dmResponse.mutations],
+    state,
+    parsed.verb === "say"
+      ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
+      : undefined
+  );
+
+  // 9. Advance turn
   applyMutation(state, { kind: "engine/turn_advanced" });
 
-  // 9. Persist
+  // 10. Persist
   await saveState(state);
   await appendTurn(state.worldId, {
     turn: state.turn,
@@ -431,11 +501,13 @@ async function processInput(
     },
     engineMutations: engineMuts,
     dmMutations: dmResponse.mutations,
+    gameEvents,
+    npcActions,
     narration: dmResponse.narration,
     dmModel: "dm",
   });
 
-  // 10. Display narration
+  // 11. Display narration
   print(`\n\x1b[32m${dmResponse.narration}\x1b[0m`);
 
   // Show room header after movement

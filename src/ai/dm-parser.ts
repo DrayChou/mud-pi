@@ -91,7 +91,7 @@ function buildMutations(u: RawWorldUpdate, out: DmMutation[], schema: StatsSchem
     const { stats, maxStats } = buildDefaultStats(schema, n.stats);
     const npc: NpcDef = {
       id: n.id, name: n.name, roomId: n.roomId, alive: true,
-      personality: n.personality ?? "", source: "dm_generated",
+      personality: n.personality ?? "", controller: "dm", source: "dm_generated",
       hostile: n.hostile ?? false, stats, maxStats,
     };
     out.push({ kind: "dm/npc_added", npc });

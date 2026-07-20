@@ -159,8 +159,12 @@ quit          保存并退出
 
 - `state.json` — 当前世界快照
 - `turns.jsonl` — 完整轮次日志（追加写入，不修改）
+- `agents/manifest.json` — DM/NPC 与 Pi Session 的引用关系
+- `agents/sessions/*.jsonl` — Pi 原生持久会话文件，包含历史与 compaction 记录
 
-`saves/` 是本地运行数据，默认不提交。
+Pi backend 下，DM 会话与存档绑定；退出后使用 `--save` 载入时会精确恢复同一个 Pi Session，而不是重新创建开场。世界包中标记为 `controller: "pi_session"` 的重要 NPC 也会在玩家首次与其对话时懒创建独立 Pi Session，并在后续读档中恢复自己的 JSONL 历史。旧存档或会话文件缺失时，会根据权威状态创建恢复会话。Codex backend 仍使用 ephemeral one-shot 调用。
+
+`saves/` 是本地运行数据，默认不提交。复制存档时请复制整个 `saves/{worldId}/` 目录，以保留 Pi 长期会话。
 
 ## 添加世界包
 
@@ -210,6 +214,26 @@ src/
 角色信息会保存到 `state.player.profile` 快照中，并注入每轮 DM prompt，使叙事能稳定参考角色背景、动机、初始物品和开场钩子。存档保存的是创建时的角色快照，因此故事包后续更新不会改变旧存档。
 
 世界包加载时会校验引用关系和属性范围：出生点、出口、NPC 房间、物品位置、默认主角、初始物品、属性 key 都必须有效。若某个 NPC 或主角需要超过 schema 默认上限，可以显式提供 `hpMax`、`mpMax` 这类 `{stat}Max` override。
+
+重要 NPC 可以拥有独立长期 Pi Session：
+
+```json
+{
+  "id": "ticket_clerk",
+  "name": "售票员",
+  "roomId": "StationHall",
+  "personality": "神秘、惜字如金",
+  "controller": "pi_session",
+  "persona": {
+    "background": "你在没有日期的售票窗口后工作了很久。",
+    "speechStyle": "句子简短，常用车票和归途作隐喻。",
+    "goals": ["判断旅客是否准备好面对目的地"],
+    "constraints": ["不直接说出玩家内心的答案"]
+  }
+}
+```
+
+这类 Session 只在 NPC 首次需要回应时创建。NPC 负责自己的私人记忆，并可提出 `say`、`move` 或 `wait` 意图；Engine 会验证回合、位置、房间人员和出口后再产生 Mutation，DM 只叙述已经确定的公开结果。
 
 世界包主角示例：
 

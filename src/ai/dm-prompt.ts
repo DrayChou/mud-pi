@@ -3,14 +3,16 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { WorldState } from "../types/world.ts";
-import type { EngineMutation } from "../types/mutations.ts";
+import type { EngineMutation, TurnRecord } from "../types/mutations.ts";
 import type { CombatContext } from "../engine/commands.ts";
+import type { NpcPublicAction } from "../types/npc.ts";
 
 function describeMutation(m: EngineMutation): string | null {
   switch (m.kind) {
     case "engine/player_moved":      return `玩家移动到了 ${m.toRoomId}`;
     case "engine/player_stat_changed":
       return m.delta < 0 ? `玩家 ${m.stat} -${-m.delta}` : `玩家 ${m.stat} +${m.delta}`;
+    case "engine/npc_moved":         return `NPC ${m.npcId} 移动到了 ${m.toRoomId}`;
     case "engine/npc_stat_changed":  return null; // covered by combatContext
     case "engine/npc_killed":        return null; // covered by combatContext
     case "engine/combat_started":    return null;
@@ -33,11 +35,60 @@ function formatPlayerStats(state: WorldState): string {
   return parts.join(" | ");
 }
 
+export function buildDmRecoveryPrompt(
+  state: WorldState,
+  recentTurns: TurnRecord[]
+): string {
+  const room = state.rooms[state.player.roomId];
+  const facts = state.worldFacts.map((f) => `• ${f.text}`).join("\n") || "（无）";
+  const plots = Object.values(state.plotThreads)
+    .filter((p) => p.status === "active")
+    .map((p) => `• ${p.title}：${p.summary}`)
+    .join("\n") || "（无）";
+  const history = recentTurns
+    .map((t) => {
+      const npcLines = t.npcActions?.map((a) =>
+        a.verb === "say"
+          ? `${a.npcName}说：“${a.content}”`
+          : a.verb === "move"
+            ? a.succeeded
+              ? `${a.npcName}向${a.direction}移动到${a.toRoomId}`
+              : `${a.npcName}移动失败：${a.reason}`
+            : `${a.npcName}保持沉默`
+      ).join("；");
+      return `第 ${t.turn} 轮｜玩家：${t.playerInput}${npcLines ? `\nNPC：${npcLines}` : ""}\n叙事：${t.narration}`;
+    })
+    .join("\n\n") || "（没有可用的历史轮次）";
+
+  return `[会话恢复]
+你正在恢复一局已经进行中的文字 MUD。此前的 Pi DM session 不可用，下面的信息是当前权威状态和最近历史。
+不要重新开场，不要推进回合，不要创建或修改任何世界内容。只在内部吸收这些信息，并严格回复：SESSION_RECOVERED
+
+[当前回合]
+${state.turn}
+
+[主角]
+${state.player.name}${state.player.profile ? `：${state.player.profile.summary}\n背景：${state.player.profile.background}\n动机：${state.player.profile.motivation}` : ""}
+
+[当前位置]
+${room ? `${room.title}（${room.id}）\n${room.desc}` : state.player.roomId}
+
+[世界事实]
+${facts}
+
+[活跃剧情线]
+${plots}
+
+[最近轮次]
+${history}`;
+}
+
 export function buildDmPrompt(
   state: WorldState,
   playerInput: string,
   engineMutations: EngineMutation[],
-  combatContext?: CombatContext
+  combatContext?: CombatContext,
+  npcActions: NpcPublicAction[] = []
 ): string {
   const room = state.rooms[state.player.roomId];
   const parts: string[] = [];
@@ -71,7 +122,13 @@ export function buildDmPrompt(
       return `  ${n.name}${statStr}`;
     });
     const npcBlock = npcsHere.length > 0 ? `\n在场:\n${npcLines.join("\n")}` : "";
-    parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${npcBlock}`);
+    const itemsHere = Object.values(state.items).filter(
+      (item) => item.location.kind === "room" && item.location.roomId === room.id
+    );
+    const itemBlock = itemsHere.length > 0
+      ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}`).join("\n")}`
+      : "";
+    parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${npcBlock}${itemBlock}`);
   }
 
   // ── Protagonist profile ──
@@ -111,6 +168,22 @@ export function buildDmPrompt(
     parts.push(`[玩家行动]\n${playerInput}\n\n[本轮结果]\n${eventLines.length > 0 ? eventLines.join("\n") : "（无特殊事件）"}`);
   } else {
     parts.push(`[玩家行动]\n${playerInput}`);
+  }
+
+  // ── Independent NPC actions ──
+  if (npcActions.length > 0) {
+    const lines = npcActions.map((action) =>
+      action.verb === "say"
+        ? `- ${action.npcName}说：“${action.content}”`
+        : action.verb === "move"
+          ? action.succeeded
+            ? `- ${action.npcName}从 ${action.fromRoomId} 向 ${action.direction} 移动到 ${action.toRoomId}`
+            : `- ${action.npcName}尝试向 ${action.direction} 移动，但失败：${action.reason}`
+          : `- ${action.npcName}保持沉默`
+    );
+    parts.push(
+      `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 自己的长期 Pi Session。你只能叙述其公开结果，不得改写台词或替它决定其他行动。`
+    );
   }
 
   // ── Task ──

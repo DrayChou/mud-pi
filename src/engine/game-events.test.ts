@@ -1,0 +1,121 @@
+import { describe, expect, test } from "bun:test";
+import { loadWorldPack } from "./world-loader.ts";
+import { deriveGameEvents } from "./game-events.ts";
+import { applyMutations } from "../store/apply.ts";
+import type { AnyMutation } from "../types/mutations.ts";
+
+describe("deriveGameEvents", () => {
+  test("derives movement and speech without mutating snapshots", async () => {
+    const before = await loadWorldPack("station-dream", {
+      fallbackPlayerName: "旅行者",
+    });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      { kind: "engine/player_moved", toRoomId: "Platform" },
+    ];
+    applyMutations(after, mutations);
+
+    const events = deriveGameEvents(before, mutations, after, {
+      playerSpeech: { message: "  这班车去哪？  ", targetId: "ticket_clerk" },
+    });
+
+    expect(events).toEqual([
+      {
+        kind: "player_spoke",
+        turn: 1,
+        actorId: "player1",
+        roomId: "StationHall",
+        message: "这班车去哪？",
+        targetId: "ticket_clerk",
+      },
+      {
+        kind: "player_moved",
+        turn: 1,
+        actorId: "player1",
+        fromRoomId: "StationHall",
+        toRoomId: "Platform",
+        roomId: "Platform",
+      },
+    ]);
+    expect(before.player.roomId).toBe("StationHall");
+  });
+
+  test("derives item lifecycle events from applied mutations", async () => {
+    const before = await loadWorldPack("station-dream", {
+      fallbackPlayerName: "旅行者",
+      protagonistId: "runaway_guard",
+    });
+    before.player.roomId = "Compartment1";
+    const pickedUp = structuredClone(before);
+    const pickup: AnyMutation[] = [
+      { kind: "engine/item_picked_up", itemId: "rusty_knife" },
+    ];
+    applyMutations(pickedUp, pickup);
+
+    expect(deriveGameEvents(before, pickup, pickedUp)).toEqual([
+      {
+        kind: "item_picked_up",
+        turn: 1,
+        actorId: "player1",
+        itemId: "rusty_knife",
+        roomId: "Compartment1",
+      },
+    ]);
+
+    const dropped = structuredClone(pickedUp);
+    const drop: AnyMutation[] = [
+      { kind: "engine/item_dropped", itemId: "rusty_knife", roomId: "Compartment1" },
+    ];
+    applyMutations(dropped, drop);
+    expect(deriveGameEvents(pickedUp, drop, dropped)[0]).toMatchObject({
+      kind: "item_dropped",
+      itemId: "rusty_knife",
+      roomId: "Compartment1",
+    });
+  });
+
+  test("does not publish a mutation rejected by the state layer", async () => {
+    const before = await loadWorldPack("station-dream", {
+      fallbackPlayerName: "旅行者",
+      protagonistId: "runaway_guard",
+    });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      { kind: "engine/item_picked_up", itemId: "rusty_knife" },
+      { kind: "dm/npc_moved", npcId: "ticket_clerk", toRoomId: "Platform" },
+    ];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([]);
+  });
+
+  test("derives attack and defeat events", async () => {
+    const before = await loadWorldPack("station-dream", {
+      fallbackPlayerName: "旅行者",
+    });
+    before.player.roomId = "Compartment3";
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      { kind: "engine/npc_stat_changed", npcId: "shadow", stat: "hp", delta: -30 },
+      { kind: "engine/npc_killed", npcId: "shadow" },
+    ];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([
+      {
+        kind: "entity_attacked",
+        turn: 1,
+        targetId: "shadow",
+        roomId: "Compartment3",
+        stat: "hp",
+        amount: 30,
+      },
+      {
+        kind: "entity_defeated",
+        turn: 1,
+        entityId: "shadow",
+        roomId: "Compartment3",
+      },
+    ]);
+  });
+});

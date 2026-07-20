@@ -63,22 +63,40 @@ export interface RoomDef {
   tags?: string[];
 }
 
+export type NpcController = "dm" | "pi_session" | "rule";
+
+export interface NpcPersona {
+  background?: string;
+  speechStyle?: string;
+  goals?: string[];
+  constraints?: string[];
+}
+
 export interface NpcDef {
   id: string;
   name: string;
   roomId: string;
   alive: boolean;
   personality: string;
+  controller?: NpcController; // old saves default to "dm"
+  persona?: NpcPersona;
   source: RoomSource;
   stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
   maxStats: Stats;    // e.g. { hpMax: 30 }
   hostile: boolean;
 }
 
+export type ItemLocation =
+  | { kind: "room"; roomId: string }
+  | { kind: "inventory"; ownerId: string }
+  | { kind: "equipped"; ownerId: string; slot: string }
+  | { kind: "destroyed" };
+
 export interface ItemDef {
   id: string;
   name: string;
   desc: string;
+  location: ItemLocation;
 }
 
 export type PlotStatus = "active" | "resolved" | "dormant";

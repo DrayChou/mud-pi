@@ -2,6 +2,7 @@
 // pi-backend.ts — Pi SDK implementation of AiBackend
 // ─────────────────────────────────────────────────────────────
 
+import { mkdirSync } from "node:fs";
 import {
   AuthStorage,
   createAgentSession,
@@ -12,7 +13,13 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { AiBackend, AiPromptOptions, AiSession, AiSessionOptions } from "./backend.ts";
+import type {
+  AiBackend,
+  AiPromptOptions,
+  AiSession,
+  AiSessionInfo,
+  AiSessionOptions,
+} from "./backend.ts";
 
 export class PiBackend implements AiBackend {
   readonly name = "pi" as const;
@@ -36,9 +43,9 @@ export class PiBackend implements AiBackend {
       modelRegistry,
       resourceLoader: loader,
       noTools: "all",
-      sessionManager: SessionManager.inMemory(),
+      sessionManager: sessionManagerFor(options),
       settingsManager: SettingsManager.inMemory({
-        compaction: { enabled: options.role === "dm" },
+        compaction: { enabled: options.role === "dm" || options.role === "npc" },
       }),
     });
 
@@ -56,7 +63,15 @@ export class PiBackend implements AiBackend {
 }
 
 class PiAiSession implements AiSession {
-  constructor(private session: AgentSession) {}
+  readonly info: AiSessionInfo;
+
+  constructor(private session: AgentSession) {
+    this.info = {
+      sessionId: session.sessionId,
+      sessionFile: session.sessionFile,
+      persistent: session.sessionFile !== undefined,
+    };
+  }
 
   async ask(prompt: string): Promise<string> {
     let response = "";
@@ -80,6 +95,30 @@ class PiAiSession implements AiSession {
   dispose(): void {
     this.session.dispose();
   }
+}
+
+export function sessionManagerFor(options: AiSessionOptions): SessionManager {
+  const persistence = options.persistence;
+  if (!persistence || persistence.mode === "memory") {
+    return SessionManager.inMemory(process.cwd());
+  }
+
+  if (persistence.mode === "create") {
+    if (!persistence.sessionDir) {
+      throw new Error(`Pi ${options.role} persistent session requires sessionDir`);
+    }
+    mkdirSync(persistence.sessionDir, { recursive: true });
+    return SessionManager.create(process.cwd(), persistence.sessionDir);
+  }
+
+  if (!persistence.sessionFile) {
+    throw new Error(`Pi ${options.role} session resume requires sessionFile`);
+  }
+  return SessionManager.open(
+    persistence.sessionFile,
+    persistence.sessionDir,
+    process.cwd()
+  );
 }
 
 async function resolveModel(

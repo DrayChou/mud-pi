@@ -3,12 +3,14 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { PlotStatus, RoomDef, NpcDef } from "./world.ts";
+import type { GameEvent } from "./events.ts";
 
 // ── Engine Mutations ───────────────────────────────────────────────────────
 
 export type EngineMutation =
   | { kind: "engine/player_moved"; toRoomId: string }
   | { kind: "engine/player_stat_changed"; stat: string; delta: number }
+  | { kind: "engine/npc_moved"; npcId: string; toRoomId: string }
   | { kind: "engine/npc_stat_changed"; npcId: string; stat: string; delta: number }
   | { kind: "engine/npc_killed"; npcId: string }
   | { kind: "engine/combat_started"; npcId: string }
@@ -48,6 +50,18 @@ export interface TurnRecord {
   parsed: { verb: string; args: Record<string, string>; confidence: number };
   engineMutations: EngineMutation[];
   dmMutations: DmMutation[];
+  gameEvents?: GameEvent[];
+  npcActions?: Array<{
+    npcId: string;
+    npcName: string;
+    verb: "say" | "move" | "wait";
+    content?: string;
+    direction?: string;
+    fromRoomId?: string;
+    toRoomId?: string;
+    succeeded: boolean;
+    reason?: string;
+  }>;
   narration: string;
   dmModel: string;
 }
