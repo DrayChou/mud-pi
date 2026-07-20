@@ -1,6 +1,8 @@
 # mud-pi
 
-AI 驱动的文字 MUD 引擎。世界观只提供开场设定，地图、剧情、NPC 由 DM（Pi 或 Codex AI backend）在游戏中动态生成。
+单人 Pi-first 叙事 RPG 框架。持久 Pi DM 负责理解自由行动、裁定开放情境和推进剧情；Engine 只维护物品、位置、参数、目标等权威事实并校验 AI 提案。项目不试图自动模拟完整 MUD 世界，也不支持多人并发。
+
+职责边界见 [`docs/pi-role-boundary.md`](docs/pi-role-boundary.md)。
 
 ## 项目地址
 

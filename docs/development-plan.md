@@ -4,16 +4,19 @@
 
 用一个小而可靠的规则核心承载 Pi 驱动的持久 DM 与独立 NPC，使每个世界包都能形成“开始—探索—选择—结果—结局”的完整一局，而不是只累积叙事和系统。
 
+本项目定位为 **单人 Pi-first 叙事 RPG**，不建设多人 MUD Server。Pi 是持久主持人、语义裁判和内容导演；Engine 是权威状态守门人，不负责自动运行完整世界生态。详细边界见 `docs/pi-role-boundary.md`。
+
 ## 架构原则
 
 权威状态结算的后续底层重构应遵循 `docs/state-settlement-research.md`：将 Agent/玩家输出定义为 Proposal，由纯 Decider 产生 Accepted WorldEvent 或结构化 Rejection，State 只通过 Evolve 已提交 Event 更新，GameEvent、NPC 感知、UI 和 TurnRecord 均作为 post-commit 投影处理。
 
-1. **Pi-first 记忆**：DM 与重要 NPC 的主观长期记忆使用 Pi 原生 Session JSONL 与 compaction。
-2. **权威状态唯一**：位置、属性、物品、目标和结局以 `WorldState` 为准。
-3. **所有变更走 Mutation**：Agent 只能提出意图；Engine 校验后才能产生 Mutation。
-4. **事件由事实派生**：`GameEvent` 从已应用的 Mutation 派生，不允许事件反过来成为第二套状态。
-5. **先垂直切片，后扩规模**：先完成 `station-dream`，再增加大型系统和随机地图。
-6. **确定性优先**：程序化生成和随机结算必须保存 seed 与生成器版本，并可由测试复现。
+1. **Pi-first 记忆与裁定**：DM 与重要 NPC 的主观长期记忆使用 Pi 原生 Session；开放交互、陷阱、调查、社交和剧情意义优先由 Pi 判断。
+2. **权威状态唯一**：位置、属性、物品、目标和结果以 `WorldState` 为准；Pi 只能提交 Proposal。
+3. **代码实现不变量，不穷举玩法**：凡涉及复制、越权、跨回合持续、UI 查询和存档恢复的事实由 Engine 管理；长尾动词和情境合理性交给 Pi。
+4. **事实只来自提交事件**：目标架构中 State 只由 committed `WorldEvent` 演化，`GameEvent` 只是公开投影。
+5. **按需结构化**：叙事内容只有在后续规则、UI 或恢复需要引用时才提升为结构化权威状态。
+6. **确定性作为工具而非教条**：关键冲突、世界脚本和显式骰子可复现；普通开放交互允许 Pi 直接语义裁定。
+7. **保持单人范围**：不增加多人并发、PvP、公会、在线 Builder、自动刷怪和离线生态模拟。
 
 ## 路线图
 
