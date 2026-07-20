@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // main.ts — CLI entry point
-// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>] [--tui]
+// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>] [--tui|--telnet] [--host 127.0.0.1] [--port 4000]
 // ─────────────────────────────────────────────────────────────
 
 import { createInterface as createLineInterface } from "node:readline";
@@ -14,6 +14,7 @@ import { applyMutations } from "./store/apply.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
 import type { GameOutput } from "./runtime/game-output.ts";
 import { runMudTui } from "./adapters/tui.ts";
+import { startTelnetServer } from "./adapters/telnet.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
@@ -25,7 +26,15 @@ import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
 
-function parseArgs(): { worldPack?: string; playerName?: string; saveId?: string; tui?: boolean } {
+function parseArgs(): {
+  worldPack?: string;
+  playerName?: string;
+  saveId?: string;
+  tui?: boolean;
+  telnet?: boolean;
+  port?: number;
+  host?: string;
+} {
   const args = process.argv.slice(2);
   const result: ReturnType<typeof parseArgs> = {};
   for (let i = 0; i < args.length; i++) {
@@ -33,6 +42,12 @@ function parseArgs(): { worldPack?: string; playerName?: string; saveId?: string
     if (args[i] === "--name" && args[i + 1]) result.playerName = args[++i];
     if (args[i] === "--save" && args[i + 1]) result.saveId = args[++i];
     if (args[i] === "--tui") result.tui = true;
+    if (args[i] === "--telnet") result.telnet = true;
+    if (args[i] === "--port" && args[i + 1]) {
+      const port = Number(args[++i]);
+      if (Number.isInteger(port) && port > 0 && port <= 65535) result.port = port;
+    }
+    if (args[i] === "--host" && args[i + 1]) result.host = args[++i];
   }
   return result;
 }
@@ -376,6 +391,27 @@ async function main() {
     npcSessions,
     dmModelLabel: backendLabel(config, "dm"),
   });
+
+  if (args.telnet) {
+    const server = startTelnetServer({
+      runtime,
+      hostname: args.host ?? "127.0.0.1",
+      port: args.port ?? 4000,
+      onLog: print,
+    });
+    await new Promise<void>((resolve) => {
+      const stop = () => {
+        process.off("SIGINT", stop);
+        resolve();
+      };
+      process.on("SIGINT", stop);
+    });
+    server.stop(true);
+    await runtime.save();
+    dm.dispose();
+    npcSessions.dispose();
+    return;
+  }
 
   if (args.tui) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
