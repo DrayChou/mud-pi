@@ -3,10 +3,10 @@ import { simulateCombat } from "./combat.ts";
 import type { NpcDef, PlayerState, StatsSchema } from "../types/world.ts";
 
 const schema: StatsSchema = { defs: [
-  { key: "hp", label: "HP", min: 0, max: 100, default: 100, display: "bar", onDeplete: "death", role: "pool" },
-  { key: "attack", label: "Attack", min: 0, max: 100, default: 10, display: "number", onDeplete: "narrative", role: "attack" },
-  { key: "defense", label: "Defense", min: 0, max: 100, default: 0, display: "number", onDeplete: "narrative", role: "defense" },
-  { key: "speed", label: "Speed", min: 1, max: 100, default: 10, display: "number", onDeplete: "narrative", role: "speed" },
+  { key: "hp", label: "HP", min: 0, max: 100, default: 100, display: "bar" },
+  { key: "attack", label: "Attack", min: 0, max: 100, default: 10, display: "number" },
+  { key: "defense", label: "Defense", min: 0, max: 100, default: 0, display: "number" },
+  { key: "speed", label: "Speed", min: 1, max: 100, default: 10, display: "number" },
 ] };
 
 function player(stats: Record<string, number>): PlayerState {
@@ -57,7 +57,7 @@ describe("simulateCombat", () => {
   test("records misses, critical hits, and luck-dependent rolls", () => {
     const luckySchema: StatsSchema = { defs: [
       ...schema.defs,
-      { key: "luck", label: "Luck", min: 0, max: 100, default: 0, display: "number", onDeplete: "narrative", role: "luck" },
+      { key: "luck", label: "Luck", min: 0, max: 100, default: 0, display: "number" },
     ] };
     const result = simulateCombat(
       luckySchema,

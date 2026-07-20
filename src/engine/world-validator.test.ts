@@ -135,8 +135,6 @@ function basePack(): WorldPackForValidation {
           max: 10,
           default: 10,
           display: "bar",
-          onDeplete: "death",
-          role: "pool",
         },
       ],
     },

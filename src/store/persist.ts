@@ -29,6 +29,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   try {
     const state = await f.json() as WorldState;
     normalizePlayerLifecycle(state);
+    normalizeParameterSchema(state);
     await normalizeConflictRules(state);
     normalizeRoomDiscovery(state);
     await normalizeItemLocations(state);
@@ -44,16 +45,41 @@ function normalizePlayerLifecycle(state: WorldState): void {
   if (!state.player.lifecycle) state.player.lifecycle = "active";
 }
 
+function normalizeParameterSchema(state: WorldState): void {
+  for (const def of state.schema.defs) {
+    const legacy = def as typeof def & { onDeplete?: string; role?: string };
+    if (!def.thresholds && (legacy.onDeplete === "death" || legacy.onDeplete === "incapacitate")) {
+      def.thresholds = [{
+        operator: "lte",
+        value: def.min,
+        effect: {
+          kind: "set_lifecycle",
+          value: legacy.onDeplete === "death" ? "dead" : "incapacitated",
+        },
+      }];
+    }
+    delete legacy.onDeplete;
+    delete legacy.role;
+  }
+}
+
 async function normalizeConflictRules(state: WorldState): Promise<void> {
-  if (state.conflictRules) return;
   const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
   const pack = await worldFile.exists()
     ? await worldFile.json() as { conflictRules?: ConflictRules }
     : {};
-  state.conflictRules = structuredClone(pack.conflictRules ?? {
-    mode: "auto_combat",
-    algorithm: "gauge-random-v1",
-  });
+  if (!state.conflictRules) {
+    state.conflictRules = structuredClone(pack.conflictRules ?? {
+      mode: "auto_combat",
+      algorithm: "gauge-random-v1",
+    });
+  } else if (
+    state.conflictRules.mode === "auto_combat" &&
+    !state.conflictRules.parameters &&
+    pack.conflictRules?.mode === "auto_combat"
+  ) {
+    state.conflictRules.parameters = structuredClone(pack.conflictRules.parameters);
+  }
 }
 
 function normalizeRoomDiscovery(state: WorldState): void {

@@ -66,18 +66,23 @@ const DEFAULT_RULES = {
   critMultiplier: 2,
 };
 
-export function resolveCombatSchema(schema: StatsSchema): CombatSchemaKeys {
-  const byRole = (role: NonNullable<StatsSchema["defs"][number]["role"]>) =>
-    schema.defs.find((def) => def.role === role);
-  const poolDef = schema.defs.find((def) => def.role === "pool" && def.onDeplete !== "narrative");
+export function resolveCombatSchema(
+  schema: StatsSchema,
+  rules: Pick<AutoCombatRules, "parameters">
+): CombatSchemaKeys {
+  const ids = schema.defs.map((def) => def.key);
+  const parameters = rules.parameters;
+  const poolKey = parameters?.pool ?? ids[0] ?? "stat_1";
+  const attackKey = parameters?.attack ?? ids[1] ?? poolKey;
+  const poolDef = schema.defs.find((def) => def.key === poolKey);
   return {
-    poolKey: poolDef?.key ?? "hp",
-    attackKey: byRole("attack")?.key ?? poolDef?.key ?? "hp",
-    defenseKey: byRole("defense")?.key,
-    speedKey: byRole("speed")?.key,
-    luckKey: byRole("luck")?.key,
-    accuracyKey: byRole("accuracy")?.key,
-    evasionKey: byRole("evasion")?.key,
+    poolKey,
+    attackKey,
+    defenseKey: parameters?.defense ?? ids[2],
+    speedKey: parameters?.speed ?? ids[3],
+    luckKey: parameters?.luck ?? ids[4],
+    accuracyKey: parameters?.accuracy ?? ids[5],
+    evasionKey: parameters?.evasion ?? ids[6],
     defaultPoolMax: poolDef?.max ?? 100,
   };
 }
@@ -124,10 +129,10 @@ function simulateOnce(
   schema: StatsSchema,
   player: PlayerState,
   npc: NpcDef,
-  rules: typeof DEFAULT_RULES,
+  rules: typeof DEFAULT_RULES & Pick<AutoCombatRules, "parameters">,
   seed: string
 ): Omit<CombatSimulationResult, "risk" | "estimatedPlayerWinChance"> {
-  const keys = resolveCombatSchema(schema);
+  const keys = resolveCombatSchema(schema, rules);
   const random = createSeededRandom(seed);
   const playerPoolBefore = Math.max(0, player.stats[keys.poolKey] ?? 0);
   const npcPoolBefore = Math.max(0, npc.stats[keys.poolKey] ?? 0);

@@ -10,6 +10,7 @@ import type { Config } from "./config.ts";
 import { listWorldPacks, loadStoryOutcomes, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, loadTurns, saveState, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
+import { effectivePlayerStats } from "./engine/parameters.ts";
 import { applyMutations } from "./store/apply.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
 import type { GameOutput } from "./runtime/game-output.ts";
@@ -480,9 +481,10 @@ async function processInput(
   for (const output of result.outputs) renderGameOutput(output, state);
   if (!result.turnAdvanced) return;
 
+  const effectiveStats = effectivePlayerStats(state);
   const statSummary = state.schema.defs
-    .filter((def) => def.role === "pool" && def.display !== "hidden")
-    .map((def) => `${def.label}: ${state.player.stats[def.key] ?? def.default}/${state.player.maxStats[`${def.key}Max`] ?? def.max}`)
+    .filter((def) => def.display !== "hidden")
+    .map((def) => `${def.label}: ${effectiveStats[def.key] ?? def.default}/${state.player.maxStats[`${def.key}Max`] ?? def.max}`)
     .join(" | ");
   print(`\x1b[2m[${statSummary} | ${state.player.lifecycle} | 第 ${state.turn} 轮]\x1b[0m`);
 }

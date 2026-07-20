@@ -71,7 +71,7 @@ function buildPrompt(
     min: d.min,
     max: d.max,
     default: d.default,
-    role: d.role,
+    description: d.description,
   }));
   const itemRules = (pack.items ?? []).map((i) => ({ id: i.id, name: i.name, desc: i.desc }));
   const examples = (pack.protagonists ?? []).map((p) => ({

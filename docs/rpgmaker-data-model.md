@@ -80,11 +80,17 @@ Effect 是使用物品时提交给世界规则脚本的声明，不应由 DM 直
 
 ## 后续迁移
 
-当前第一阶段已完成装备槽、参数修正、traits/effects 数据和有效参数派生。下一阶段：
+当前已完成装备槽、参数修正、traits/effects、有效参数派生，以及第二阶段的参数语义解耦：
 
-1. 删除 StatDef 的战斗 `role`；
-2. 将冲突计算移入世界包 `conflict.ts`；
-3. 增加世界包脚本加载器和只读上下文；
-4. 将 `onDeplete` 迁移为通用 threshold/effect；
-5. 增加 `use` 命令，由世界脚本解释 ItemEffect；
-6. 将角色、职业、状态、装备的 traits 聚合为统一查询接口。
+- `StatDef` 已删除战斗 `role` 和 `onDeplete`；
+- 生命周期改由参数自身声明的通用 `thresholds` 驱动；
+- 冲突参数绑定保存在每个世界包的 `conflictRules.parameters`，Engine 不再按属性名称或 role 猜测；
+- UI、Prompt 和状态命令展示全部世界包可见参数，不再只找所谓 pool。
+
+下一阶段：
+
+1. 将冲突计算移入世界包 `conflict.ts`；
+2. 增加世界包脚本加载器和只读上下文；
+3. 增加 `use` 命令，由世界脚本解释 ItemEffect；
+4. 将角色、职业、状态、装备的 traits 聚合为统一查询接口；
+5. 用通用 `conflict_result` 替换目前偏战斗语义的输出类型。

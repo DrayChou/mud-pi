@@ -19,23 +19,21 @@ export interface WorldGenerationState {
 // ── Stats Schema (defined in world.json, drives all attribute behavior) ────
 
 export type StatDisplayStyle = "bar" | "number" | "hidden";
-export type StatLossEffect =
-  | "death"      // reach 0 → player/NPC dies
-  | "incapacitate" // reach 0 → unable to act
-  | "narrative"; // reach 0 → DM decides what happens (no engine effect)
+export interface ParameterThreshold {
+  operator: "lte" | "gte";
+  value: number;
+  effect: { kind: "set_lifecycle"; value: PlayerLifecycle };
+}
 
 export interface StatDef {
-  key: string;            // internal key, e.g. "hp", "san", "mp"
-  label: string;          // display name, e.g. "生命", "理智", "法力"
-  min: number;            // usually 0
-  max: number;            // default max, overridable per-entity
-  default: number;        // starting value
+  key: string;            // world-defined parameter id; Engine assigns no semantic meaning
+  label: string;
+  description?: string;
+  min: number;
+  max: number;
+  default: number;
   display: StatDisplayStyle;
-  onDeplete: StatLossEffect;
-  // For combat: which stat the entity uses to deal/receive damage
-  // "attack" stat contributes to outgoing damage
-  // "defense" stat reduces incoming damage
-  role?: "pool" | "attack" | "defense" | "speed" | "luck" | "accuracy" | "evasion";
+  thresholds?: ParameterThreshold[];
 }
 
 export interface StatsSchema {
@@ -56,6 +54,15 @@ export type ConflictRules =
       maxCritChance?: number;
       normalDamageMin?: number;
       normalDamageMax?: number;
+      parameters?: {
+        pool: string;
+        attack: string;
+        defense?: string;
+        speed?: string;
+        luck?: string;
+        accuracy?: string;
+        evasion?: string;
+      };
       critMultiplier?: number;
       likelyFailureWarning?: string;
       dangerousWarning?: string;

@@ -186,13 +186,12 @@ export function buildDmPrompt(
     const npcsHere = Object.values(state.npcs).filter(
       (n) => n.roomId === state.player.roomId && n.alive
     );
-    const npcLines = npcsHere.map((n) => {
-      const poolDef = state.schema.defs.find((d) => d.role === "pool" && d.onDeplete !== "narrative");
-      const poolKey = poolDef?.key;
-      const statStr = poolKey
-        ? ` (${poolDef!.label}: ${n.stats[poolKey] ?? 0}/${n.maxStats[`${poolKey}Max`] ?? poolDef!.max})`
-        : "";
-      return `  ${n.name}${statStr}`;
+    const npcLines = npcsHere.map((npc) => {
+      const visible = state.schema.defs
+        .filter((def) => def.display !== "hidden")
+        .map((def) => `${def.label}:${npc.stats[def.key] ?? def.default}`)
+        .join("，");
+      return `  ${npc.name}${visible ? ` (${visible})` : ""}`;
     });
     const npcBlock = npcsHere.length > 0 ? `\n在场:\n${npcLines.join("\n")}` : "";
     const itemsHere = Object.values(state.items).filter(

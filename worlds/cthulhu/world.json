@@ -10,8 +10,16 @@
         "max": 10,
         "default": 10,
         "display": "bar",
-        "onDeplete": "death",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "dead"
+            }
+          }
+        ]
       },
       {
         "key": "san",
@@ -20,8 +28,16 @@
         "max": 100,
         "default": 80,
         "display": "bar",
-        "onDeplete": "incapacitate",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "incapacitated"
+            }
+          }
+        ]
       },
       {
         "key": "luck",
@@ -29,9 +45,7 @@
         "min": 0,
         "max": 100,
         "default": 50,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       },
       {
         "key": "brawl",
@@ -39,9 +53,7 @@
         "min": 0,
         "max": 100,
         "default": 25,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       }
     ]
   },
@@ -164,11 +176,23 @@
       "kind": "equipment",
       "equipSlot": "weapon",
       "parameterModifiers": [
-        { "parameterId": "brawl", "operation": "add", "value": 3 }
+        {
+          "parameterId": "brawl",
+          "operation": "add",
+          "value": 3
+        }
       ],
       "traits": [
-        { "code": "weapon_family", "dataId": "firearm", "value": 1 },
-        { "code": "ammo_capacity", "dataId": "38_caliber", "value": 6 }
+        {
+          "code": "weapon_family",
+          "dataId": "firearm",
+          "value": 1
+        },
+        {
+          "code": "ammo_capacity",
+          "dataId": "38_caliber",
+          "value": 6
+        }
       ],
       "inRoom": "HarborsideWharf"
     },
@@ -178,9 +202,22 @@
       "desc": "烧焦的羊皮纸，上面的文字似乎在移动。阅读它会损耗理智，但也许能揭示某些秘密。",
       "kind": "key",
       "effects": [
-        { "code": "parameter_delta", "parameterId": "san", "value": -5 }
+        {
+          "code": "parameter_delta",
+          "parameterId": "san",
+          "value": -5
+        }
       ],
       "inRoom": "MiskULibrary"
     }
-  ]
+  ],
+  "conflictRules": {
+    "mode": "auto_combat",
+    "algorithm": "gauge-random-v1",
+    "parameters": {
+      "pool": "hp",
+      "attack": "brawl",
+      "luck": "luck"
+    }
+  }
 }

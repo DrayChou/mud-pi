@@ -230,9 +230,8 @@ function cmdObjectives(state: WorldState): CommandResult {
 }
 
 function cmdHelp(state: WorldState): CommandResult {
-  // Build stat display hint from schema
   const poolStats = state.schema.defs
-    .filter((d) => d.role === "pool" && d.display !== "hidden")
+    .filter((d) => d.display !== "hidden")
     .map((d) => d.label)
     .join("、");
 

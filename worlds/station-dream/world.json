@@ -16,7 +16,15 @@
     "normalDamageMax": 1.25,
     "critMultiplier": 2,
     "likelyFailureWarning": "你听见远处列车发出一声不祥的长鸣。直觉告诉你，贸然与{target}交手，归途很可能会在这里中断。",
-    "dangerousWarning": "车窗里的倒影比你先一步后退。面对{target}，即使能赢，你也可能付出难以挽回的代价。"
+    "dangerousWarning": "车窗里的倒影比你先一步后退。面对{target}，即使能赢，你也可能付出难以挽回的代价。",
+    "parameters": {
+      "pool": "hp",
+      "attack": "attack",
+      "defense": "defense",
+      "speed": "speed",
+      "luck": "luck",
+      "accuracy": "accuracy"
+    }
   },
   "proceduralMap": {
     "generator": "seeded-mst-v1",
@@ -30,27 +38,42 @@
       {
         "title": "遗失物候车室 {n}",
         "desc": "狭长的候车室里摆满无人认领的箱包。每当你移开视线，行李上的姓名牌就会换成另一个名字。",
-        "tags": ["station", "memory"]
+        "tags": [
+          "station",
+          "memory"
+        ]
       },
       {
         "title": "空白时刻表廊 {n}",
         "desc": "两侧墙壁挂满没有车次的时刻表，纸面在无风的空气里轻轻翻动，像在等待一个尚未决定的目的地。",
-        "tags": ["station", "liminal"]
+        "tags": [
+          "station",
+          "liminal"
+        ]
       },
       {
         "title": "封闭检票口 {n}",
         "desc": "生锈的闸机横在昏暗通道中央。玻璃窗后没有工作人员，只有一枚检票钳偶尔自行开合。",
-        "tags": ["station", "checkpoint"]
+        "tags": [
+          "station",
+          "checkpoint"
+        ]
       },
       {
         "title": "回声行李廊 {n}",
         "desc": "砖砌走廊向黑暗深处延伸，脚步声总比你慢半拍，仿佛另一个旅客正沿着相同路线跟随。",
-        "tags": ["station", "echo"]
+        "tags": [
+          "station",
+          "echo"
+        ]
       },
       {
         "title": "熄灯月台 {n}",
         "desc": "没有编号的短月台悬在浓雾中。铁轨在几步之外突然消失，远处却仍传来列车经过的震动。",
-        "tags": ["station", "platform"]
+        "tags": [
+          "station",
+          "platform"
+        ]
       }
     ]
   },
@@ -63,8 +86,16 @@
         "max": 100,
         "default": 100,
         "display": "bar",
-        "onDeplete": "death",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "dead"
+            }
+          }
+        ]
       },
       {
         "key": "attack",
@@ -72,9 +103,7 @@
         "min": 0,
         "max": 50,
         "default": 8,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       },
       {
         "key": "defense",
@@ -82,9 +111,7 @@
         "min": 0,
         "max": 30,
         "default": 2,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "defense"
+        "display": "number"
       },
       {
         "key": "speed",
@@ -92,9 +119,7 @@
         "min": 1,
         "max": 50,
         "default": 10,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "speed"
+        "display": "number"
       },
       {
         "key": "luck",
@@ -102,9 +127,7 @@
         "min": 0,
         "max": 20,
         "default": 5,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "luck"
+        "display": "number"
       },
       {
         "key": "accuracy",
@@ -112,9 +135,7 @@
         "min": 0,
         "max": 20,
         "default": 5,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "accuracy"
+        "display": "number"
       }
     ]
   },
@@ -288,7 +309,11 @@
       "desc": "一张泛黄的单程车票，目的地一栏是空白的。",
       "kind": "key",
       "traits": [
-        { "code": "story_key", "dataId": "return_ticket", "value": 1 }
+        {
+          "code": "story_key",
+          "dataId": "return_ticket",
+          "value": 1
+        }
       ],
       "inRoom": "Platform"
     },
@@ -299,11 +324,23 @@
       "kind": "equipment",
       "equipSlot": "weapon",
       "parameterModifiers": [
-        { "parameterId": "attack", "operation": "add", "value": 3 },
-        { "parameterId": "accuracy", "operation": "add", "value": 1 }
+        {
+          "parameterId": "attack",
+          "operation": "add",
+          "value": 3
+        },
+        {
+          "parameterId": "accuracy",
+          "operation": "add",
+          "value": 1
+        }
       ],
       "traits": [
-        { "code": "weapon_family", "dataId": "blade", "value": 1 }
+        {
+          "code": "weapon_family",
+          "dataId": "blade",
+          "value": 1
+        }
       ],
       "inRoom": "Compartment1"
     }

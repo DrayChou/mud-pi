@@ -27,21 +27,19 @@ function clampStat(state: WorldState, key: string, value: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-// Check if any "death" or "incapacitate" pool stat hit 0
-function checkDepletion(
-  state: WorldState,
-  stats: Record<string, number>,
-  entityLabel: string
-): void {
-  for (const def of state.schema.defs) {
-    if (def.role !== "pool") continue;
-    if (def.onDeplete === "narrative") continue;
-    const val = stats[def.key] ?? def.default;
-    if (val <= 0) {
-      console.log(
-        `[apply] ${entityLabel} stat ${def.key} depleted (${def.onDeplete})`
-      );
-    }
+function updatePlayerLifecycleFromThresholds(state: WorldState): void {
+  const matched = state.schema.defs.flatMap((def) => {
+    const value = state.player.stats[def.key] ?? def.default;
+    return (def.thresholds ?? []).filter((threshold) =>
+      threshold.operator === "lte" ? value <= threshold.value : value >= threshold.value
+    );
+  });
+  if (matched.some((threshold) => threshold.effect.value === "dead")) {
+    state.player.lifecycle = "dead";
+  } else if (matched.some((threshold) => threshold.effect.value === "incapacitated")) {
+    if (state.player.lifecycle !== "dead") state.player.lifecycle = "incapacitated";
+  } else if (state.player.lifecycle === "incapacitated") {
+    state.player.lifecycle = "active";
   }
 }
 
@@ -65,17 +63,7 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
     case "engine/player_stat_changed": {
       const cur = p.stats[mut.stat] ?? 0;
       p.stats[mut.stat] = clampStat(state, mut.stat, cur + mut.delta);
-      checkDepletion(state, p.stats, "player");
-      const depletedPools = state.schema.defs.filter(
-        (def) => def.role === "pool" && (p.stats[def.key] ?? def.default) <= def.min
-      );
-      if (depletedPools.some((def) => def.onDeplete === "death")) {
-        p.lifecycle = "dead";
-      } else if (depletedPools.some((def) => def.onDeplete === "incapacitate")) {
-        if (p.lifecycle !== "dead") p.lifecycle = "incapacitated";
-      } else if (p.lifecycle === "incapacitated") {
-        p.lifecycle = "active";
-      }
+      updatePlayerLifecycleFromThresholds(state);
       break;
     }
 
@@ -98,10 +86,6 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       const npc = state.npcs[mut.npcId];
       if (npc) {
         npc.alive = false;
-        // Zero out all pool stats
-        for (const def of state.schema.defs) {
-          if (def.role === "pool") npc.stats[def.key] = 0;
-        }
       }
       break;
     }
@@ -258,12 +242,7 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         console.warn(`[apply] DM cannot kill independently controlled NPC: ${mut.npcId}`);
         return;
       }
-      if (npc) {
-        npc.alive = false;
-        for (const def of state.schema.defs) {
-          if (def.role === "pool") npc.stats[def.key] = 0;
-        }
-      }
+      if (npc) npc.alive = false;
       break;
     }
 

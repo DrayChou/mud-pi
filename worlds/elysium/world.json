@@ -10,8 +10,16 @@
         "max": 10,
         "default": 5,
         "display": "bar",
-        "onDeplete": "death",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "dead"
+            }
+          }
+        ]
       },
       {
         "key": "morale",
@@ -20,8 +28,16 @@
         "max": 10,
         "default": 3,
         "display": "bar",
-        "onDeplete": "incapacitate",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "incapacitated"
+            }
+          }
+        ]
       },
       {
         "key": "intellect",
@@ -29,9 +45,7 @@
         "min": 0,
         "max": 10,
         "default": 4,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       },
       {
         "key": "physique",
@@ -39,9 +53,7 @@
         "min": 0,
         "max": 10,
         "default": 3,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "defense"
+        "display": "number"
       },
       {
         "key": "motorics",
@@ -49,9 +61,7 @@
         "min": 0,
         "max": 10,
         "default": 3,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       },
       {
         "key": "psyche",
@@ -59,9 +69,7 @@
         "min": 0,
         "max": 10,
         "default": 4,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       }
     ]
   },
@@ -208,7 +216,11 @@
       "desc": "皱巴巴的警察徽章。上面的名字——哈里·杜博瓦——对你没有任何意义。",
       "kind": "key",
       "traits": [
-        { "code": "authority_token", "dataId": "revachol_police", "value": 1 }
+        {
+          "code": "authority_token",
+          "dataId": "revachol_police",
+          "value": 1
+        }
       ],
       "inInventory": true
     },
@@ -219,10 +231,18 @@
       "kind": "equipment",
       "equipSlot": "neck",
       "parameterModifiers": [
-        { "parameterId": "psyche", "operation": "add", "value": 1 }
+        {
+          "parameterId": "psyche",
+          "operation": "add",
+          "value": 1
+        }
       ],
       "traits": [
-        { "code": "talking_item", "dataId": "horrific_necktie", "value": 1 }
+        {
+          "code": "talking_item",
+          "dataId": "horrific_necktie",
+          "value": 1
+        }
       ],
       "inRoom": "HotelRoom"
     },
@@ -233,5 +253,15 @@
       "kind": "key",
       "inRoom": "HotelLobby"
     }
-  ]
+  ],
+  "conflictRules": {
+    "mode": "auto_combat",
+    "algorithm": "gauge-random-v1",
+    "parameters": {
+      "pool": "health",
+      "attack": "motorics",
+      "defense": "physique",
+      "luck": "psyche"
+    }
+  }
 }

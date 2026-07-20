@@ -62,6 +62,12 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     if (def.default < def.min || def.default > def.max) {
       errors.push(`stat ${def.key} default ${def.default} is outside ${def.min}-${def.max}`);
     }
+    for (const threshold of def.thresholds ?? []) {
+      if (!Number.isFinite(threshold.value)) errors.push(`stat ${def.key} threshold value must be finite`);
+      if (threshold.effect.kind !== "set_lifecycle" || !["active", "incapacitated", "dead"].includes(threshold.effect.value)) {
+        errors.push(`stat ${def.key} has invalid threshold effect`);
+      }
+    }
   }
 
   validateStats("playerStats", pack.playerStats, pack.schema, statKeys, errors);
@@ -77,7 +83,7 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     errors.push(`bornPoint references missing room: ${pack.bornPoint}`);
   }
 
-  if (pack.conflictRules) validateConflictRules(pack.conflictRules, errors);
+  if (pack.conflictRules) validateConflictRules(pack.conflictRules, statKeys, errors);
 
   if (pack.proceduralMap) {
     const config = pack.proceduralMap;
@@ -241,9 +247,14 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
   }
 }
 
-function validateConflictRules(rules: ConflictRules, errors: string[]): void {
+function validateConflictRules(rules: ConflictRules, statKeys: Set<string>, errors: string[]): void {
   if (rules.mode === "auto_combat") {
     if (rules.algorithm !== "gauge-random-v1") errors.push(`unsupported combat algorithm: ${rules.algorithm}`);
+    for (const [binding, parameterId] of Object.entries(rules.parameters ?? {})) {
+      if (!statKeys.has(parameterId)) {
+        errors.push(`conflictRules parameter ${binding} references missing parameter: ${parameterId}`);
+      }
+    }
     const probabilities = [
       ["baseHitChance", rules.baseHitChance], ["minHitChance", rules.minHitChance],
       ["maxHitChance", rules.maxHitChance], ["baseCritChance", rules.baseCritChance],

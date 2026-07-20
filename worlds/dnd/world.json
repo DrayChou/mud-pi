@@ -10,8 +10,16 @@
         "max": 40,
         "default": 28,
         "display": "bar",
-        "onDeplete": "death",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "dead"
+            }
+          }
+        ]
       },
       {
         "key": "mp",
@@ -20,8 +28,16 @@
         "max": 20,
         "default": 12,
         "display": "bar",
-        "onDeplete": "incapacitate",
-        "role": "pool"
+        "thresholds": [
+          {
+            "operator": "lte",
+            "value": 0,
+            "effect": {
+              "kind": "set_lifecycle",
+              "value": "incapacitated"
+            }
+          }
+        ]
       },
       {
         "key": "str",
@@ -29,9 +45,7 @@
         "min": 1,
         "max": 20,
         "default": 14,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "attack"
+        "display": "number"
       },
       {
         "key": "ac",
@@ -39,9 +53,7 @@
         "min": 0,
         "max": 20,
         "default": 12,
-        "display": "number",
-        "onDeplete": "narrative",
-        "role": "defense"
+        "display": "number"
       }
     ]
   },
@@ -179,10 +191,18 @@
       "kind": "equipment",
       "equipSlot": "weapon",
       "parameterModifiers": [
-        { "parameterId": "str", "operation": "add", "value": 2 }
+        {
+          "parameterId": "str",
+          "operation": "add",
+          "value": 2
+        }
       ],
       "traits": [
-        { "code": "damage_dice", "dataId": "1d6", "value": 1 }
+        {
+          "code": "damage_dice",
+          "dataId": "1d6",
+          "value": 1
+        }
       ],
       "inInventory": true
     },
@@ -192,7 +212,15 @@
       "desc": "红色的玻璃瓶，饮用后恢复 2d4+2 点生命值。",
       "kind": "item",
       "effects": [
-        { "code": "recover_parameter", "parameterId": "hp", "value": 2, "dice": { "count": 2, "sides": 4 } }
+        {
+          "code": "recover_parameter",
+          "parameterId": "hp",
+          "value": 2,
+          "dice": {
+            "count": 2,
+            "sides": 4
+          }
+        }
       ],
       "inInventory": true
     },
@@ -203,5 +231,14 @@
       "kind": "key",
       "inRoom": "TavernCommonRoom"
     }
-  ]
+  ],
+  "conflictRules": {
+    "mode": "auto_combat",
+    "algorithm": "gauge-random-v1",
+    "parameters": {
+      "pool": "hp",
+      "attack": "str",
+      "defense": "ac"
+    }
+  }
 }
