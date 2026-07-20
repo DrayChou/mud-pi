@@ -52,7 +52,7 @@ export interface CombatSimulationResult {
 
 type AutoCombatRules = Extract<ConflictRules, { mode: "auto_combat" }>;
 
-const DEFAULT_RULES: Required<Omit<AutoCombatRules, "mode" | "algorithm">> = {
+const DEFAULT_RULES = {
   baseHitChance: 0.8,
   minHitChance: 0.05,
   maxHitChance: 0.95,
@@ -64,8 +64,6 @@ const DEFAULT_RULES: Required<Omit<AutoCombatRules, "mode" | "algorithm">> = {
   normalDamageMin: 0.75,
   normalDamageMax: 1.25,
   critMultiplier: 2,
-  likelyFailureWarning: "你本能地意识到，贸然与{target}正面对抗，很可能无法全身而退。",
-  dangerousWarning: "面对{target}，一种强烈的不安提醒你：即使取胜，也可能付出沉重代价。",
 };
 
 export function resolveCombatSchema(schema: StatsSchema): CombatSchemaKeys {
