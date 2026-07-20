@@ -126,9 +126,31 @@ item_granted
 
 奖励消耗品可以通过 `use` 交给世界脚本解释；奖励装备可以通过 `equip` 装入模板声明的槽位。
 
+## 任务奖励契约
+
+Objective 可以声明可选的 AI 奖励策略：
+
+```json
+{
+  "id": "ask_ticket_clerk",
+  "completion": { "kind": "talk_to_npc", "npcId": "ticket_clerk" },
+  "reward": {
+    "mode": "ai_judged",
+    "guidance": "只有当玩家的询问、帮助或交换让售票员真诚认为值得回报时才发放。",
+    "allowedTemplateIds": ["small_recovery"],
+    "eligibleGrantorNpcIds": ["ticket_clerk"],
+    "maxAwards": 1
+  }
+}
+```
+
+这不是确定性掉落表。Objective 只声明奖励边界，AI 仍可以判断“不奖励”。Engine 会检查任务已经完成、模板被允许、NPC 有资格发放，以及该任务没有超过 `maxAwards`。
+
+任务奖励生成的道具记录 `rewardObjectiveId`，防止换 NPC 或换模板重复领取。
+
 ## 任务时序
 
-玩家行动产生的 Objective 会在唤醒 NPC 前先结算，因此 NPC 在同一轮 Prompt 中可以看到刚完成的目标，并自行判断是否奖励。Objective 仍只负责确定性完成，不硬编码必掉奖励。
+玩家行动产生的 Objective 会在唤醒 NPC 前先结算，并派生 `objective_completed` GameEvent。因此 NPC 在同一轮 Prompt 中既能看到刚完成的目标状态，也能明确感知“这个目标刚刚完成”，再自行判断是否奖励。Objective 仍只负责确定性完成，不硬编码必掉奖励。
 
 ```text
 玩家行动

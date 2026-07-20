@@ -224,6 +224,7 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     errors.push(`defaultProtagonistId references missing protagonist: ${pack.defaultProtagonistId}`);
   }
 
+  const rewardTemplateIds = new Set((pack.itemRewardRules?.templates ?? []).map((template) => template.id));
   const objectiveIds = new Set<string>();
   for (const objective of pack.objectives ?? []) {
     if (!objective.id) errors.push("objectives contains an objective with empty id");
@@ -234,6 +235,20 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     for (const requiredId of objective.requires ?? []) {
       if (!objectiveIds.has(requiredId)) {
         errors.push(`objective ${objective.id} requires missing objective: ${requiredId}`);
+      }
+    }
+    if (objective.reward) {
+      if (!objective.reward.guidance?.trim() || objective.reward.allowedTemplateIds.length === 0) {
+        errors.push(`objective ${objective.id} AI reward requires guidance and allowed templates`);
+      }
+      for (const templateId of objective.reward.allowedTemplateIds) {
+        if (!rewardTemplateIds.has(templateId)) errors.push(`objective ${objective.id} reward references missing template: ${templateId}`);
+      }
+      for (const npcId of objective.reward.eligibleGrantorNpcIds ?? []) {
+        if (!npcIds.has(npcId)) errors.push(`objective ${objective.id} reward references missing grantor npc: ${npcId}`);
+      }
+      if ((objective.reward.maxAwards ?? 1) < 1 || !Number.isInteger(objective.reward.maxAwards ?? 1)) {
+        errors.push(`objective ${objective.id} reward maxAwards must be a positive integer`);
       }
     }
     const completion = objective.completion;

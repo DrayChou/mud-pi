@@ -38,6 +38,7 @@ function describeGameEvent(event: GameEvent): string {
     case "item_picked_up": return `玩家在 ${event.roomId} 拾取了 ${event.itemId}`;
     case "item_consumed": return `玩家在 ${event.roomId} 使用并消耗了 ${event.itemId}`;
     case "item_dropped": return `玩家在 ${event.roomId} 丢下了 ${event.itemId}`;
+    case "objective_completed": return `玩家在 ${event.roomId} 完成了目标 ${event.objectiveId}`;
     case "entity_attacked": return `${event.targetId} 的 ${event.stat} 受到 ${event.amount} 点损耗`;
     case "entity_defeated": return `${event.entityId} 在 ${event.roomId} 被击败`;
     case "player_died": return `玩家在 ${event.roomId} 死亡`;
@@ -67,6 +68,7 @@ function describeItemData(state: WorldState, item: ItemDef): string {
   const traits = (item.traits ?? []).map((trait) => `${trait.code}${trait.dataId ? `:${trait.dataId}` : ""}=${trait.value}`);
   const provenance = [
     item.rewardTemplateId ? `奖励模板:${item.rewardTemplateId}` : undefined,
+    item.rewardObjectiveId ? `关联任务:${item.rewardObjectiveId}` : undefined,
     item.grantedByEntityId ? `赠予者:${item.grantedByEntityId}` : undefined,
   ].filter((value): value is string => Boolean(value));
   const metadata = [...modifiers, ...traits, ...provenance];
@@ -152,9 +154,12 @@ export function buildDmPrompt(
   if (visibleObjectives.length > 0) {
     parts.push(
       "[目标进度]\n" +
-      visibleObjectives.map((objective) =>
-        `• ${objective.status === "completed" ? "✓" : "○"} ${objective.title}：${objective.description}`
-      ).join("\n")
+      visibleObjectives.map((objective) => {
+        const reward = objective.status === "completed" && objective.reward?.mode === "ai_judged"
+          ? `；可由 AI 判断奖励，允许模板=${objective.reward.allowedTemplateIds.join(",")}，指导=${objective.reward.guidance}；发放时 rewardObjectiveId=${objective.id}`
+          : "";
+        return `• ${objective.status === "completed" ? "✓" : "○"} ${objective.title}：${objective.description}${reward}`;
+      }).join("\n")
     );
   }
   if (state.outcome) {
@@ -286,7 +291,7 @@ export function buildDmPrompt(
 玩家进入新的地点时，可以按场景逻辑生成少量有意义的道具或可检查陈设，但不要保证每个房间都有奖励，也不要无理由刷出强力装备。
 itemsAdded 基础格式：{"id":"稳定且唯一的英文或拼音ID","name":"显示名","desc":"可检查描述","aliases":["简称或同义词"],"placement":"room","roomId":"当前房间ID","portable":true,"kind":"item"}。
 - placement="room"：道具出现在场景中，玩家需要拾取；roomId 省略时默认为当前房间。
-- placement="inventory"：仅用于 AI 判定的 NPC/任务奖励，必须提供当前世界允许的 rewardTemplateId；若是 NPC 当面赠予，同时提供 grantedByNpcId。Engine 会使用模板中的固定机械规则，AI 只能创作名称、描述和别名。
+- placement="inventory"：仅用于 AI 判定的 NPC/任务奖励，必须提供当前世界允许的 rewardTemplateId；若是 NPC 当面赠予，同时提供 grantedByNpcId；若因已完成任务而奖励，同时提供 rewardObjectiveId。Engine 会使用模板中的固定机械规则，AI 只能创作名称、描述和别名。
 - placement="room" 的场景物品 kind 可为 item/equipment/key/scenery；equipment 必须提供 equipSlot；scenery 会被视为不可携带。
 - 场景物品可选 parameterModifiers/traits/effects/consumable 必须使用当前世界已经声明的参数 ID，数值应克制且符合剧情。
 - 奖励不是每个任务或对话都必须有。只有根据已结算事件、目标完成、NPC 动机、信任或交换关系判断确实应得时才发放。

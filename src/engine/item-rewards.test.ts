@@ -37,6 +37,30 @@ describe("AI item reward templates", () => {
     });
   }
 
+  test("requires a completed AI-reward task and prevents duplicate task awards", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const proposal = {
+      grantorNpcId: "ticket_clerk",
+      templateId: "small_recovery",
+      objectiveId: "ask_ticket_clerk",
+      itemId: "task_reward_1",
+      name: "值班热茶",
+      desc: "售票员对你的帮助表示认可。",
+      requestedAtTurn: state.turn,
+    };
+    expect(decideItemRewardGrant(state, proposal)).toEqual({
+      accepted: false,
+      reason: "关联任务尚未完成或不允许 AI 奖励",
+    });
+
+    state.objectives.ask_ticket_clerk!.status = "completed";
+    applyMutations(state, [{ kind: "engine/item_reward_granted", ...proposal }]);
+    expect(state.items.task_reward_1?.rewardObjectiveId).toBe("ask_ticket_clerk");
+
+    const duplicate = decideItemRewardGrant(state, { ...proposal, itemId: "task_reward_2" });
+    expect(duplicate).toEqual({ accepted: false, reason: "关联任务的奖励已经发放" });
+  });
+
   test("rejects an NPC reward when the grantor is not in the player's room", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.npcs.ticket_clerk!.roomId = "Platform";

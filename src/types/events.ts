@@ -53,6 +53,13 @@ export type GameEvent =
       roomId: string;
     }
   | {
+      kind: "objective_completed";
+      turn: number;
+      objectiveId: string;
+      actorId: string;
+      roomId: string;
+    }
+  | {
       kind: "entity_attacked";
       turn: number;
       targetId: string;

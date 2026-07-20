@@ -68,6 +68,7 @@ export function executeNpcDecision(
           name: decision.intent.name,
           desc: decision.intent.desc,
           aliases: decision.intent.aliases,
+          objectiveId: decision.intent.objectiveId,
           requestedAtTurn: decision.context.requestedAtTurn,
       };
       const rewardDecision = decideItemRewardGrant(state, mutation);

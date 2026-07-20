@@ -7,6 +7,7 @@ export interface ItemRewardGrantProposal {
   name: string;
   desc: string;
   aliases?: string[];
+  objectiveId?: string;
   requestedAtTurn: number;
 }
 
@@ -27,6 +28,23 @@ export function decideItemRewardGrant(
   const template = state.itemRewardRules?.templates.find((candidate) => candidate.id === proposal.templateId);
   if (!template || (template.kind !== "item" && template.kind !== "equipment")) {
     return reject("奖励模板不属于当前世界规则");
+  }
+
+  const objective = proposal.objectiveId ? state.objectives[proposal.objectiveId] : undefined;
+  if (proposal.objectiveId) {
+    if (!objective || objective.status !== "completed" || objective.reward?.mode !== "ai_judged") {
+      return reject("关联任务尚未完成或不允许 AI 奖励");
+    }
+    if (!objective.reward.allowedTemplateIds.includes(template.id)) {
+      return reject("该奖励模板不属于关联任务允许范围");
+    }
+    if (
+      proposal.grantorNpcId &&
+      objective.reward.eligibleGrantorNpcIds?.length &&
+      !objective.reward.eligibleGrantorNpcIds.includes(proposal.grantorNpcId)
+    ) return reject("该 NPC 不是关联任务允许的奖励人");
+    const priorAwards = Object.values(state.items).filter((item) => item.rewardObjectiveId === objective.id).length;
+    if (priorAwards >= (objective.reward.maxAwards ?? 1)) return reject("关联任务的奖励已经发放");
   }
 
   const grantor = state.npcs[proposal.grantorNpcId ?? ""];
@@ -71,6 +89,7 @@ export function decideItemRewardGrant(
       source: "dm_generated",
       createdTurn: state.turn,
       rewardTemplateId: template.id,
+      rewardObjectiveId: objective?.id,
       grantedByEntityId: grantorId,
     },
   };

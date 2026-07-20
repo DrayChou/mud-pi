@@ -106,6 +106,12 @@ describe("validateWorldPack", () => {
       description: "Find it",
       requires: ["missing-objective"],
       completion: { kind: "acquire_item", itemId: "missing-item" },
+      reward: {
+        mode: "ai_judged",
+        guidance: "Reward",
+        allowedTemplateIds: ["missing-template"],
+        eligibleGrantorNpcIds: ["missing-npc"],
+      },
     }];
     pack.outcomes = [{
       id: "end",
@@ -118,6 +124,8 @@ describe("validateWorldPack", () => {
 
     expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/requires missing objective/);
     expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/references missing item/);
+    expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/reward references missing template/);
+    expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/reward references missing grantor npc/);
     expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/outcome end has empty criteria/);
   });
 });

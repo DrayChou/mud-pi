@@ -29,6 +29,7 @@ interface RawNpcResponse {
     name?: unknown;
     desc?: unknown;
     aliases?: unknown;
+    objectiveId?: unknown;
   } | null;
 }
 
@@ -193,7 +194,7 @@ ${constraints}
 严格返回 JSON，不要 Markdown：
 {"thought":"简短的私人想法","action":{"verb":"say","content":"符合角色身份的一句话"}}
 {"thought":"简短的私人想法","action":{"verb":"move","direction":"east|west|north|south|up|down"}}
-{"thought":"玩家确实完成了我关心的事","action":{"verb":"give_item","content":"这是你应得的。","templateId":"本轮允许的模板ID","itemId":"唯一英文ID，建议包含NPC和回合","name":"符合世界观的名称","desc":"可检查描述","aliases":["简称"]}}
+{"thought":"玩家确实完成了我关心的事","action":{"verb":"give_item","content":"这是你应得的。","templateId":"本轮允许的模板ID","objectiveId":"若因任务完成而奖励则填写任务ID","itemId":"唯一英文ID，建议包含NPC和回合","name":"符合世界观的名称","desc":"可检查描述","aliases":["简称"]}}
 或：
 {"thought":"简短的私人想法","action":{"verb":"wait"}}`;
 }
@@ -212,7 +213,13 @@ function buildNpcEventPrompt(state: WorldState, npc: NpcDef, events: GameEvent[]
     .map((item) => item.name);
   const objectives = Object.values(state.objectives)
     .filter((objective) => !objective.hidden || objective.status === "completed")
-    .map((objective) => `- ${objective.status === "completed" ? "已完成" : "进行中"}：${objective.title} — ${objective.description}`);
+    .map((objective) => {
+      const eligible = !objective.reward?.eligibleGrantorNpcIds?.length || objective.reward.eligibleGrantorNpcIds.includes(npc.id);
+      const reward = objective.status === "completed" && objective.reward?.mode === "ai_judged" && eligible
+        ? `；你可以自行判断是否奖励，允许模板=${objective.reward.allowedTemplateIds.join(",")}；指导=${objective.reward.guidance}；若奖励必须填写 objectiveId=${objective.id}`
+        : "";
+      return `- ${objective.status === "completed" ? "已完成" : "进行中"}：${objective.title} — ${objective.description}${reward}`;
+    });
   const rewardTemplates = (state.itemRewardRules?.templates ?? []).map((template) =>
     `- ${template.id}：${template.label}；${template.guidance}`
   );
@@ -292,6 +299,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `${playerName}使用并消耗了${itemName(state, event.itemId)}`;
     case "item_dropped":
       return `${playerName}放下了${itemName(state, event.itemId)}`;
+    case "objective_completed":
+      return `${playerName}完成了目标“${state.objectives[event.objectiveId]?.title ?? event.objectiveId}”`;
     case "entity_attacked":
       return `${entityName(state, event.targetId)}遭到攻击，${event.stat}减少${event.amount}`;
     case "entity_defeated":
@@ -351,7 +360,19 @@ export function parseNpcResponse(raw: string, npc: NpcDef): NpcIntent | null {
           .map((alias) => sanitizeText(alias, 80)).filter(Boolean).slice(0, 12)
         : undefined;
       if (!/^[a-z][a-z0-9_-]{0,63}$/.test(itemId) || !templateId || !content || !name || !desc) return null;
-      return { verb: "give_item", content, templateId, itemId, name, desc, aliases };
+      const objectiveId = typeof parsed.action.objectiveId === "string"
+        ? parsed.action.objectiveId.trim().slice(0, 64) || undefined
+        : undefined;
+      return {
+        verb: "give_item",
+        content,
+        templateId,
+        itemId,
+        name,
+        desc,
+        aliases,
+        ...(objectiveId ? { objectiveId } : {}),
+      };
     }
     if (verb !== "say" || typeof parsed.action?.content !== "string") return null;
 

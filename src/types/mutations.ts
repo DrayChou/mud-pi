@@ -26,6 +26,7 @@ export type EngineMutation =
       name: string;
       desc: string;
       aliases?: string[];
+      objectiveId?: string;
       requestedAtTurn: number;
     }
   | { kind: "engine/objective_completed"; objectiveId: string }
@@ -44,6 +45,7 @@ export type DmMutation =
       name: string;
       desc: string;
       aliases?: string[];
+      objectiveId?: string;
       requestedAtTurn: number;
     }
   | { kind: "dm/outcome_reached"; outcome: ReachedOutcome; requestedAtTurn: number }

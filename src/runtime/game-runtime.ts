@@ -112,14 +112,21 @@ export class GameRuntime {
         : undefined
     );
     // Settle deterministic player-driven objective progress before waking NPCs,
-    // so an NPC can judge a just-completed task and choose a world-valid reward.
+    // so an NPC can perceive a just-completed task and choose a world-valid reward.
+    const stateBeforePlayerProgress = structuredClone(this.state);
     const playerProgressMutations = evaluateProgress(this.state, engineEvents);
     applyMutations(this.state, playerProgressMutations);
+    const playerProgressEvents = deriveGameEvents(
+      stateBeforePlayerProgress,
+      playerProgressMutations,
+      this.state
+    );
+    const npcPerceptionEvents = [...engineEvents, ...playerProgressEvents];
 
     const sessionDecisions = result.combatContext
       ? []
       : this.npcSessions.respondToEvents
-      ? await this.npcSessions.respondToEvents(this.state, engineEvents, 2)
+      ? await this.npcSessions.respondToEvents(this.state, npcPerceptionEvents, 2)
       : parsed.verb === "say"
         ? await this.npcSessions.respondToPlayerSay(
             this.state,
@@ -146,16 +153,23 @@ export class GameRuntime {
     }
 
     const speechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, npcDecisions);
-    const preDmEvents = deriveGameEvents(
+    const preDmBaseEvents = deriveGameEvents(
       stateBeforeTurn,
-      [...engineMuts, ...npcMutations],
+      [...engineMuts, ...playerProgressMutations, ...npcMutations],
       this.state,
       parsed.verb === "say"
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
         : undefined
     );
-    const npcProgressMutations = evaluateProgress(this.state, preDmEvents);
+    const stateBeforeNpcProgress = structuredClone(this.state);
+    const npcProgressMutations = evaluateProgress(this.state, preDmBaseEvents);
     applyMutations(this.state, npcProgressMutations);
+    const npcProgressEvents = deriveGameEvents(
+      stateBeforeNpcProgress,
+      npcProgressMutations,
+      this.state
+    );
+    const preDmEvents = [...preDmBaseEvents, ...npcProgressEvents];
     const preDmProgressMutations = [...playerProgressMutations, ...npcProgressMutations];
 
     const stateBeforeDm = structuredClone(this.state);

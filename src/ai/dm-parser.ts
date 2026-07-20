@@ -44,6 +44,7 @@ interface RawWorldUpdate {
     roomId?: string;
     rewardTemplateId?: string;
     grantedByNpcId?: string;
+    rewardObjectiveId?: string;
     portable?: boolean;
     kind?: ItemKind;
     equipSlot?: string;
@@ -172,6 +173,7 @@ function buildMutations(
           ? i.aliases.filter((alias): alias is string => typeof alias === "string" && alias.trim().length > 0)
             .slice(0, 12).map((alias) => alias.trim().slice(0, 80))
           : undefined,
+        objectiveId: i.rewardObjectiveId?.trim().slice(0, 64) || undefined,
         requestedAtTurn,
       });
       continue;

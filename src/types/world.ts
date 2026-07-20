@@ -206,6 +206,7 @@ export interface ItemDef {
   source?: RoomSource;
   createdTurn?: number;
   rewardTemplateId?: string;
+  rewardObjectiveId?: string;
   grantedByEntityId?: string;
 }
 
@@ -231,6 +232,14 @@ export type ObjectiveCompletion =
   | { kind: "acquire_item"; itemId: string }
   | { kind: "defeat_entity"; entityId: string };
 
+export interface ObjectiveRewardPolicy {
+  mode: "ai_judged";
+  guidance: string;
+  allowedTemplateIds: string[];
+  eligibleGrantorNpcIds?: string[];
+  maxAwards?: number;
+}
+
 export interface ObjectiveDef {
   id: string;
   title: string;
@@ -238,6 +247,7 @@ export interface ObjectiveDef {
   requires?: string[];
   hidden?: boolean;
   completion: ObjectiveCompletion;
+  reward?: ObjectiveRewardPolicy;
 }
 
 export type ObjectiveStatus = "active" | "completed";

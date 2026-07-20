@@ -353,6 +353,17 @@
       "completion": {
         "kind": "talk_to_npc",
         "npcId": "ticket_clerk"
+      },
+      "reward": {
+        "mode": "ai_judged",
+        "guidance": "只有当玩家的询问、帮助或交换让售票员真诚认为值得回报时才发放；普通寒暄不必奖励。",
+        "allowedTemplateIds": [
+          "small_recovery"
+        ],
+        "eligibleGrantorNpcIds": [
+          "ticket_clerk"
+        ],
+        "maxAwards": 1
       }
     },
     {

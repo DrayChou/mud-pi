@@ -170,6 +170,20 @@ export function deriveGameEvents(
         break;
       }
 
+      case "engine/objective_completed": {
+        const beforeObjective = before.objectives[mutation.objectiveId];
+        const afterObjective = after.objectives[mutation.objectiveId];
+        if (beforeObjective?.status === "completed" || afterObjective?.status !== "completed") break;
+        events.push({
+          kind: "objective_completed",
+          turn,
+          objectiveId: mutation.objectiveId,
+          actorId: after.player.id,
+          roomId: after.player.roomId,
+        });
+        break;
+      }
+
       case "engine/player_stat_changed": {
         if (
           mutation.delta >= 0 ||

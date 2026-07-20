@@ -96,6 +96,7 @@ describe("GameRuntime", () => {
 
   test("accepts an AI NPC reward after authoritative objective and room checks", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    let perceivedKinds: string[] = [];
     const runtime = new GameRuntime({
       state,
       storyOutcomes: [],
@@ -103,7 +104,9 @@ describe("GameRuntime", () => {
       dm: { ask: async () => `<NARRATION>售票员把纸杯推到你面前。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>` },
       npcSessions: {
         respondToPlayerSay: async () => [],
-        respondToEvents: async (snapshot) => [{
+        respondToEvents: async (snapshot, events) => {
+          perceivedKinds = events.map((event) => event.kind);
+          return [{
           npcId: "ticket_clerk",
           context: {
             requestedAtTurn: snapshot.turn,
@@ -114,20 +117,24 @@ describe("GameRuntime", () => {
             verb: "give_item",
             content: "拿去暖暖手。",
             templateId: "small_recovery",
+            objectiveId: "ask_ticket_clerk",
             itemId: "ticket_clerk_tea_turn_1",
             name: "售票员的热茶",
             desc: "一杯带着淡淡铁锈气味的热茶。",
           },
-        }],
+        }];
+        },
       },
       persist: false,
     });
 
     await runtime.processInput("对售票员说我帮你整理好了票根");
 
+    expect(perceivedKinds).toContain("objective_completed");
     expect(state.player.inventory).toContain("ticket_clerk_tea_turn_1");
     expect(state.items.ticket_clerk_tea_turn_1).toMatchObject({
       rewardTemplateId: "small_recovery",
+      rewardObjectiveId: "ask_ticket_clerk",
       grantedByEntityId: "ticket_clerk",
     });
   });

@@ -40,6 +40,21 @@ describe("deriveGameEvents", () => {
     expect(before.player.roomId).toBe("StationHall");
   });
 
+  test("publishes deterministic objective completion for same-turn AI judgment", async () => {
+    const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [{ kind: "engine/objective_completed", objectiveId: "ask_ticket_clerk" }];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([{
+      kind: "objective_completed",
+      turn: 1,
+      objectiveId: "ask_ticket_clerk",
+      actorId: before.player.id,
+      roomId: before.player.roomId,
+    }]);
+  });
+
   test("derives item use and consumption from world-script mutations", async () => {
     const before = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
     const after = structuredClone(before);

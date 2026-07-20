@@ -19,6 +19,7 @@ export type NpcIntent =
       name: string;
       desc: string;
       aliases?: string[];
+      objectiveId?: string;
     }
   | { verb: "wait" };
 
