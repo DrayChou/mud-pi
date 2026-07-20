@@ -2,7 +2,8 @@ import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { CombatSimulationResult } from "./combat.ts";
 import { simulateCombat } from "./combat.ts";
-import type { ConflictRules, NpcDef, PlayerState, StatsSchema } from "../types/world.ts";
+import type { ConflictRules, ItemDef, NpcDef, PlayerState, StatsSchema } from "../types/world.ts";
+import { createSeededRandom } from "./procedural-map.ts";
 
 export interface ConflictScriptContext {
   schema: Readonly<StatsSchema>;
@@ -13,10 +14,26 @@ export interface ConflictScriptContext {
   options: Readonly<Record<string, unknown>>;
 }
 
+export interface ItemUseScriptContext {
+  schema: Readonly<StatsSchema>;
+  actor: Readonly<PlayerState>;
+  item: Readonly<ItemDef>;
+  seed: string;
+  options: Readonly<Record<string, unknown>>;
+}
+
+export interface ItemUseScriptResult {
+  parameterDeltas: Array<{ parameterId: string; delta: number }>;
+  consume: boolean;
+  summary: string;
+  rolls?: number[];
+}
+
 export interface ConflictResolver {
   id: string;
   version: number;
   resolve(context: ConflictScriptContext): CombatSimulationResult;
+  useItem?(context: ItemUseScriptContext): ItemUseScriptResult;
 }
 
 export const defaultConflictResolver: ConflictResolver = {
@@ -33,6 +50,31 @@ export const defaultConflictResolver: ConflictResolver = {
       rules,
       context.seed
     );
+  },
+  useItem(context) {
+    const random = createSeededRandom(context.seed);
+    const parameterDeltas: ItemUseScriptResult["parameterDeltas"] = [];
+    const rolls: number[] = [];
+    for (const effect of context.item.effects ?? []) {
+      if (!effect.parameterId) continue;
+      let delta = effect.value ?? 0;
+      if (effect.dice) {
+        for (let index = 0; index < effect.dice.count; index++) {
+          const roll = 1 + Math.floor(random() * effect.dice.sides);
+          rolls.push(roll);
+          delta += roll;
+        }
+      }
+      if (effect.code === "parameter_delta" || effect.code === "recover_parameter") {
+        parameterDeltas.push({ parameterId: effect.parameterId, delta });
+      }
+    }
+    return {
+      parameterDeltas,
+      consume: context.item.consumable === true,
+      summary: parameterDeltas.length > 0 ? `使用了${context.item.name}` : `${context.item.name}没有可执行效果`,
+      rolls,
+    };
   },
 };
 

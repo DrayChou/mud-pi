@@ -33,6 +33,7 @@ export interface WorldPackForValidation {
     persona?: NpcPersona;
     storyRole?: NpcStoryRole;
     stats?: Record<string, number>;
+    traits?: DataTrait[];
   }>;
   items: Array<{
     id: string;
@@ -43,6 +44,7 @@ export interface WorldPackForValidation {
     parameterModifiers?: ParameterModifier[];
     traits?: DataTrait[];
     effects?: ItemEffect[];
+    consumable?: boolean;
   }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
@@ -154,6 +156,10 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
       if (effect.parameterId && !statKeys.has(effect.parameterId)) {
         errors.push(`item ${item.id} effect references missing parameter: ${effect.parameterId}`);
       }
+      if (effect.dice && (
+        !Number.isInteger(effect.dice.count) || effect.dice.count < 1 ||
+        !Number.isInteger(effect.dice.sides) || effect.dice.sides < 2
+      )) errors.push(`item ${item.id} effect has invalid dice`);
     }
   }
 
@@ -179,6 +185,9 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
         errors.push(`npc ${npc.id} has invalid deathPolicy: ${npc.storyRole.deathPolicy}`);
       }
     }
+    for (const trait of npc.traits ?? []) {
+      if (!trait.code?.trim() || !Number.isFinite(trait.value)) errors.push(`npc ${npc.id} has invalid trait`);
+    }
     validateStats(`npc ${npc.id} stats`, npc.stats, pack.schema, statKeys, errors);
   }
 
@@ -198,6 +207,9 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
       errors
     );
 
+    for (const trait of protagonist.traits ?? []) {
+      if (!trait.code?.trim() || !Number.isFinite(trait.value)) errors.push(`protagonist ${protagonist.id} has invalid trait`);
+    }
     for (const itemId of protagonist.initialInventory ?? []) {
       if (!itemIds.has(itemId)) {
         errors.push(`protagonist ${protagonist.id} initialInventory references missing item: ${itemId}`);

@@ -21,6 +21,7 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/item_picked_up":    return `玩家拾取了 ${m.itemId}`;
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
     case "engine/item_equipped":     return `玩家装备了 ${m.itemId}`;
+    case "engine/item_consumed":     return `玩家使用并消耗了 ${m.itemId}`;
     case "engine/objective_completed": return `玩家完成目标 ${m.objectiveId}`;
     case "engine/turn_advanced":     return null;
   }
@@ -33,6 +34,7 @@ function describeGameEvent(event: GameEvent): string {
     case "player_spoke": return `玩家在 ${event.roomId}${event.targetId ? ` 对 ${event.targetId}` : ""}说：“${event.message}”`;
     case "item_created": return `可交互道具 ${event.itemId} 出现在 ${event.roomId}`;
     case "item_picked_up": return `玩家在 ${event.roomId} 拾取了 ${event.itemId}`;
+    case "item_consumed": return `玩家在 ${event.roomId} 使用并消耗了 ${event.itemId}`;
     case "item_dropped": return `玩家在 ${event.roomId} 丢下了 ${event.itemId}`;
     case "entity_attacked": return `${event.targetId} 的 ${event.stat} 受到 ${event.amount} 点损耗`;
     case "entity_defeated": return `${event.entityId} 在 ${event.roomId} 被击败`;

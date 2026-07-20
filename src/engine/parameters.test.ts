@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyParameterModifiers, effectivePlayerStats } from "./parameters.ts";
+import { applyParameterModifiers, effectivePlayerStats, effectivePlayerTraits } from "./parameters.ts";
 import { loadWorldPack } from "./world-loader.ts";
 
  describe("RPG Maker-style parameters", () => {
@@ -26,5 +26,10 @@ import { loadWorldPack } from "./world-loader.ts";
     expect(effective.attack).toBe(baseAttack + 3);
     expect(effective.accuracy).toBe(state.player.stats.accuracy! + 1);
     expect(state.player.stats.attack).toBe(baseAttack);
+    expect(effectivePlayerTraits(state)).toContainEqual({
+      code: "weapon_family",
+      dataId: "blade",
+      value: 1,
+    });
   });
 });

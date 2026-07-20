@@ -13,7 +13,11 @@ import {
   type ConflictResolver,
 } from "./conflict-script.ts";
 import { buildMapSnapshot, formatTextMap } from "./map.ts";
-import { baseDeltaForEffectivePlayerChange, effectivePlayerStats } from "./parameters.ts";
+import {
+  baseDeltaForEffectivePlayerChange,
+  effectivePlayerStats,
+  effectivePlayerTraits,
+} from "./parameters.ts";
 
 export type CombatContext = CombatSimulationResult;
 
@@ -47,6 +51,7 @@ export function executeCommand(
     case "get":    return cmdGet(state, cmd);
     case "drop":   return cmdDrop(state, cmd);
     case "equip":  return cmdEquip(state, cmd);
+    case "use":    return cmdUse(state, cmd, conflictResolver);
     case "attack": return cmdAttack(state, cmd, conflictResolver);
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
@@ -139,6 +144,44 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
   return { mutations: [{ kind: "engine/item_equipped", itemId, slot: item.equipSlot }] };
 }
 
+function cmdUse(state: WorldState, cmd: ParsedCommand, conflictResolver: ConflictResolver): CommandResult {
+  const itemName = cmd.args.item;
+  if (!itemName) return { mutations: [], directReply: "使用什么？" };
+  const itemId = state.player.inventory.find((id) => {
+    const item = state.items[id];
+    return item && itemMatches(item, itemName);
+  });
+  if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
+  const item = state.items[itemId]!;
+  if (!item.effects?.length) return { mutations: [], directReply: `${item.name}没有可以直接使用的效果。` };
+
+  const useItem = conflictResolver.useItem ?? defaultConflictResolver.useItem!;
+  const proposal = useItem({
+    schema: structuredClone(state.schema),
+    actor: structuredClone({
+      ...state.player,
+      stats: effectivePlayerStats(state),
+      traits: effectivePlayerTraits(state),
+    }),
+    item: structuredClone(item),
+    seed: `${state.worldId}:turn:${state.turn + 1}:item:${item.id}`,
+    options: structuredClone(state.conflictOptions ?? {}),
+  });
+  const mutations: EngineMutation[] = [];
+  for (const effect of proposal.parameterDeltas) {
+    if (!state.schema.defs.some((def) => def.key === effect.parameterId)) {
+      throw new Error(`Item script references unknown parameter: ${effect.parameterId}`);
+    }
+    if (!Number.isFinite(effect.delta)) throw new Error("Item script returned a non-finite parameter delta");
+    const baseDelta = baseDeltaForEffectivePlayerChange(state, effect.parameterId, effect.delta);
+    if (baseDelta !== 0) mutations.push({ kind: "engine/player_stat_changed", stat: effect.parameterId, delta: baseDelta });
+  }
+  if (proposal.consume) mutations.push({ kind: "engine/item_consumed", itemId: item.id });
+  return mutations.length > 0
+    ? { mutations }
+    : { mutations: [], directReply: proposal.summary };
+}
+
 // ── Combat ─────────────────────────────────────────────────────────────────
 
 function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: ConflictResolver): CommandResult {
@@ -157,7 +200,11 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: Conf
   const combatSeed = `${state.worldId}:turn:${state.turn + 1}:combat:${npc.id}`;
   const combat = validateCombatScriptResult(conflictResolver.resolve({
     schema: structuredClone(state.schema),
-    actor: structuredClone({ ...state.player, stats: effectivePlayerStats(state) }),
+    actor: structuredClone({
+      ...state.player,
+      stats: effectivePlayerStats(state),
+      traits: effectivePlayerTraits(state),
+    }),
     target: structuredClone(npc),
     rules: structuredClone(conflictRules),
     seed: combatSeed,
@@ -248,6 +295,7 @@ function cmdHelp(state: WorldState): CommandResult {
   get <物品>     拾取
   drop <物品>    丢弃
   equip <物品>   装备
+  use <物品>     使用物品
   attack <目标>  攻击
   inv            查看背包
   status         查看状态（${poolStats}）

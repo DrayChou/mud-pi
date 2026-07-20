@@ -96,9 +96,16 @@ Effect 是使用物品时提交给世界规则脚本的声明，不应由 DM 直
 - Engine 校验脚本返回的实体 ID、有限数值、非负结果和展示帧上限，再生成 Mutation；
 - 脚本路径必须是世界目录内的 `./` 相对路径，不能使用 `../` 或远程 URL。
 
-下一阶段：
+道具使用和 trait 聚合阶段也已完成：
 
-1. 增加 `use` 命令，由世界脚本解释 ItemEffect；
-2. 将角色、职业、状态、装备的 traits 聚合为统一查询接口；
-3. 用通用 `conflict_result` 替换目前偏战斗语义的输出类型；
-4. 将共享的 gauge helper 降级为可选规则库，由各世界自由替换为 d20、2d6 或完全自定义结果。
+- `use <物品>` 将物品、有效参数、聚合 traits、seed 和 options 交给世界脚本的 `useItem()`；
+- 世界脚本返回参数 delta 和是否消耗，Engine 校验参数 ID 与有限数值后转换为 Mutation；
+- 消耗品产生 `engine/item_consumed` 和 `item_consumed` GameEvent；
+- 角色自身 traits 与全部装备 traits 由 `effectivePlayerTraits()` 聚合后传给世界脚本；
+- D&D 治愈药水已使用 2d4+2 世界脚本 effect，并在使用后销毁。
+
+后续独立任务：
+
+1. 用通用 `conflict_result` 替换目前偏战斗语义的输出类型；
+2. 将共享的 gauge helper 降级为可选规则库，由各世界自由替换为 d20、2d6 或完全自定义结果；
+3. 如需加载第三方不可信世界包，将脚本迁移到受限 Worker/子进程沙箱。

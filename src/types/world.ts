@@ -138,6 +138,7 @@ export interface NpcDef {
   stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
   maxStats: Stats;    // e.g. { hpMax: 30 }
   hostile: boolean;
+  traits?: DataTrait[];
 }
 
 export type ItemLocation =
@@ -178,6 +179,7 @@ export interface ItemDef {
   parameterModifiers?: ParameterModifier[];
   traits?: DataTrait[];
   effects?: ItemEffect[];
+  consumable?: boolean;
   aliases?: string[];
   location: ItemLocation;
   portable?: boolean; // defaults to true; false means scenery that can be examined but not carried
@@ -260,6 +262,7 @@ export interface ProtagonistProfile {
   initialStats?: Stats;
   initialInventory?: string[];
   openingHook?: string;
+  traits?: DataTrait[];
 }
 
 export type PlayerLifecycle = "active" | "incapacitated" | "dead";
@@ -274,6 +277,7 @@ export interface PlayerState {
   profile?: ProtagonistProfile; // snapshot from world pack at save creation
   inventory: string[];
   equipment: Record<string, string>;
+  traits?: DataTrait[];
 }
 
 export interface WorldState {

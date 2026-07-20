@@ -211,6 +211,7 @@
       "name": "治愈药水",
       "desc": "红色的玻璃瓶，饮用后恢复 2d4+2 点生命值。",
       "kind": "item",
+      "consumable": true,
       "effects": [
         {
           "code": "recover_parameter",

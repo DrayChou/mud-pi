@@ -17,6 +17,7 @@ export type EngineMutation =
   | { kind: "engine/item_picked_up"; itemId: string }
   | { kind: "engine/item_dropped"; itemId: string; roomId: string }
   | { kind: "engine/item_equipped"; itemId: string; slot: string }
+  | { kind: "engine/item_consumed"; itemId: string }
   | { kind: "engine/objective_completed"; objectiveId: string }
   | { kind: "engine/turn_advanced" };
 

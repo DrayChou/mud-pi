@@ -40,6 +40,7 @@ interface WorldPackNpc {
   persona?: NpcPersona;
   storyRole?: NpcStoryRole;
   stats?: Record<string, number>;
+  traits?: DataTrait[];
 }
 
 interface WorldPackJson {
@@ -62,6 +63,7 @@ interface WorldPackJson {
     parameterModifiers?: ParameterModifier[];
     traits?: DataTrait[];
     effects?: ItemEffect[];
+    consumable?: boolean;
   }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
@@ -186,6 +188,7 @@ export async function loadWorldPack(
       hostile: n.hostile ?? false,
       stats: buildDefaultStats(n.stats),
       maxStats: buildMaxStats(n.stats),
+      traits: structuredClone(n.traits ?? []),
     };
   }
 
@@ -202,6 +205,7 @@ export async function loadWorldPack(
       parameterModifiers: structuredClone(i.parameterModifiers ?? []),
       traits: structuredClone(i.traits ?? []),
       effects: structuredClone(i.effects ?? []),
+      consumable: i.consumable ?? false,
       location: i.inRoom
         ? { kind: "room", roomId: i.inRoom }
         : i.inInventory
@@ -248,6 +252,7 @@ export async function loadWorldPack(
       profile: protagonist ? structuredClone(protagonist) : undefined,
       inventory: [...startingInventory],
       equipment: {},
+      traits: structuredClone(protagonist?.traits ?? []),
     },
     rooms: finalRooms,
     npcs,

@@ -81,6 +81,24 @@ export function deriveGameEvents(
         break;
       }
 
+      case "engine/item_consumed": {
+        const beforeLocation = before.items[mutation.itemId]?.location;
+        const afterLocation = after.items[mutation.itemId]?.location;
+        if (
+          beforeLocation?.kind !== "inventory" ||
+          beforeLocation.ownerId !== before.player.id ||
+          afterLocation?.kind !== "destroyed"
+        ) break;
+        events.push({
+          kind: "item_consumed",
+          turn,
+          actorId: before.player.id,
+          itemId: mutation.itemId,
+          roomId: before.player.roomId,
+        });
+        break;
+      }
+
       case "engine/item_dropped": {
         const location = after.items[mutation.itemId]?.location;
         if (location?.kind !== "room" || location.roomId !== mutation.roomId) break;

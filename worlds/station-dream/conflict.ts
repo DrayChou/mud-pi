@@ -1,5 +1,5 @@
 import { simulateCombat } from "../../src/engine/combat.ts";
-import type { ConflictResolver } from "../../src/engine/conflict-script.ts";
+import { defaultConflictResolver, type ConflictResolver } from "../../src/engine/conflict-script.ts";
 
 export const conflictResolver: ConflictResolver = {
   id: "station-dream-conflict",
@@ -14,4 +14,5 @@ export const conflictResolver: ConflictResolver = {
       context.seed
     );
   },
+  useItem: defaultConflictResolver.useItem,
 };

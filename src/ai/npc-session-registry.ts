@@ -266,6 +266,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `${itemName(state, event.itemId)}出现在这里`;
     case "item_picked_up":
       return `${playerName}捡起了${itemName(state, event.itemId)}`;
+    case "item_consumed":
+      return `${playerName}使用并消耗了${itemName(state, event.itemId)}`;
     case "item_dropped":
       return `${playerName}放下了${itemName(state, event.itemId)}`;
     case "entity_attacked":

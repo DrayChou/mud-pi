@@ -40,6 +40,21 @@ describe("deriveGameEvents", () => {
     expect(before.player.roomId).toBe("StationHall");
   });
 
+  test("derives item use and consumption from world-script mutations", async () => {
+    const before = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [{ kind: "engine/item_consumed", itemId: "healing_potion" }];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([{
+      kind: "item_consumed",
+      turn: 1,
+      actorId: before.player.id,
+      itemId: "healing_potion",
+      roomId: before.player.roomId,
+    }]);
+  });
+
   test("derives item lifecycle events from applied mutations", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

@@ -120,6 +120,14 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
+    case "engine/item_consumed": {
+      const item = state.items[mut.itemId];
+      if (!item || !p.inventory.includes(mut.itemId)) return;
+      p.inventory = p.inventory.filter((id) => id !== mut.itemId);
+      item.location = { kind: "destroyed" };
+      break;
+    }
+
     case "engine/item_equipped": {
       const item = state.items[mut.itemId];
       if (

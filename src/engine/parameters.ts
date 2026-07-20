@@ -1,4 +1,4 @@
-import type { ItemDef, ParameterModifier, PlayerState, Stats, WorldState } from "../types/world.ts";
+import type { DataTrait, ItemDef, ParameterModifier, PlayerState, Stats, WorldState } from "../types/world.ts";
 
 /** RPG Maker-style effective parameters: base values plus equipment modifiers and rates. */
 export function effectivePlayerStats(state: WorldState): Stats {
@@ -18,6 +18,13 @@ export function baseDeltaForEffectivePlayerChange(
   const effectiveAfter = effectiveBefore + effectiveDelta;
   const baseAfter = Math.round(effectiveAfter / rate - add);
   return baseAfter - baseBefore;
+}
+
+export function effectivePlayerTraits(state: WorldState): DataTrait[] {
+  return [
+    ...(state.player.traits ?? []),
+    ...equippedItems(state.player, state.items).flatMap((item) => item.traits ?? []),
+  ].map((trait) => ({ ...trait }));
 }
 
 export function applyParameterModifiers(base: Stats, modifiers: ParameterModifier[]): Stats {

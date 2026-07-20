@@ -1,5 +1,5 @@
 import { simulateCombat } from "../../src/engine/combat.ts";
-import type { ConflictResolver } from "../../src/engine/conflict-script.ts";
+import { defaultConflictResolver, type ConflictResolver } from "../../src/engine/conflict-script.ts";
 
 export const conflictResolver: ConflictResolver = {
   id: "dnd-conflict",
@@ -8,4 +8,5 @@ export const conflictResolver: ConflictResolver = {
     if (context.rules.mode !== "auto_combat") throw new Error("dnd expects auto combat rules");
     return simulateCombat(context.schema, context.actor, context.target, context.rules, context.seed);
   },
+  useItem: defaultConflictResolver.useItem,
 };

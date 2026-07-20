@@ -155,7 +155,8 @@ say <内容>    说话（DM 会让 NPC 响应）
 get <物品>    拾取
 drop <物品>   丢弃
 equip <物品>  装备
-attack <目标> 按当前世界包的冲突规则结算（自动战斗、掷骰或无数值战斗）
+attack <目标> 调用当前世界包的冲突脚本
+use <物品>    调用世界脚本解释道具 effects
 inv           查看背包
 status        查看状态
 help          显示帮助

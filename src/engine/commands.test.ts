@@ -74,6 +74,19 @@ describe("combat commands", () => {
 });
 
 describe("item commands", () => {
+  test("uses world-script item effects and consumes configured items", async () => {
+    const state = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
+    state.player.stats.hp = 5;
+
+    const result = executeCommand(state, command("use", { item: "治愈药水" }));
+    applyMutations(state, result.mutations);
+
+    expect(state.player.stats.hp).toBeGreaterThanOrEqual(9);
+    expect(state.player.stats.hp).toBeLessThanOrEqual(15);
+    expect(state.player.inventory).not.toContain("healing_potion");
+    expect(state.items.healing_potion?.location).toEqual({ kind: "destroyed" });
+  });
+
   test("equips only world-pack equipment in its declared slot", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.inventory.push("rusty_knife");

@@ -23,6 +23,7 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
   get    — 拾取，需要 item
   drop   — 丢弃，需要 item
   equip  — 装备，需要 item
+  use    — 使用物品，需要 item
   inv    — 查看背包
   status — 查看状态
   objectives — 查看目标、任务或当前进度
