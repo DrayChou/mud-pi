@@ -491,7 +491,7 @@ T41 + T42 + T43
   → T51 最终框架 Gate 与真实游玩验证
 ```
 
-T40 是当前唯一应立即启动的设计任务。T41/T42/T43 只有在 Contract 批准后才并行派发；T44 和涉及 `GameRuntime` 的修改由 Integration Agent 串行完成。
+T40 是当前唯一应立即启动的设计任务。Contract 草案位于 [`docs/settlement-contract.md`](settlement-contract.md)。T41/T42/T43 只有在 Contract 人工批准后才并行派发；T44 和涉及 `GameRuntime` 的修改由 Integration Agent 串行完成。
 
 ---
 
