@@ -25,6 +25,13 @@ export type GameEvent =
       roomId: string;
     }
   | {
+      kind: "item_granted";
+      turn: number;
+      actorId: string;
+      itemId: string;
+      roomId: string;
+    }
+  | {
       kind: "item_picked_up";
       turn: number;
       actorId: string;

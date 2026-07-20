@@ -382,7 +382,14 @@ async function main() {
     print("\nDM 正在开场...\n");
     const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", [], undefined, [], storyOutcomes);
     const openingRaw = await dm.ask(openingPrompt);
-    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId, storyOutcomes, state.turn);
+    const opening = parseDmResponse(
+    openingRaw,
+    state.schema,
+    state.player.roomId,
+    storyOutcomes,
+    state.turn,
+    state.player.id
+  );
     applyMutations(state, opening.mutations);
     await saveState(state);
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);

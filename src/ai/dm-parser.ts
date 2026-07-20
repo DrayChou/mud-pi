@@ -3,7 +3,18 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { DmMutation } from "../types/mutations.ts";
-import type { ItemDef, RoomDef, NpcDef, PlotStatus, StatsSchema, StoryOutcomeDef } from "../types/world.ts";
+import type {
+  DataTrait,
+  ItemDef,
+  ItemEffect,
+  ItemKind,
+  NpcDef,
+  ParameterModifier,
+  PlotStatus,
+  RoomDef,
+  StatsSchema,
+  StoryOutcomeDef,
+} from "../types/world.ts";
 
 export interface DmResponse {
   narration: string;
@@ -24,7 +35,21 @@ interface RawWorldUpdate {
   roomsAdded?: Array<{ id: string; title: string; desc: string; exits?: Record<string, string>; tags?: string[] }>;
   exitsAdded?: Array<{ roomId: string; direction: string; toRoomId: string }>;
   roomDescUpdates?: Array<{ roomId: string; descAppend: string }>;
-  itemsAdded?: Array<{ id: string; name: string; desc: string; aliases?: string[]; roomId?: string; portable?: boolean }>;
+  itemsAdded?: Array<{
+    id: string;
+    name: string;
+    desc: string;
+    aliases?: string[];
+    placement?: "room" | "inventory";
+    roomId?: string;
+    portable?: boolean;
+    kind?: ItemKind;
+    equipSlot?: string;
+    parameterModifiers?: ParameterModifier[];
+    traits?: DataTrait[];
+    effects?: ItemEffect[];
+    consumable?: boolean;
+  }>;
   npcsAdded?: Array<{ id: string; name: string; roomId: string; personality: string; stats?: Record<string, number>; hostile?: boolean }>;
   npcsMoved?: Array<{ id: string; toRoomId: string }>;
   npcsKilled?: string[];
@@ -36,7 +61,8 @@ export function parseDmResponse(
   schema: StatsSchema,
   currentRoomId?: string,
   outcomes: StoryOutcomeDef[] = [],
-  requestedAtTurn = 0
+  requestedAtTurn = 0,
+  playerId = "player"
 ): DmResponse {
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
@@ -44,7 +70,15 @@ export function parseDmResponse(
 
   if (updateStr) {
     try {
-      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId, outcomes, requestedAtTurn);
+      buildMutations(
+        JSON.parse(updateStr) as RawWorldUpdate,
+        mutations,
+        schema,
+        currentRoomId,
+        outcomes,
+        requestedAtTurn,
+        playerId
+      );
     } catch (e) {
       console.warn("[dm-parser] failed to parse WORLD_UPDATE:", e);
     }
@@ -69,7 +103,8 @@ function buildMutations(
   schema: StatsSchema,
   currentRoomId?: string,
   outcomes: StoryOutcomeDef[] = [],
-  requestedAtTurn = 0
+  requestedAtTurn = 0,
+  playerId = "player"
 ): void {
   for (const f of u.worldFacts ?? []) {
     if (typeof f.text === "string" && f.text.trim())
@@ -109,18 +144,61 @@ function buildMutations(
       out.push({ kind: "dm/room_desc_updated", roomId: d.roomId, descAppend: d.descAppend });
   }
 
-  for (const i of u.itemsAdded ?? []) {
+  const parameterDefs = new Map(schema.defs.map((def) => [def.key, def]));
+  const parameterIds = new Set(parameterDefs.keys());
+  for (const i of (u.itemsAdded ?? []).slice(0, 8)) {
     const roomId = i.roomId || currentRoomId;
-    if (!i.id || !i.name || !i.desc || !roomId) continue;
+    if (!/^[a-z][a-z0-9_-]{0,63}$/.test(i.id ?? "") || !i.name?.trim() || !i.desc?.trim()) continue;
+    if (i.placement !== "inventory" && !roomId) continue;
+
+    const kind: ItemKind = ["item", "equipment", "key", "scenery"].includes(i.kind ?? "")
+      ? i.kind!
+      : "item";
+    const parameterModifiers = (i.parameterModifiers ?? []).filter((modifier) =>
+      parameterIds.has(modifier.parameterId) &&
+      (modifier.operation === "add" || modifier.operation === "rate") &&
+      Number.isFinite(modifier.value) &&
+      (modifier.operation === "add"
+        ? Math.abs(modifier.value) <= (parameterDefs.get(modifier.parameterId)!.max - parameterDefs.get(modifier.parameterId)!.min)
+        : modifier.value >= 0 && modifier.value <= 4)
+    ).slice(0, 16);
+    const traits = (i.traits ?? []).filter((trait) =>
+      typeof trait.code === "string" && trait.code.trim().length > 0 &&
+      Number.isFinite(trait.value) && Math.abs(trait.value) <= 100
+    ).slice(0, 16);
+    const effects = (i.effects ?? []).filter((effect) =>
+      typeof effect.code === "string" && effect.code.trim().length > 0 &&
+      (!effect.parameterId || parameterIds.has(effect.parameterId)) &&
+      (effect.value === undefined || (
+        Number.isFinite(effect.value) &&
+        (!effect.parameterId || Math.abs(effect.value) <= 2 * (parameterDefs.get(effect.parameterId)!.max - parameterDefs.get(effect.parameterId)!.min))
+      )) &&
+      (effect.rate === undefined || (Number.isFinite(effect.rate) && effect.rate >= 0 && effect.rate <= 4)) &&
+      (!effect.dice || (
+        Number.isInteger(effect.dice.count) && effect.dice.count >= 1 && effect.dice.count <= 10 &&
+        Number.isInteger(effect.dice.sides) && effect.dice.sides >= 2 && effect.dice.sides <= 100 &&
+        (!effect.parameterId || effect.dice.count * effect.dice.sides <= 4 * (parameterDefs.get(effect.parameterId)!.max - parameterDefs.get(effect.parameterId)!.min))
+      ))
+    ).slice(0, 16);
+    const normalizedKind = kind === "equipment" && !i.equipSlot?.trim() ? "item" : kind;
     const item: ItemDef = {
       id: i.id,
-      name: i.name,
-      desc: i.desc,
+      name: i.name.trim().slice(0, 80),
+      desc: i.desc.trim().slice(0, 600),
       aliases: Array.isArray(i.aliases)
         ? i.aliases.filter((alias): alias is string => typeof alias === "string" && alias.trim().length > 0)
+          .slice(0, 12).map((alias) => alias.trim().slice(0, 80))
         : undefined,
-      location: { kind: "room", roomId },
-      portable: i.portable ?? true,
+      kind: normalizedKind,
+      equipSlot: normalizedKind === "equipment" ? i.equipSlot!.trim().slice(0, 40) : undefined,
+      parameterModifiers,
+      traits,
+      effects,
+      consumable: i.consumable === true,
+      location: i.placement === "inventory"
+        ? { kind: "inventory", ownerId: playerId }
+        : { kind: "room", roomId: roomId! },
+      portable: normalizedKind === "scenery" ? false : (i.portable ?? true),
       source: "dm_generated",
     };
     out.push({ kind: "dm/item_added", item });

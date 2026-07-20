@@ -264,6 +264,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `${playerName}${event.targetId ? `对${entityName(state, event.targetId)}` : ""}说：“${event.message}”`;
     case "item_created":
       return `${itemName(state, event.itemId)}出现在这里`;
+    case "item_granted":
+      return `${playerName}获得了${itemName(state, event.itemId)}`;
     case "item_picked_up":
       return `${playerName}捡起了${itemName(state, event.itemId)}`;
     case "item_consumed":

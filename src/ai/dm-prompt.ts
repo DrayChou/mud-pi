@@ -33,6 +33,7 @@ function describeGameEvent(event: GameEvent): string {
     case "player_moved": return `玩家从 ${event.fromRoomId} 移动到 ${event.toRoomId}`;
     case "player_spoke": return `玩家在 ${event.roomId}${event.targetId ? ` 对 ${event.targetId}` : ""}说：“${event.message}”`;
     case "item_created": return `可交互道具 ${event.itemId} 出现在 ${event.roomId}`;
+    case "item_granted": return `玩家在 ${event.roomId} 直接获得了 ${event.itemId}`;
     case "item_picked_up": return `玩家在 ${event.roomId} 拾取了 ${event.itemId}`;
     case "item_consumed": return `玩家在 ${event.roomId} 使用并消耗了 ${event.itemId}`;
     case "item_dropped": return `玩家在 ${event.roomId} 丢下了 ${event.itemId}`;
@@ -275,8 +276,13 @@ export function buildDmPrompt(
 `[你的任务]
 用第二人称为玩家描述本轮体验（2-4句，沉浸式，不超过120字）。
 如有必要，更新世界事实、剧情线、或创造新房间/NPC。
-如果叙事中新出现了玩家可以检查、拾取或使用的具体道具，必须把它写入 itemsAdded。不要只在叙事中提到而不注册。
-itemsAdded 格式：{"id":"稳定的英文或拼音ID","name":"显示名","desc":"可检查描述","aliases":["玩家可能使用的简称或同义词"],"roomId":"当前房间ID","portable":true}。
+如果叙事中新出现了玩家可以检查、拾取、装备或使用的具体道具，必须把它写入 itemsAdded。不要只在叙事中提到而不注册。
+玩家进入新的地点时，可以按场景逻辑生成少量有意义的道具或可检查陈设，但不要保证每个房间都有奖励，也不要无理由刷出强力装备。
+itemsAdded 基础格式：{"id":"稳定且唯一的英文或拼音ID","name":"显示名","desc":"可检查描述","aliases":["简称或同义词"],"placement":"room","roomId":"当前房间ID","portable":true,"kind":"item"}。
+- placement="room"：道具出现在场景中，玩家需要拾取；roomId 省略时默认为当前房间。
+- placement="inventory"：只有当叙事明确表达 NPC 交付、奖励入手、玩家已经拿到时使用，道具会直接进入玩家背包。
+- kind 可为 item/equipment/key/scenery；equipment 必须提供 equipSlot；scenery 会被视为不可携带。
+- 可选 parameterModifiers/traits/effects/consumable 必须使用当前世界已经声明的参数 ID，数值应克制且符合剧情。
 严格按以下格式返回：
 
 <NARRATION>

@@ -160,7 +160,8 @@ export class GameRuntime {
       this.state.schema,
       this.state.player.roomId,
       this.storyOutcomes,
-      this.state.turn
+      this.state.turn,
+      this.state.player.id
     );
 
     const outcomeMutations = dmResponse.mutations.filter(

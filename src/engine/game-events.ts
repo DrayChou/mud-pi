@@ -51,14 +51,30 @@ export function deriveGameEvents(
 
       case "dm/item_added": {
         const item = after.items[mutation.item.id];
-        if (!item || item.source !== "dm_generated" || mutation.item.location.kind !== "room") break;
-        createdItemRooms.set(item.id, mutation.item.location.roomId);
+        if (!item || item.source !== "dm_generated") break;
+        const roomId = mutation.item.location.kind === "room"
+          ? mutation.item.location.roomId
+          : before.player.roomId;
+        createdItemRooms.set(item.id, roomId);
         events.push({
           kind: "item_created",
           turn,
           itemId: item.id,
-          roomId: mutation.item.location.roomId,
+          roomId,
         });
+        if (
+          mutation.item.location.kind === "inventory" &&
+          mutation.item.location.ownerId === before.player.id &&
+          after.player.inventory.includes(item.id)
+        ) {
+          events.push({
+            kind: "item_granted",
+            turn,
+            actorId: before.player.id,
+            itemId: item.id,
+            roomId,
+          });
+        }
         break;
       }
 

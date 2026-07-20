@@ -89,7 +89,40 @@ describe("deriveGameEvents", () => {
     });
   });
 
-  test("publishes creation and pickup for a DM-created item", async () => {
+  test("publishes creation and direct acquisition for a DM-granted item", async () => {
+  const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const after = structuredClone(before);
+  const mutations: AnyMutation[] = [{
+    kind: "dm/item_added",
+    item: {
+      id: "platform_token",
+      name: "站台代币",
+      desc: "售票员塞进你掌心的铝制代币。",
+      portable: true,
+      source: "dm_generated",
+      location: { kind: "inventory", ownerId: before.player.id },
+    },
+  }];
+  applyMutations(after, mutations);
+
+  expect(deriveGameEvents(before, mutations, after)).toEqual([
+    {
+      kind: "item_created",
+      turn: 1,
+      itemId: "platform_token",
+      roomId: before.player.roomId,
+    },
+    {
+      kind: "item_granted",
+      turn: 1,
+      actorId: before.player.id,
+      itemId: "platform_token",
+      roomId: before.player.roomId,
+    },
+  ]);
+});
+
+test("publishes creation and pickup for a DM-created item", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",
     });

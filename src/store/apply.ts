@@ -199,7 +199,10 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         console.warn(`[apply] dm tried to add existing item: ${mut.item.id}`);
         return;
       }
-      if (mut.item.location.kind !== "room" || !state.rooms[mut.item.location.roomId]) {
+      const location = mut.item.location;
+      const validRoom = location.kind === "room" && Boolean(state.rooms[location.roomId]);
+      const validInventory = location.kind === "inventory" && location.ownerId === state.player.id;
+      if (!validRoom && !validInventory) {
         console.warn(`[apply] dm tried to add item at invalid location: ${mut.item.id}`);
         return;
       }
@@ -209,6 +212,9 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         source: "dm_generated",
         createdTurn: state.turn,
       };
+      if (location.kind === "inventory" && !state.player.inventory.includes(mut.item.id)) {
+        state.player.inventory.push(mut.item.id);
+      }
       break;
     }
 
