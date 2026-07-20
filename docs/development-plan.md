@@ -2,13 +2,13 @@
 
 ## 1. 产品目标
 
-`mud-pi` 是一个 **单人 Pi-first 叙事 RPG 框架**：
+`mud-pi` 是一个 **单人 Pi-first 叙事 RPG 框架**，其心智模型是一场由 Pi 主持的数字桌游：
 
-- 持久 Pi DM 负责理解自由行动、裁定开放情境、管理叙事连续性和推进剧情；
-- 重要 NPC 可以拥有独立持久 Pi Session；
-- Engine 负责权威状态、不变量、提交、存档和可查询投影；
-- 世界包提供主题、参数、物品模板、目标、结果边界和可信本地脚本；
-- CLI、TUI、Telnet/GMCP 只是同一 `GameRuntime` 的不同 Adapter。
+- 持久 Pi DM 对应真人 DM，负责理解自由行动、裁定开放情境、管理叙事连续性和推进剧情；
+- 重要 NPC 可以拥有独立持久 Pi Session，相当于关键人物的独立主持笔记；
+- Engine 对应数字桌面、角色纸、道具卡、棋子、计数器、骰塔和战役记录员，负责权威状态、不变量、提交、存档和可查询投影；
+- 世界包对应规则书和冒险模组，提供主题、参数、角色/道具模板、目标、结果边界和可信本地脚本；
+- CLI、TUI、Telnet/GMCP 只是玩家查看桌面并向 DM 描述行动的不同界面。
 
 项目不建设多人 MUD Server，也不尝试用代码自动模拟完整世界生态。Pi 与 Engine 的详细边界见 [`docs/pi-role-boundary.md`](pi-role-boundary.md)。
 
@@ -182,23 +182,25 @@ src/store/settlement.ts
 
 ---
 
-## Phase 3 — Pi 自由裁定协议
+## Phase 3 — Pi GM 桌面操作协议
 
-目标：让 Pi 能处理陷阱、调查、机关和长尾交互，而无需继续扩张自动 MUD 系统。
+目标：让 Pi 像真人 DM 操作角色纸、卡牌、棋子和记录本一样处理陷阱、调查、机关和长尾交互，而无需继续扩张自动 MUD 系统。
 
-### 通用 Proposal 词汇
+### 通用 GM 操作词汇
 
 优先支持：
 
-- 添加权威 WorldFact / flag；
-- 开放或关闭已声明出口；
-- 精确参数变化；
-- 创建、转移、消耗或销毁合法物品；
-- 合法移动实体；
-- 发出可感知信号，如噪音、闪光和公开言语；
-- 对世界包允许的 Objective 提出语义完成/失败；
-- 提出 StoryOutcome；
-- 后续应用/移除通用 condition。
+- 在战役记录本中添加权威 WorldFact / flag；
+- 揭示地图信息，或开放/关闭已声明出口；
+- 调整角色纸上的参数计数器；
+- 从世界包模板创建、发放、转移、消耗或销毁道具卡；
+- 合法移动玩家/NPC 棋子；
+- 放置可感知信号，如噪音、闪光和公开言语；
+- 标记世界包允许的 Objective 完成/失败；
+- 标记 StoryOutcome；
+- 后续放置/移除通用 condition 标记。
+
+这些 Proposal 是“GM 对数字桌面的操作”，不是陷阱、说服、潜行、机关等自动玩法子系统。Pi 先在语义上完成裁定，再选择需要落桌记录的最小操作集合。
 
 ### Pi 输出边界
 
@@ -231,16 +233,21 @@ Engine 负责：
 
 ### 工作项
 
+- 在 Settlement 完成前缓存 Pi `<NARRATION>`，不把候选叙述提前展示为事实；
 - DM parser 返回 accepted/rejected/adjusted warning；
 - Settlement rejection 使用稳定 code；
-- 下一轮 DM Prompt 包含上轮权威修正；
+- Proposal 被拒绝或修正时，将反馈发回同一个持久 DM Session，并允许最多一次有界同回合修正；
+- 纯叙事、无状态 Proposal 的回合无需额外调用；
+- 修正仍失败时使用只描述 committed facts 的本地沉浸式 fallback；
+- 下一轮 DM Prompt 保留必要的上轮权威修正；
 - 对被移除的 modifier/effect/kind 给出结构化原因；
 - NPC Proposal 被拒绝时不公开失败动作，但将结果反馈到其私有 Session；
 - 增加每回合反馈数量和文本长度限制。
 
 ### 验收标准
 
-- Pi 下一轮能明确知道哪些提案未发生；
+- 玩家不会看到随后被 Engine 拒绝的候选事实叙述；
+- Pi 在同一回合或下一轮能明确知道哪些提案未发生；
 - 公共叙述、WorldState 和 GameEvent 不再互相矛盾；
 - warning 不泄露 NPC 私有 thought。
 
