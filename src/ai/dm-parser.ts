@@ -35,7 +35,8 @@ export function parseDmResponse(
   raw: string,
   schema: StatsSchema,
   currentRoomId?: string,
-  outcomes: StoryOutcomeDef[] = []
+  outcomes: StoryOutcomeDef[] = [],
+  requestedAtTurn = 0
 ): DmResponse {
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
@@ -43,7 +44,7 @@ export function parseDmResponse(
 
   if (updateStr) {
     try {
-      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId, outcomes);
+      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId, outcomes, requestedAtTurn);
     } catch (e) {
       console.warn("[dm-parser] failed to parse WORLD_UPDATE:", e);
     }
@@ -67,7 +68,8 @@ function buildMutations(
   out: DmMutation[],
   schema: StatsSchema,
   currentRoomId?: string,
-  outcomes: StoryOutcomeDef[] = []
+  outcomes: StoryOutcomeDef[] = [],
+  requestedAtTurn = 0
 ): void {
   for (const f of u.worldFacts ?? []) {
     if (typeof f.text === "string" && f.text.trim())
@@ -151,6 +153,7 @@ function buildMutations(
           reachedTurn: 0,
           reason: typeof u.outcomeReached.reason === "string" ? u.outcomeReached.reason : undefined,
         },
+        requestedAtTurn,
       });
     }
   }

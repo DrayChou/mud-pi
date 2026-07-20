@@ -187,6 +187,10 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/outcome_reached": {
       if (state.outcome) return;
+      if (mut.requestedAtTurn !== state.turn) {
+        console.warn(`[apply] stale story outcome proposal for turn ${mut.requestedAtTurn}; current turn is ${state.turn}`);
+        return;
+      }
       state.outcome = { ...mut.outcome, reachedTurn: state.turn + 1 };
       break;
     }

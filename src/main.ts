@@ -364,7 +364,7 @@ async function main() {
     print("\nDM 正在开场...\n");
     const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", [], undefined, [], storyOutcomes);
     const openingRaw = await dm.ask(openingPrompt);
-    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId, storyOutcomes);
+    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId, storyOutcomes, state.turn);
     applyMutations(state, opening.mutations);
     await saveState(state);
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);
@@ -455,37 +455,7 @@ async function processInput(
     npcActions.push(npcResult.action);
   }
 
-  // 6. Ask DM to narrate the player action and already-decided NPC response.
-  process.stdout.write("\x1b[2m");
-  const dmPrompt = buildDmPrompt(
-    state,
-    input,
-    engineMuts,
-    result.combatContext,
-    npcActions,
-    storyOutcomes
-  );
-  const dmRaw = await dm.ask(dmPrompt);
-  process.stdout.write("\x1b[0m");
-
-  // 7. Parse DM response → DmMutations
-  const dmResponse = parseDmResponse(dmRaw, state.schema, state.player.roomId, storyOutcomes);
-
-  // 8. Apply DM mutations
-  applyMutations(state, dmResponse.mutations);
-
-  // A DM may register a concrete object introduced by earlier narration only when
-  // the player first tries to take it. Retry the validated pickup after registration
-  // so narration and authoritative inventory stay in sync in the same turn.
-  const postDmEngineMuts: EngineMutation[] = [];
-  if (parsed.verb === "get" && !engineMuts.some((m) => m.kind === "engine/item_picked_up")) {
-    const retry = executeCommand(state, parsed);
-    if (retry.directReply === undefined) {
-      postDmEngineMuts.push(...retry.mutations);
-      applyMutations(state, retry.mutations);
-    }
-  }
-
+  // 6. Settle Engine/NPC events and objectives before the DM judges the turn.
   const speechTarget = parsed.verb === "say"
     ? parsed.args.target
       ? Object.values(stateBeforeTurn.npcs).find(
@@ -495,16 +465,70 @@ async function processInput(
         )?.id
       : npcDecisions[0]?.npcId
     : undefined;
-  const gameEvents = deriveGameEvents(
+  const preDmEvents = deriveGameEvents(
     stateBeforeTurn,
-    [...engineMuts, ...npcMutations, ...dmResponse.mutations, ...postDmEngineMuts],
+    [...engineMuts, ...npcMutations],
     state,
     parsed.verb === "say"
       ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
       : undefined
   );
-  const progressMutations = evaluateProgress(state, gameEvents);
-  applyMutations(state, progressMutations);
+  const preDmProgressMutations = evaluateProgress(state, preDmEvents);
+  applyMutations(state, preDmProgressMutations);
+
+  // 7. Ask DM with this turn's authoritative events and newly completed objectives.
+  const stateBeforeDm = structuredClone(state);
+  process.stdout.write("\x1b[2m");
+  const dmPrompt = buildDmPrompt(
+    state,
+    input,
+    [...engineMuts, ...preDmProgressMutations],
+    result.combatContext,
+    npcActions,
+    storyOutcomes,
+    preDmEvents
+  );
+  const dmRaw = await dm.ask(dmPrompt);
+  process.stdout.write("\x1b[0m");
+
+  // 8. Parse DM response. Story outcome proposals are applied only after post-DM settlement.
+  const dmResponse = parseDmResponse(
+    dmRaw,
+    state.schema,
+    state.player.roomId,
+    storyOutcomes,
+    state.turn
+  );
+  const outcomeMutations = dmResponse.mutations.filter(
+    (mutation) => mutation.kind === "dm/outcome_reached"
+  );
+  const worldDmMutations = dmResponse.mutations.filter(
+    (mutation) => mutation.kind !== "dm/outcome_reached"
+  );
+  applyMutations(state, worldDmMutations);
+
+  // A DM may register a concrete object introduced by earlier narration only when
+  // the player first tries to take it. Retry the validated pickup after registration.
+  const postDmEngineMuts: EngineMutation[] = [];
+  if (parsed.verb === "get" && !engineMuts.some((m) => m.kind === "engine/item_picked_up")) {
+    const retry = executeCommand(state, parsed);
+    if (retry.directReply === undefined) {
+      postDmEngineMuts.push(...retry.mutations);
+      applyMutations(state, retry.mutations);
+    }
+  }
+
+  const postDmEvents = deriveGameEvents(
+    stateBeforeDm,
+    [...worldDmMutations, ...postDmEngineMuts],
+    state
+  );
+  const postDmProgressMutations = evaluateProgress(state, postDmEvents);
+  applyMutations(state, postDmProgressMutations);
+  applyMutations(state, outcomeMutations);
+
+  const gameEvents = [...preDmEvents, ...postDmEvents];
+  const progressMutations = [...preDmProgressMutations, ...postDmProgressMutations];
 
   // 9. Advance turn
   applyMutation(state, { kind: "engine/turn_advanced" });

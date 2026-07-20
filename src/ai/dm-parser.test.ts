@@ -69,6 +69,23 @@ describe("DM-created interactive items", () => {
     });
   });
 
+  test("rejects a stale story outcome proposal", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const outcomes = await loadStoryOutcomes("station-dream");
+    const response = parseDmResponse(
+      `<NARRATION>结束。</NARRATION><WORLD_UPDATE>{"outcomeReached":{"id":"return_with_ticket"}}</WORLD_UPDATE>`,
+      state.schema,
+      state.player.roomId,
+      outcomes,
+      state.turn
+    );
+    state.turn += 1;
+
+    applyMutations(state, response.mutations);
+
+    expect(state.outcome).toBeUndefined();
+  });
+
   test("rejects an outcome id not declared by the world pack", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const outcomes = await loadStoryOutcomes("station-dream");

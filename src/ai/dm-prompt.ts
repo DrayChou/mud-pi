@@ -6,6 +6,7 @@ import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
 import type { EngineMutation, TurnRecord } from "../types/mutations.ts";
 import type { CombatContext } from "../engine/commands.ts";
 import type { NpcPublicAction } from "../types/npc.ts";
+import type { GameEvent } from "../types/events.ts";
 
 function describeMutation(m: EngineMutation): string | null {
   switch (m.kind) {
@@ -25,6 +26,22 @@ function describeMutation(m: EngineMutation): string | null {
 }
 
 // Format player stats for display, using schema labels
+function describeGameEvent(event: GameEvent): string {
+  switch (event.kind) {
+    case "player_moved": return `玩家从 ${event.fromRoomId} 移动到 ${event.toRoomId}`;
+    case "player_spoke": return `玩家在 ${event.roomId}${event.targetId ? ` 对 ${event.targetId}` : ""}说：“${event.message}”`;
+    case "item_created": return `可交互道具 ${event.itemId} 出现在 ${event.roomId}`;
+    case "item_picked_up": return `玩家在 ${event.roomId} 拾取了 ${event.itemId}`;
+    case "item_dropped": return `玩家在 ${event.roomId} 丢下了 ${event.itemId}`;
+    case "entity_attacked": return `${event.targetId} 的 ${event.stat} 受到 ${event.amount} 点损耗`;
+    case "entity_defeated": return `${event.entityId} 在 ${event.roomId} 被击败`;
+    case "player_died": return `玩家在 ${event.roomId} 死亡`;
+    case "player_incapacitated": return `玩家在 ${event.roomId} 失去行动能力`;
+    case "critical_npc_died": return `关键 NPC ${event.npcId} 死亡；策略=${event.deathPolicy}${event.notes ? `；说明=${event.notes}` : ""}`;
+    case "npc_moved": return `NPC ${event.npcId} 从 ${event.fromRoomId} 移动到 ${event.toRoomId}`;
+  }
+}
+
 function formatPlayerStats(state: WorldState): string {
   const parts: string[] = [];
   for (const def of state.schema.defs) {
@@ -90,7 +107,8 @@ export function buildDmPrompt(
   engineMutations: EngineMutation[],
   combatContext?: CombatContext,
   npcActions: NpcPublicAction[] = [],
-  outcomes: StoryOutcomeDef[] = []
+  outcomes: StoryOutcomeDef[] = [],
+  gameEvents: GameEvent[] = []
 ): string {
   const room = state.rooms[state.player.roomId];
   const parts: string[] = [];
@@ -227,6 +245,13 @@ export function buildDmPrompt(
     );
     parts.push(
       `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 自己的长期 Pi Session。你只能叙述其公开结果，不得改写台词或替它决定其他行动。`
+    );
+  }
+
+  // ── Authoritative events already settled this turn ──
+  if (gameEvents.length > 0) {
+    parts.push(
+      `[本轮已结算事件]\n${gameEvents.map((event) => `• ${describeGameEvent(event)}`).join("\n")}\n这些事件和上方目标进度已经写入权威状态；不得否认或改写。`
     );
   }
 
