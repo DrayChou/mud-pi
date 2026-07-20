@@ -13,6 +13,7 @@ import {
 import type { GameRuntime } from "../runtime/game-runtime.ts";
 import type { GameOutput } from "../runtime/game-output.ts";
 import { formatTextMap } from "../engine/map.ts";
+import { effectivePlayerStats } from "../engine/parameters.ts";
 import type { WorldState } from "../types/world.ts";
 
 const RESET = "\x1b[0m";
@@ -194,10 +195,11 @@ export class MudTuiComponent implements Component, Focusable {
   }
 
   private leftLines(state: WorldState): string[] {
+    const effectiveStats = effectivePlayerStats(state);
     const stats = state.schema.defs
       .filter((def) => def.display !== "hidden")
       .map((def) => {
-        const current = state.player.stats[def.key] ?? def.default;
+        const current = effectiveStats[def.key] ?? def.default;
         const max = state.player.maxStats[`${def.key}Max`] ?? def.max;
         return `${def.label}: ${def.display === "bar" ? `${current}/${max}` : current}`;
       });

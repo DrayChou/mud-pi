@@ -7,7 +7,11 @@ import { join } from "node:path";
 import type {
   ConflictRules,
   ItemDef,
+  ItemEffect,
+  ItemKind,
   NpcController,
+  ParameterModifier,
+  DataTrait,
   NpcDef,
   NpcPersona,
   NpcStoryRole,
@@ -47,7 +51,18 @@ interface WorldPackJson {
   protagonists?: ProtagonistProfile[];
   rooms: Array<{ id: string; title: string; desc: string; exits: Record<string, string>; tags?: string[] }>;
   npcs: WorldPackNpc[];
-  items: Array<{ id: string; name: string; desc: string; inRoom?: string; inInventory?: boolean }>;
+  items: Array<{
+    id: string;
+    name: string;
+    desc: string;
+    inRoom?: string;
+    inInventory?: boolean;
+    kind?: ItemKind;
+    equipSlot?: string;
+    parameterModifiers?: ParameterModifier[];
+    traits?: DataTrait[];
+    effects?: ItemEffect[];
+  }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
@@ -180,6 +195,11 @@ export async function loadWorldPack(
       id: i.id,
       name: i.name,
       desc: i.desc,
+      kind: i.kind ?? "item",
+      equipSlot: i.equipSlot,
+      parameterModifiers: structuredClone(i.parameterModifiers ?? []),
+      traits: structuredClone(i.traits ?? []),
+      effects: structuredClone(i.effects ?? []),
       location: i.inRoom
         ? { kind: "room", roomId: i.inRoom }
         : i.inInventory

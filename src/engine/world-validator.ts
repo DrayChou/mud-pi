@@ -5,7 +5,11 @@
 import { PROCEDURAL_MAP_VERSION, type ProceduralMapConfig } from "./procedural-map.ts";
 import type {
   ConflictRules,
+  DataTrait,
+  ItemEffect,
+  ItemKind,
   NpcController,
+  ParameterModifier,
   NpcPersona,
   NpcStoryRole,
   ObjectiveDef,
@@ -30,7 +34,16 @@ export interface WorldPackForValidation {
     storyRole?: NpcStoryRole;
     stats?: Record<string, number>;
   }>;
-  items: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
+  items: Array<{
+    id: string;
+    inRoom?: string;
+    inInventory?: boolean;
+    kind?: ItemKind;
+    equipSlot?: string;
+    parameterModifiers?: ParameterModifier[];
+    traits?: DataTrait[];
+    effects?: ItemEffect[];
+  }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
@@ -110,6 +123,26 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     itemIds.add(item.id);
     if (item.inRoom && !roomIds.has(item.inRoom)) {
       errors.push(`item ${item.id} inRoom references missing room: ${item.inRoom}`);
+    }
+    if (item.kind === "equipment" && !item.equipSlot?.trim()) {
+      errors.push(`equipment ${item.id} requires equipSlot`);
+    }
+    if (item.kind !== "equipment" && item.equipSlot) {
+      errors.push(`non-equipment ${item.id} cannot declare equipSlot`);
+    }
+    for (const modifier of item.parameterModifiers ?? []) {
+      if (!statKeys.has(modifier.parameterId)) {
+        errors.push(`item ${item.id} modifier references missing parameter: ${modifier.parameterId}`);
+      }
+      if (!Number.isFinite(modifier.value)) errors.push(`item ${item.id} modifier value must be finite`);
+      if (modifier.operation === "rate" && modifier.value < 0) {
+        errors.push(`item ${item.id} parameter rate cannot be negative`);
+      }
+    }
+    for (const effect of item.effects ?? []) {
+      if (effect.parameterId && !statKeys.has(effect.parameterId)) {
+        errors.push(`item ${item.id} effect references missing parameter: ${effect.parameterId}`);
+      }
     }
   }
 

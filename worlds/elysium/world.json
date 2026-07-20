@@ -206,18 +206,31 @@
       "id": "badge",
       "name": "警徽",
       "desc": "皱巴巴的警察徽章。上面的名字——哈里·杜博瓦——对你没有任何意义。",
+      "kind": "key",
+      "traits": [
+        { "code": "authority_token", "dataId": "revachol_police", "value": 1 }
+      ],
       "inInventory": true
     },
     {
       "id": "necktie",
       "name": "领带",
       "desc": "一条花哨的领带，挂在吊扇上。它似乎在对你说话。",
+      "kind": "equipment",
+      "equipSlot": "neck",
+      "parameterModifiers": [
+        { "parameterId": "psyche", "operation": "add", "value": 1 }
+      ],
+      "traits": [
+        { "code": "talking_item", "dataId": "horrific_necktie", "value": 1 }
+      ],
       "inRoom": "HotelRoom"
     },
     {
       "id": "case_file",
       "name": "案件档案",
       "desc": "一份被水浸过的档案：「调查人员：杜博瓦警探。任务：调查大使馆街吊尸案。」其余内容模糊不清。",
+      "kind": "key",
       "inRoom": "HotelLobby"
     }
   ]

@@ -2,11 +2,12 @@
 // dm-prompt.ts — build the per-turn prompt injected into Pi DM
 // ─────────────────────────────────────────────────────────────
 
-import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
+import type { ItemDef, StoryOutcomeDef, WorldState } from "../types/world.ts";
 import type { EngineMutation, TurnRecord } from "../types/mutations.ts";
 import type { CombatContext } from "../engine/commands.ts";
 import type { NpcPublicAction } from "../types/npc.ts";
 import type { GameEvent } from "../types/events.ts";
+import { effectivePlayerStats } from "../engine/parameters.ts";
 
 function describeMutation(m: EngineMutation): string | null {
   switch (m.kind) {
@@ -51,11 +52,24 @@ function formatNpcAction(action: NpcPublicAction): string {
   }
 }
 
+function describeItemData(state: WorldState, item: ItemDef): string {
+  const modifiers = (item.parameterModifiers ?? []).map((modifier) => {
+    const label = state.schema.defs.find((def) => def.key === modifier.parameterId)?.label ?? modifier.parameterId;
+    return modifier.operation === "add"
+      ? `${label}${modifier.value >= 0 ? "+" : ""}${modifier.value}`
+      : `${label}×${modifier.value}`;
+  });
+  const traits = (item.traits ?? []).map((trait) => `${trait.code}${trait.dataId ? `:${trait.dataId}` : ""}=${trait.value}`);
+  const metadata = [...modifiers, ...traits];
+  return `${item.desc}${item.kind ? ` [${item.kind}]` : ""}${item.equipSlot ? ` [槽位:${item.equipSlot}]` : ""}${metadata.length ? ` [${metadata.join("，")}]` : ""}`;
+}
+
 function formatPlayerStats(state: WorldState): string {
   const parts: string[] = [];
+  const effectiveStats = effectivePlayerStats(state);
   for (const def of state.schema.defs) {
     if (def.display === "hidden") continue;
-    const cur = state.player.stats[def.key] ?? def.default;
+    const cur = effectiveStats[def.key] ?? def.default;
     const max = state.player.maxStats[`${def.key}Max`] ?? def.max;
     parts.push(def.display === "bar" ? `${def.label}: ${cur}/${max}` : `${def.label}: ${cur}`);
   }
@@ -185,7 +199,7 @@ export function buildDmPrompt(
       (item) => item.location.kind === "room" && item.location.roomId === room.id
     );
     const itemBlock = itemsHere.length > 0
-      ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}（${item.id}）：${item.desc}${item.portable === false ? " [不可携带]" : ""}`).join("\n")}`
+      ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}（${item.id}）：${describeItemData(state, item)}${item.portable === false ? " [不可携带]" : ""}`).join("\n")}`
       : "";
     const proceduralRole = state.generation?.roomRoles[room.id];
     const generationBlock = proceduralRole
@@ -212,7 +226,7 @@ export function buildDmPrompt(
   const inv = inventoryItems.map((item) => item.name).join("，");
   parts.push(`[玩家状态]\n姓名：${state.player.name}\n生命阶段：${state.player.lifecycle}\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
   if (inventoryItems.length > 0) {
-    parts.push(`[背包物品详情]\n${inventoryItems.map((item) => `• ${item.name}（${item.id}）：${item.desc}`).join("\n")}`);
+    parts.push(`[背包物品详情]\n${inventoryItems.map((item) => `• ${item.name}（${item.id}）：${describeItemData(state, item)}`).join("\n")}`);
   }
 
   // ── Combat context ──

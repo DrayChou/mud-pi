@@ -2,6 +2,7 @@ import type { Socket } from "bun";
 import type { GameRuntime } from "../runtime/game-runtime.ts";
 import type { GameOutput } from "../runtime/game-output.ts";
 import { formatTextMap } from "../engine/map.ts";
+import { effectivePlayerStats } from "../engine/parameters.ts";
 
 const IAC = 255;
 const DONT = 254;
@@ -180,11 +181,12 @@ function sendGmcpState(
   if (!socket.data.gmcpEnabled) return;
   const state = runtime.getSnapshot();
   const room = state.rooms[state.player.roomId];
+  const effectiveStats = effectivePlayerStats(state);
   const visibleStats = Object.fromEntries(
     state.schema.defs.filter((def) => def.display !== "hidden").map((def) => [
       def.key,
       {
-        current: state.player.stats[def.key] ?? def.default,
+        current: effectiveStats[def.key] ?? def.default,
         max: state.player.maxStats[`${def.key}Max`] ?? def.max,
         label: def.label,
       },

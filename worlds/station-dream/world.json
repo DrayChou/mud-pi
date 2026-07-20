@@ -286,12 +286,25 @@
       "id": "ticket",
       "name": "旧车票",
       "desc": "一张泛黄的单程车票，目的地一栏是空白的。",
+      "kind": "key",
+      "traits": [
+        { "code": "story_key", "dataId": "return_ticket", "value": 1 }
+      ],
       "inRoom": "Platform"
     },
     {
       "id": "rusty_knife",
       "name": "锈铁刀",
       "desc": "一把锈迹斑斑的小刀，刀刃还算锋利。",
+      "kind": "equipment",
+      "equipSlot": "weapon",
+      "parameterModifiers": [
+        { "parameterId": "attack", "operation": "add", "value": 3 },
+        { "parameterId": "accuracy", "operation": "add", "value": 1 }
+      ],
+      "traits": [
+        { "code": "weapon_family", "dataId": "blade", "value": 1 }
+      ],
       "inRoom": "Compartment1"
     }
   ],

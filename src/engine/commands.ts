@@ -8,6 +8,7 @@ import type { EngineMutation } from "../types/mutations.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
 import { simulateCombat, type CombatSimulationResult } from "./combat.ts";
 import { buildMapSnapshot, formatTextMap } from "./map.ts";
+import { baseDeltaForEffectivePlayerChange, effectivePlayerStats } from "./parameters.ts";
 
 export type CombatContext = CombatSimulationResult;
 
@@ -121,11 +122,12 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
     return item && itemMatches(item, itemName);
   });
   if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
-  if (state.items[itemId]?.location.kind === "equipped") {
-    return { mutations: [], directReply: "你已经装备着它了。" };
+  const item = state.items[itemId]!;
+  if (item.kind !== "equipment" || !item.equipSlot) {
+    return { mutations: [], directReply: `${item.name}不是可装备物品。` };
   }
 
-  return { mutations: [{ kind: "engine/item_equipped", itemId, slot: "weapon" }] };
+  return { mutations: [{ kind: "engine/item_equipped", itemId, slot: item.equipSlot }] };
 }
 
 // ── Combat ─────────────────────────────────────────────────────────────────
@@ -150,10 +152,17 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
     return { mutations: [], directReply: "这个剧本使用掷骰检定而不是生命值战斗；请描述你想达成的行动。" };
   }
   const combatSeed = `${state.worldId}:turn:${state.turn + 1}:combat:${npc.id}`;
-  const combat = simulateCombat(state.schema, state.player, npc, conflictRules, combatSeed);
+  const combat = simulateCombat(
+    state.schema,
+    { ...state.player, stats: effectivePlayerStats(state) },
+    npc,
+    conflictRules,
+    combatSeed
+  );
   const mutations: EngineMutation[] = [{ kind: "engine/combat_started", npcId: npc.id }];
   const npcDelta = combat.npc.poolAfter - combat.npc.poolBefore;
-  const playerDelta = combat.player.poolAfter - combat.player.poolBefore;
+  const effectivePlayerDelta = combat.player.poolAfter - combat.player.poolBefore;
+  const playerDelta = baseDeltaForEffectivePlayerChange(state, combat.poolKey, effectivePlayerDelta);
   if (npcDelta !== 0) {
     mutations.push({ kind: "engine/npc_stat_changed", npcId: npc.id, stat: combat.poolKey, delta: npcDelta });
   }
@@ -180,11 +189,11 @@ function cmdInv(state: WorldState): CommandResult {
 
 function cmdStatus(state: WorldState): CommandResult {
   const p = state.player;
-  // Show all visible pool stats
+  const effectiveStats = effectivePlayerStats(state);
   const statLines = state.schema.defs
-    .filter((d) => d.display !== "hidden" && d.role === "pool")
+    .filter((d) => d.display !== "hidden")
     .map((d) => {
-      const cur = p.stats[d.key] ?? d.default;
+      const cur = effectiveStats[d.key] ?? d.default;
       const max = p.maxStats[`${d.key}Max`] ?? d.max;
       return d.display === "bar"
         ? `  ${d.label}: ${cur}/${max}`

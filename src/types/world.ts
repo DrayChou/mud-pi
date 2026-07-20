@@ -139,10 +139,38 @@ export type ItemLocation =
   | { kind: "equipped"; ownerId: string; slot: string }
   | { kind: "destroyed" };
 
+export type ItemKind = "item" | "equipment" | "key" | "scenery";
+
+export interface ParameterModifier {
+  parameterId: string;
+  operation: "add" | "rate";
+  value: number;
+}
+
+export interface DataTrait {
+  code: string;
+  dataId?: string;
+  value: number;
+}
+
+export interface ItemEffect {
+  code: string;
+  parameterId?: string;
+  value?: number;
+  rate?: number;
+  dice?: { count: number; sides: number };
+  stateId?: string;
+}
+
 export interface ItemDef {
   id: string;
   name: string;
   desc: string;
+  kind?: ItemKind;
+  equipSlot?: string;
+  parameterModifiers?: ParameterModifier[];
+  traits?: DataTrait[];
+  effects?: ItemEffect[];
   aliases?: string[];
   location: ItemLocation;
   portable?: boolean; // defaults to true; false means scenery that can be examined but not carried

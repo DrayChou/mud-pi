@@ -154,18 +154,32 @@
       "id": "newspaper",
       "name": "阿卡姆公报",
       "desc": "头版：「第三名教授神秘失踪，警方排除谋杀可能」。",
+      "kind": "key",
       "inInventory": true
     },
     {
       "id": "revolver",
       "name": "左轮手枪",
       "desc": "一把.38口径左轮，六发子弹，枪管还有烧焦的痕迹。",
+      "kind": "equipment",
+      "equipSlot": "weapon",
+      "parameterModifiers": [
+        { "parameterId": "brawl", "operation": "add", "value": 3 }
+      ],
+      "traits": [
+        { "code": "weapon_family", "dataId": "firearm", "value": 1 },
+        { "code": "ammo_capacity", "dataId": "38_caliber", "value": 6 }
+      ],
       "inRoom": "HarborsideWharf"
     },
     {
       "id": "necronomicon_fragment",
       "name": "死灵之书残页",
       "desc": "烧焦的羊皮纸，上面的文字似乎在移动。阅读它会损耗理智，但也许能揭示某些秘密。",
+      "kind": "key",
+      "effects": [
+        { "code": "parameter_delta", "parameterId": "san", "value": -5 }
+      ],
       "inRoom": "MiskULibrary"
     }
   ]

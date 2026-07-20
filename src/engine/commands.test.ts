@@ -74,6 +74,18 @@ describe("combat commands", () => {
 });
 
 describe("item commands", () => {
+  test("equips only world-pack equipment in its declared slot", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.player.inventory.push("rusty_knife");
+    state.items.rusty_knife!.location = { kind: "inventory", ownerId: state.player.id };
+
+    const equip = executeCommand(state, command("equip", { item: "锈铁刀" }));
+    const reject = executeCommand(state, command("equip", { item: "车票" }));
+
+    expect(equip.mutations).toEqual([{ kind: "engine/item_equipped", itemId: "rusty_knife", slot: "weapon" }]);
+    expect(reject.directReply).toContain("不是可装备物品");
+  });
+
   test("cannot pick up an item from another room", async () => {
     const state = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

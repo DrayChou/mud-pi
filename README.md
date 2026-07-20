@@ -276,7 +276,7 @@ codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval nev
 
 ## 剧本化冲突规则
 
-每个世界包可通过 `conflictRules` 选择 `auto_combat`、`dice_check` 或 `none`。自动战斗使用可复现随机的命中、失手、暴击、伤害浮动、幸运修正和速度行动条；风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。详细调研、公式和配置示例见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。
+每个世界包可通过 `conflictRules` 选择当前冲突规则；后续将迁移为世界包脚本。风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。冲突调研见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。参数、装备、traits 和道具 effects 的 RPG Maker 式数据分层见 [`docs/rpgmaker-data-model.md`](docs/rpgmaker-data-model.md)。
 
 ## 开发命令
 

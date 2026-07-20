@@ -176,18 +176,31 @@
       "id": "shortsword",
       "name": "短剑",
       "desc": "一把标准的冒险者短剑，刃口锋利，握柄磨损。",
+      "kind": "equipment",
+      "equipSlot": "weapon",
+      "parameterModifiers": [
+        { "parameterId": "str", "operation": "add", "value": 2 }
+      ],
+      "traits": [
+        { "code": "damage_dice", "dataId": "1d6", "value": 1 }
+      ],
       "inInventory": true
     },
     {
       "id": "healing_potion",
       "name": "治愈药水",
       "desc": "红色的玻璃瓶，饮用后恢复 2d4+2 点生命值。",
+      "kind": "item",
+      "effects": [
+        { "code": "recover_parameter", "parameterId": "hp", "value": 2, "dice": { "count": 2, "sides": 4 } }
+      ],
       "inInventory": true
     },
     {
       "id": "bounty_notice",
       "name": "悬赏令",
       "desc": "「悬赏：追踪并消灭盘踞在枯树林的哥布林首领，赏金 50 金币。—镇长印」",
+      "kind": "key",
       "inRoom": "TavernCommonRoom"
     }
   ]
