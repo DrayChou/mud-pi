@@ -6,6 +6,8 @@
 
 ## 架构原则
 
+权威状态结算的后续底层重构应遵循 `docs/state-settlement-research.md`：将 Agent/玩家输出定义为 Proposal，由纯 Decider 产生 Accepted WorldEvent 或结构化 Rejection，State 只通过 Evolve 已提交 Event 更新，GameEvent、NPC 感知、UI 和 TurnRecord 均作为 post-commit 投影处理。
+
 1. **Pi-first 记忆**：DM 与重要 NPC 的主观长期记忆使用 Pi 原生 Session JSONL 与 compaction。
 2. **权威状态唯一**：位置、属性、物品、目标和结局以 `WorldState` 为准。
 3. **所有变更走 Mutation**：Agent 只能提出意图；Engine 校验后才能产生 Mutation。
