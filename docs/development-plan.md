@@ -1,188 +1,464 @@
 # mud-pi 开发计划
 
-## 产品目标
+## 1. 产品目标
 
-用一个小而可靠的规则核心承载 Pi 驱动的持久 DM 与独立 NPC，使每个世界包都能形成“开始—探索—选择—结果—结局”的完整一局，而不是只累积叙事和系统。
+`mud-pi` 是一个 **单人 Pi-first 叙事 RPG 框架**：
 
-本项目定位为 **单人 Pi-first 叙事 RPG**，不建设多人 MUD Server。Pi 是持久主持人、语义裁判和内容导演；Engine 是权威状态守门人，不负责自动运行完整世界生态。详细边界见 `docs/pi-role-boundary.md`。
+- 持久 Pi DM 负责理解自由行动、裁定开放情境、管理叙事连续性和推进剧情；
+- 重要 NPC 可以拥有独立持久 Pi Session；
+- Engine 负责权威状态、不变量、提交、存档和可查询投影；
+- 世界包提供主题、参数、物品模板、目标、结果边界和可信本地脚本；
+- CLI、TUI、Telnet/GMCP 只是同一 `GameRuntime` 的不同 Adapter。
 
-## 架构原则
+项目不建设多人 MUD Server，也不尝试用代码自动模拟完整世界生态。Pi 与 Engine 的详细边界见 [`docs/pi-role-boundary.md`](pi-role-boundary.md)。
 
-权威状态结算的后续底层重构应遵循 `docs/state-settlement-research.md`：将 Agent/玩家输出定义为 Proposal，由纯 Decider 产生 Accepted WorldEvent 或结构化 Rejection，State 只通过 Evolve 已提交 Event 更新，GameEvent、NPC 感知、UI 和 TurnRecord 均作为 post-commit 投影处理。
+---
 
-1. **Pi-first 记忆与裁定**：DM 与重要 NPC 的主观长期记忆使用 Pi 原生 Session；开放交互、陷阱、调查、社交和剧情意义优先由 Pi 判断。
-2. **权威状态唯一**：位置、属性、物品、目标和结果以 `WorldState` 为准；Pi 只能提交 Proposal。
-3. **代码实现不变量，不穷举玩法**：凡涉及复制、越权、跨回合持续、UI 查询和存档恢复的事实由 Engine 管理；长尾动词和情境合理性交给 Pi。
-4. **事实只来自提交事件**：目标架构中 State 只由 committed `WorldEvent` 演化，`GameEvent` 只是公开投影。
-5. **按需结构化**：叙事内容只有在后续规则、UI 或恢复需要引用时才提升为结构化权威状态。
-6. **确定性作为工具而非教条**：关键冲突、世界脚本和显式骰子可复现；普通开放交互允许 Pi 直接语义裁定。
-7. **保持单人范围**：不增加多人并发、PvP、公会、在线 Builder、自动刷怪和离线生态模拟。
+## 2. 架构原则
 
-## 路线图
+1. **Pi 负责开放语义**：调查、陷阱、机关、潜行、说服、欺骗、创造性方案和剧情意义优先由 Pi 裁定。
+2. **Engine 负责权威事实**：位置、参数、生命周期、物品、装备、目标、结果和跨回合 condition 必须经过 Engine 校验。
+3. **Agent 只能提出 Proposal**：玩家解释器、DM、NPC、Objective evaluator 和世界脚本都不能直接修改 State。
+4. **State 只由 committed Event 演化**：目标链路为 `Proposal → Decision → WorldEvent → Commit → Evolve`。
+5. **被拒绝的 Proposal 不是事实**：可以进入审计，但不能进入 GameEvent、NPC 感知、Objective 或 UI。
+6. **Post-Commit 才执行副作用**：Pi/NPC 唤醒、TurnRecord、GMCP、snapshot 和 outbox 都只能发生在提交成功后。
+7. **代码实现名词和不变量，不穷举动词**：只为高频、跨回合、可查询或会破坏一致性的内容增加通用机制。
+8. **世界规则数据驱动**：参数、装备槽、traits、effects、奖励模板、冲突算法和文案由世界包定义。
+9. **确定性是裁定工具**：关键冲突、世界脚本和显式骰子可复现；普通开放交互允许 Pi 直接语义判断。
+10. **保持单人范围**：不增加多人并发、PvP、公会、在线 Builder、自动刷怪和离线生态模拟。
 
-### P0 — World Integrity
+权威结算设计依据见 [`docs/state-settlement-research.md`](state-settlement-research.md)。
 
-目标：保证存档中的客观世界状态可信。
+---
 
-工作项：
+## 3. 已完成基础能力
 
-- 为每件物品保存唯一位置：房间、玩家背包、装备或已销毁。
-- 世界包的 `inRoom` / `inInventory` 正确加载为运行时位置。
-- `get` 只能拾取当前房间物品。
-- `drop` 将物品放入玩家当前房间，并卸下对应装备。
-- `equip` 校验物品确实在背包中。
-- 房间描述和 DM prompt 只展示当前房间物品。
-- 为旧存档补充兼容迁移或规范化逻辑。
+### Pi 与 Agent
 
-验收标准：
+- 一个存档对应一个持久 DM Pi Session；
+- 重要 NPC 懒加载独立持久 Pi Session；
+- DM/NPC Session 使用 Pi 原生 JSONL 和 compaction；
+- NPC `say / move / wait / give_item` 受控意图；
+- NPC 只接收同房间、定向或移动起终点等可见事件；
+- 每回合限制独立 NPC 唤醒预算；
+- 私人 `thought` 不进入公开 TurnRecord。
 
-- 无法跨房间拾取。
-- 丢弃、重新拾取、装备和读档后的物品位置一致。
-- 世界加载、命令和 Mutation 测试覆盖上述行为。
-- `bun run typecheck`、`bun test`、`git diff --check` 通过。
+### 世界与状态
 
-### P1 — Event Spine
+- 权威 `WorldState`；
+- 房间、出口、探索状态和地图快照；
+- 确定性 `seeded-mst-v1` 程序化地图；
+- 玩家/NPC 生命周期和世界包 thresholds；
+- 物品唯一位置：room、inventory、equipped、destroyed；
+- RPG Maker 式基础参数、装备 add/rate、traits 和 effects；
+- 世界脚本负责冲突和物品使用算法；
+- AI 动态创建场景物品和模板约束的背包奖励。
 
-目标：建立规则、叙事、NPC 和目标系统共用的事件主干。
+### 进度与叙事
 
-工作项：
+- 确定性 Objective：访问房间、与 NPC 交谈、获得物品、击败实体；
+- Objective 依赖、隐藏和完成状态；
+- 世界包 StoryOutcome；
+- AI 判断任务奖励，Engine 校验模板、奖励人、冷却、次数和重复领取；
+- `objective_completed` 事件在同一轮 NPC 决策前结算。
 
-- 定义最小 `GameEvent` 判别联合类型。
-- 实现 `deriveGameEvents(before, mutations, after)` 纯函数。
-- 首批事件覆盖移动、说话、拾取、丢弃、攻击、击败、NPC 移动。
-- TurnRecord 保存公开事件；私人 NPC thought 永不写入公开事件。
-- 为 NPC 路由提供房间、参与者和可见性信息。
+### Runtime 与 Adapter
 
-验收标准：
+- 传输层无关 `GameRuntime`；
+- CLI；
+- 响应式多面板 TUI；
+- Telnet + GMCP；
+- 一次性确定性冲突结算和结构化展示帧。
 
-- 同一 before/mutations/after 始终产生相同事件。
-- 事件不直接修改状态。
-- NPC 只能接收其感知范围内的事件。
+---
 
-### P1 — Objectives & Endings
+## 4. 当前核心技术债
 
-目标：让世界包拥有可验证的进度与结局。
+1. `Mutation` 仍混合“请求”和“已发生事实”两种语义；
+2. `applyMutation()` 仍以 `console.warn + return` 表示许多拒绝；
+3. `deriveGameEvents(before, mutations, after)` 仍依赖快照推断事实；
+4. `turn` 仍被部分 stale 校验复用，尚无独立 `revision`；
+5. 一次领域操作的多个状态变化尚无正式原子事务边界；
+6. `state.json`、`turns.jsonl` 和 Agent 副作用在崩溃边界可能不一致；
+7. DM 输出被清洗或拒绝后，缺少结构化反馈；
+8. Pi 还缺少一组稳定、通用的“自由裁定结果词汇”；
+9. 尚无跨回合通用 condition 容器；
+10. 部分命名仍是 `combat_*`，尚未泛化为 `conflict_*`。
 
-工作项：
+---
 
-- 定义数据驱动的 Objective 和世界包 StoryOutcome。
-- Objective 由 GameEvent/WorldState 确定性更新。
-- 增加 `objectives` 或同等查看命令。
-- StoryOutcome 配置只存在于世界包，支持 success/failure/death/transformation/abandonment/softlock/custom 与 terminal。
-- 每个故事结果的标题、摘要与自然语言 `criteria` 完全由世界包定义；DM 依据当前权威状态、本轮结果和 Pi Session 判断是否满足，并提出 `outcomeReached`。
-- Engine 不硬编码任何剧本结束方式；解析层只接受当前世界包声明的 outcome id，存档仅保存已达成的结果快照。
-- 为 `station-dream` 制作 4–6 个目标和至少 2 个结局。
+## 5. 下一阶段路线图
 
-建议的 `station-dream` 闭环：
+## Phase 0 — Characterization 与契约冻结
 
-1. 在车站醒来并调查大厅。
-2. 与售票员交谈，了解车票规则。
-3. 探索站台和车厢，找到关键线索或物品。
-4. 处理车厢阴影。
-5. 解锁终局地点。
-6. 根据事实、物品和选择进入不同结局。
+目标：在重构前固定现有可观察行为，并批准 Settlement Contract。
 
-验收标准：
+### 工作项
 
-- 一局可在约 20–30 分钟内完成。
-- 至少存在一个成功结局和一个失败/代价结局。
-- 退出读档后目标状态、结局条件和 Pi Sessions 连续。
+- 为 `src/store/apply.ts` 每种 Mutation 增加成功与拒绝 characterization tests；
+- 覆盖批次依赖：创建→拾取→使用、装备替换、奖励→背包、Objective→奖励；
+- 覆盖 stale outcome、NPC 权限、threshold/lifecycle 和世界脚本结果；
+- 固定当前 GameEvent、TurnRecord、NPC 感知和 Runtime 输出行为；
+- 定义并人工审阅：
+  - `ProposalEnvelope<T>`；
+  - `Decision<TResult>`；
+  - `SettlementRejection`；
+  - `WorldEvent`；
+  - `Settlement`；
+  - `WorldState.revision`；
+  - transaction ID 和 expected revision 规则。
 
-### P1 — Map Experience
+### 验收标准
 
-目标：先让静态小地图可读，再做程序化地图。
+- 当前全部行为有回归保护；
+- Contract 不依赖 D&D、陷阱或具体剧本语义；
+- 明确 accepted/rejected/adjusted 的结构；
+- 明确一个领域操作产生的 Event 要么全部提交，要么全部失败。
 
-工作项：
+---
 
-- 保存房间 `discovered` / `visitedTurn` 状态。
-- 玩家移动后确定性标记探索状态。
-- 增加 `map` 命令，显示当前位置、已发现房间和已知连接。
-- 未发现区域不泄露标题和内容。
+## Phase 1 — Authoritative Settlement Kernel
 
-验收标准：
+目标：并行引入新内核，但保持现有 Runtime 可运行。
 
-- 四个现有世界都能显示可读地图或探索列表。
-- 读档后探索状态保持。
-
-### P1 — NPC Event Routing
-
-目标：独立 NPC 不再只在玩家 `say` 时被唤醒。
-
-工作项（已完成第一阶段）：
-
-- 将玩家/Engine 已结算的可见 GameEvent 路由给相关 `pi_session` NPC。
-- 支持玩家进入、离开、说话、拾取、丢弃、攻击、击败、死亡/失能，以及其他 NPC 移动等刺激。
-- 移动事件可由原房间和目标房间中的 NPC 感知；定向说话只唤醒目标。
-- 保留 `requestedAtTurn`、房间和可见实体集合 stale decision 校验。
-- 默认每回合最多唤醒两个独立 NPC，优先目标对话、关键死亡和战斗事件。
-- DM 在本轮判断前能看到这些 NPC 的公开行动；NPC 私有 `thought` 仍仅保存在其 Pi Session。
-
-验收标准：
-
-- 售票员能对玩家带回车票/线索等客观事件作出持续响应。
-- 不在现场的 NPC 不知道未传播的私有事件。
-
-### P2 — Deterministic Auto Combat
-
-目标：不实现逐回合战斗操作；根据双方数据一次性模拟完整战斗，前端只负责渲染进度条和结果。
-
-工作项（已完成）：
-
-- `attack` 启动一次确定性模拟，直接计算双方最终生命、胜者和风险，不再唤醒 NPC Session 处理逐次攻击。
-- 双方按 `speed` 向 100 点行动条累积；行动条满的角色出手，伤害仍由攻击与防御计算。
-- 模拟返回每次出手的 tick、行动者、目标、伤害和目标剩余生命，作为纯展示帧；权威状态只在模拟结束后一次性应用。
-- 预测失败时输出 `combat_warning`，随后输出结构化 `combat_result`；不会要求玩家管理逐回合技能或反击。
-- 玩家死亡/失能继续由 Stats Schema 的 `onDeplete` 确定；NPC 生命耗尽仍产生击败和关键 NPC 死亡事件。
-- DM 只叙述模拟结果和代价，不得在结果后追加额外攻击或战斗 Mutation。
-
-### P2 — Deterministic Procedural World
-
-目标：新增确定性程序化地图能力，不破坏已有静态世界。
-
-工作项（混合世界第一阶段已完成）：
-
-- 世界包可通过 `proceduralMap` 在静态剧情地图上扩展确定性房间网络；未声明配置的世界仍保持纯静态。
-- 保存 `seed`、`seeded-mst-v1` 生成器版本、语义角色和最终房间/出口快照。
-- 使用 seeded PRNG、受方向约束的 Kruskal MST 保证连通，并按树边数量增加约 15% 环路。
-- `station-dream` 第一版总房间数为 8–12，程序化节点分配入口、Boss、宝藏、特殊和过渡角色。
-- Engine 负责拓扑与语义角色；世界包模板负责名称、描述和世界观换皮，DM 只消费当前房间的权威角色信息。
-- CLI 支持 `--seed <value>`；未指定时生成新 seed，读档直接使用保存的最终地图而不重新生成。
-
-验收标准：
-
-- 同 seed 和版本产生相同地图。
-- 所有关键房间可达。
-- 读档不重新生成地图。
-
-### P2 — Save UX & Smoke Tests
-
-工作项：
-
-- 增加存档版本号和规范化入口。
-- 增加轮换备份/快照。
-- 验证 `state.json`、agent manifest 与 Session JSONL 引用一致。
-- 增加真实 Pi backend 的有界 smoke test。
-
-## 当前执行顺序
+### 新模块
 
 ```text
-1. 提交前保护并审查当前未提交成果
-2. P0 物品位置与命令修复
-3. P1 GameEvent 主干
-4. P1 Objective/Ending + station-dream 垂直切片
-5. P1 map/探索状态
-6. P1 NPC 事件路由
-7. P2 战斗回合重构
-8. P2 确定性随机地图
-9. P2 存档体验与真实 backend smoke test
+src/types/proposals.ts
+src/types/world-events.ts
+src/engine/decide.ts
+src/store/evolve.ts
+src/store/settlement.ts
 ```
 
-## 非目标
+### 工作项
 
-当前阶段不做：
+- 新增独立 `revision`；
+- 实现纯 `evolve(state, event)`；
+- 实现 `settle()`：revision 校验、Decision、原子应用、revision 推进；
+- 实现 `settleLegacyMutation()` 兼容层；
+- 拒绝结果结构化，不再依赖 `console.warn` 表达业务结果；
+- Settlement 返回 committed events、rejections 和结果数据；
+- 现有 `applyMutation()` 暂时保留为兼容实现，避免 Big Bang。
 
-- 批量创建数百个持久 NPC Session。
-- 完整经济、制造、门派、天气和生活技能系统。
-- Three.js/WebGL 地图。
-- 45 房以上的默认随机地图。
+### 验收标准
+
+- accepted transaction 可从相同 state + events 确定性重放；
+- rejected transaction 不改变 state/revision；
+- 批次中任一 Event 无法应用时整批失败；
+- 旧存档可加载并初始化 revision；
+- Runtime 可通过 legacy adapter 保持现有玩法。
+
+---
+
+## Phase 2 — 垂直迁移与公共投影
+
+目标：先迁移高频且不变量清晰的领域，而不是一次性迁移全部 Mutation。
+
+### 迁移顺序
+
+1. 玩家移动；
+2. 物品创建和直接授予；
+3. 拾取、丢弃；
+4. 装备、使用、消耗；
+5. 参数变化和 lifecycle；
+6. NPC 移动与奖励；
+7. Objective 和 StoryOutcome。
+
+### 公共事件
+
+- 新增 `projectPublicEvents(committedEvents)`；
+- GameEvent 只由 committed WorldEvent 投影；
+- 删除相应领域对 before/after 猜测的依赖；
+- NPC 感知、DM Prompt、TurnRecord、UI 和 GMCP 只消费投影事件；
+- stale token 从 `requestedAtTurn` 逐步迁移到 `expectedRevision`。
+
+### 验收标准
+
+- 被拒绝 Proposal 不产生公开事件；
+- 相同 committed events 始终产生相同 GameEvent；
+- 每迁移一个领域就删除该领域 legacy 快照推断；
+- 每个垂直切片拥有 replay test。
+
+---
+
+## Phase 3 — Pi 自由裁定协议
+
+目标：让 Pi 能处理陷阱、调查、机关和长尾交互，而无需继续扩张自动 MUD 系统。
+
+### 通用 Proposal 词汇
+
+优先支持：
+
+- 添加权威 WorldFact / flag；
+- 开放或关闭已声明出口；
+- 精确参数变化；
+- 创建、转移、消耗或销毁合法物品；
+- 合法移动实体；
+- 发出可感知信号，如噪音、闪光和公开言语；
+- 对世界包允许的 Objective 提出语义完成/失败；
+- 提出 StoryOutcome；
+- 后续应用/移除通用 condition。
+
+### Pi 输出边界
+
+Pi 负责：
+
+- 理解自由行动；
+- 判断成功、部分成功、失败和代价；
+- 决定是否需要骰子或世界脚本；
+- 创作名称、描述、线索和叙述。
+
+Engine 负责：
+
+- Proposal schema；
+- ID、引用、权限、数值和 revision 校验；
+- 物品、参数、出口和实体不变量；
+- 原子提交；
+- 结构化拒绝与修正反馈。
+
+### 验收标准
+
+- 一个没有专用命令的陷阱场景可由 Pi 裁定并安全改变参数/事实/物品；
+- Pi 无法创建非法参数、复制物品或绕过位置权限；
+- 叙述只确认 committed 结果。
+
+---
+
+## Phase 4 — Structured Adjudication Feedback
+
+目标：消除“Pi 说发生了，但 Engine 实际拒绝了”的叙事分叉。
+
+### 工作项
+
+- DM parser 返回 accepted/rejected/adjusted warning；
+- Settlement rejection 使用稳定 code；
+- 下一轮 DM Prompt 包含上轮权威修正；
+- 对被移除的 modifier/effect/kind 给出结构化原因；
+- NPC Proposal 被拒绝时不公开失败动作，但将结果反馈到其私有 Session；
+- 增加每回合反馈数量和文本长度限制。
+
+### 验收标准
+
+- Pi 下一轮能明确知道哪些提案未发生；
+- 公共叙述、WorldState 和 GameEvent 不再互相矛盾；
+- warning 不泄露 NPC 私有 thought。
+
+---
+
+## Phase 5 — 最小通用 Condition
+
+目标：只补齐必须跨回合保存的状态效果，不建设规则百科。
+
+### 数据模型
+
+```text
+ConditionDefinition（世界包）
+AppliedCondition（存档实例）
+```
+
+最小字段：
+
+- condition ID；
+- target/source entity；
+- stacks；
+- applied revision/turn；
+- 可选 remaining turns；
+- 世界包 parameter modifiers / traits；
+- stacking policy。
+
+### 事件
+
+- `condition_applied`；
+- `condition_refreshed`；
+- `condition_stack_changed`；
+- `condition_removed`；
+- `condition_expired`。
+
+### 边界
+
+- “是否中毒、恐惧、流血”由 Pi 或世界脚本判断；
+- Engine 只保存、聚合、过期和校验 condition；
+- 暂不引入完整世界时钟、天气、疾病模拟或自动生态。
+
+---
+
+## Phase 6 — 持久化、Journal 与 Outbox
+
+目标：使 committed WorldEvent 成为可恢复的权威记录。
+
+### 工作项
+
+- `saves/{worldId}/world-events.jsonl`；
+- transaction ID、revision、checksum；
+- snapshot 保存 last applied revision；
+- 启动时验证并重放 snapshot 之后的事件；
+- 原子追加 Event transaction；
+- post-commit outbox 记录待执行的 NPC/TurnRecord/snapshot effect；
+- 崩溃恢复、重复消费和部分写入测试。
+
+### 验收标准
+
+- `initial state + committed events` 可重建当前 State；
+- 重复启动不重复应用 Event；
+- Agent 调用失败不回滚已经提交的世界事实；
+- snapshot 损坏时能从有效 Journal 恢复或明确失败。
+
+---
+
+## Phase 7 — 收敛与可选增强
+
+只在前述基础稳定后评估：
+
+- `CombatSimulationResult` → 通用 `ConflictResult`；
+- `combat_warning/result` → `conflict_warning/result`；
+- Objective 少量 `all / any / count` 条件；
+- 世界包允许的语义 Objective 完成/失败；
+- `ItemDefinition / ItemInstance / quantity`；
+- 第三方世界脚本 Worker/子进程沙箱；
+- 有实际剧本需求时再加入最小 world time。
+
+这些都不是 Settlement Kernel 的前置条件。
+
+---
+
+## 6. 明确非目标
+
+近期不做：
+
+- 多玩家、PvP、公会和多人并发；
+- 自动 NPC 日程和离线世界演化；
+- 怪物刷新与刷怪循环；
+- 完整陷阱、门锁和机关模拟器；
+- 为每种技能、法术和环境动作写专用命令；
+- 完整 D&D 职业、法术槽和战术战斗规则；
+- 通用经济、制作、采集和生活技能模拟；
+- 自动生成无限任务；
+- 将所有叙事事实结构化；
+- 强制所有自由行为掷骰；
 - 与 Pi Session 重复的应用层长期记忆数据库。
+
+---
+
+## 7. 多 Agent 并行开发评估
+
+结论：**可以使用 Agent 并行开发，但必须在 Contract 冻结后，以独立 worktree、Owner Files 和依赖 DAG 进行；Settlement 热点不能让多个 Agent 同时自由修改。**
+
+### 适合并行的工作
+
+1. Characterization tests，可按领域写入不同的新测试文件；
+2. Settlement 新类型和纯 `evolve()`，主要写新文件；
+3. committed event → public event projection，主要写新模块；
+4. Journal/replay 测试和持久化原型；
+5. 独立只读 QA、架构审查和 replay 审查；
+6. 不同世界包的迁移和内容验证。
+
+### 不适合直接并行的热点
+
+以下文件应由 Integration Agent 独占：
+
+```text
+src/types/world.ts
+src/types/mutations.ts
+src/store/apply.ts
+src/runtime/game-runtime.ts
+src/engine/game-events.ts
+src/store/persist.ts
+```
+
+原因是它们承载公共类型、当前状态入口、Runtime 时序和存档兼容。多个 Agent 同时修改会导致接口漂移和难以审查的冲突。
+
+### 推荐第一轮 DAG
+
+```text
+T0  Coordinator：冻结 Settlement Contract，并建立基准测试
+ |
+ +-- T1  Test Agent：Mutation characterization tests（只写新测试文件）
+ |
+ +-- T2  Kernel Agent：Proposal/WorldEvent/Decision/Evolve 新模块
+ |
+ +-- T3  Projection Agent：public event projection 原型和测试
+ |
+ +-- T4  QA Agent：只读检查 T0 Contract 与现有调用链
+
+T1 + T2 + T3 + T4
+  → T5 Integration Agent：legacy adapter + GameRuntime 接线
+  → T6 QA Agent：原子性、拒绝、replay、post-commit 复验
+  → T7 Final Gate
+```
+
+依赖说明：
+
+- T0 必须串行且先完成；
+- T1/T2/T3 在 Contract 冻结后可并行；
+- T5 必须等待前三项集成，不应并行修改 Runtime 热点；
+- QA 不修生产代码，只提交缺陷和独立测试；
+- Repair 由独立 Agent 根据缺陷执行，再交原 QA 复验。
+
+### 推荐规模
+
+第一轮使用：
+
+- 1 个 Coordinator/Integration Agent；
+- 3 个并行 Worker；
+- 1 个独立 QA/Gate Agent。
+
+不建议超过 3 个同时写代码的 Worker。当前仓库规模较小，过多 Agent 的协调、接口漂移和 merge 成本会超过收益。
+
+### Owner Files 原则
+
+- 一个文件只能有一个写 Owner；
+- Worker 尽量只新增模块或测试文件；
+- 公共热点只允许 Integration Agent 修改；
+- 每个 Worker 使用独立 worktree 和聚焦 commit；
+- Worker 不 push、不 deploy、不 rebase、不 stash、不使用 `git add .`；
+- 每个任务必须有独立验证命令和 Handoff；
+- 只有集成并通过 Gate 才算完成。
+
+### 并行价值判断
+
+本轮 Settlement 重构满足并行条件：
+
+- 已有研究和目标架构；
+- 可以冻结公共 Contract；
+- characterization、纯 kernel、projection 和 QA 可隔离；
+- 串行完成所有研究、测试、实现和审查耗时明显更长。
+
+但 Phase 3 的 Pi adjudication schema 在业务语义未批准前不应直接并行编码。应先由 Coordinator 给出 Proposal 词汇草案并人工确认，再拆分 parser、decider、projection 和测试。
+
+---
+
+## 8. 每阶段统一质量门
+
+每个集成候选至少执行：
+
+```bash
+bun run typecheck
+bun test
+git diff --check
+```
+
+Settlement 相关阶段还必须验证：
+
+- accepted replay determinism；
+- rejected proposal leaves state unchanged；
+- revision conflict；
+- atomic multi-event transaction；
+- no public event before commit；
+- old-save compatibility；
+- NPC/DM/UI are post-commit only。
+
+---
+
+## 9. 当前执行顺序
+
+```text
+1. Phase 0：characterization tests + Settlement Contract 批准
+2. Phase 1：Settlement Kernel + legacy adapter
+3. Phase 2：移动/物品垂直迁移 + committed event projection
+4. Phase 3：Pi 自由裁定 Proposal
+5. Phase 4：结构化 rejection/adjustment feedback
+6. Phase 5：最小通用 condition
+7. Phase 6：Event Journal + snapshot + outbox
+8. Phase 7：按真实剧本需求选择增强项
+```
