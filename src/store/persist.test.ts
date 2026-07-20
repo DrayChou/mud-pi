@@ -30,7 +30,9 @@ describe("state compatibility", () => {
       objectives?: unknown;
       endingRules?: unknown;
       itemRewardRules?: unknown;
+      revision?: unknown;
     };
+    delete legacyState.revision;
     delete legacyState.items.ticket?.location;
     delete legacyState.items.rusty_knife?.location;
     delete legacyState.objectives;
@@ -48,6 +50,7 @@ describe("state compatibility", () => {
 
     const loaded = await loadState(state.worldId);
 
+    expect(loaded?.revision).toBe(0);
     expect(loaded?.items.ticket?.location).toEqual({
       kind: "inventory",
       ownerId: "player1",

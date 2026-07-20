@@ -35,6 +35,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   if (!(await f.exists())) return null;
   try {
     const state = await f.json() as WorldState;
+    normalizeRevision(state);
     normalizePlayerLifecycle(state);
     normalizeParameterSchema(state);
     await normalizeConflictRules(state);
@@ -46,6 +47,10 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
     console.error(`[persist] corrupt state.json for ${worldId}`);
     return null;
   }
+}
+
+function normalizeRevision(state: WorldState): void {
+  if (!Number.isInteger(state.revision) || (state.revision ?? -1) < 0) state.revision = 0;
 }
 
 function normalizePlayerLifecycle(state: WorldState): void {
@@ -172,6 +177,7 @@ function isItemLocation(value: unknown): value is ItemLocation {
 }
 
 export async function saveState(state: WorldState): Promise<void> {
+  state.revision ??= 0;
   const dir = savesDir(state.worldId);
   await mkdir(dir, { recursive: true });
   await Bun.write(stateFile(state.worldId), JSON.stringify(state, null, 2));

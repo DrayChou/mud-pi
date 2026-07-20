@@ -313,6 +313,8 @@ export interface PlayerState {
 }
 
 export interface WorldState {
+  /** Authoritative settlement version. Saves created before settlement omit it and normalize to 0. */
+  revision?: number;
   worldId: string;
   worldPack: string;
   turn: number;
