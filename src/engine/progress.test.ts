@@ -32,7 +32,7 @@ describe("objective and ending progress", () => {
     expect(second).toEqual([{ kind: "engine/objective_completed", objectiveId: "board_train" }]);
   });
 
-  test("selects the higher priority ticket ending", async () => {
+  test("does not decide endings in deterministic objective code", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.objectives.ask_ticket_clerk!.status = "completed";
     state.objectives.board_train!.status = "completed";
@@ -44,34 +44,10 @@ describe("objective and ending progress", () => {
       entityId: "shadow",
       roomId: "Compartment3",
     }]);
-    applyMutations(state, mutations);
 
     expect(mutations).toEqual([
       { kind: "engine/objective_completed", objectiveId: "face_shadow" },
-      { kind: "engine/ending_reached", endingId: "return_with_ticket" },
     ]);
-    expect(state.ending?.id).toBe("return_with_ticket");
-  });
-
-  test("selects the no-ticket ending when the ticket was left behind", async () => {
-    const state = await loadWorldPack("station-dream", {
-      fallbackPlayerName: "旅行者",
-      protagonistId: "runaway_guard",
-    });
-    state.objectives.ask_ticket_clerk!.status = "completed";
-    state.objectives.board_train!.status = "completed";
-    state.npcs.shadow!.alive = false;
-
-    const mutations = evaluateProgress(state, [{
-      kind: "entity_defeated",
-      turn: 3,
-      entityId: "shadow",
-      roomId: "Compartment3",
-    }]);
-
-    expect(mutations.at(-1)).toEqual({
-      kind: "engine/ending_reached",
-      endingId: "lost_without_ticket",
-    });
+    expect(state.ending).toBeUndefined();
   });
 });

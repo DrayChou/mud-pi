@@ -18,7 +18,6 @@ export type EngineMutation =
   | { kind: "engine/item_dropped"; itemId: string; roomId: string }
   | { kind: "engine/item_equipped"; itemId: string; slot: string }
   | { kind: "engine/objective_completed"; objectiveId: string }
-  | { kind: "engine/ending_reached"; endingId: string }
   | { kind: "engine/turn_advanced" };
 
 // ── DM Mutations ───────────────────────────────────────────────────────────
@@ -26,6 +25,7 @@ export type EngineMutation =
 export type DmMutation =
   | { kind: "dm/room_added"; room: RoomDef }
   | { kind: "dm/item_added"; item: ItemDef }
+  | { kind: "dm/ending_reached"; endingId: string; reason?: string }
   | { kind: "dm/room_exit_added"; roomId: string; direction: string; toRoomId: string }
   | { kind: "dm/room_desc_updated"; roomId: string; descAppend: string }
   | { kind: "dm/npc_added"; npc: NpcDef }

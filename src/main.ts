@@ -532,7 +532,7 @@ async function processInput(
       if (objective) print(`\x1b[33m✓ 目标完成：${objective.title}\x1b[0m`);
     }
   }
-  if (progressMutations.some((mutation) => mutation.kind === "engine/ending_reached") && state.ending) {
+  if (!stateBeforeTurn.ending && state.ending) {
     print(`\n\x1b[1;35m结局：${state.ending.title}\x1b[0m`);
     print(state.ending.summary);
   }

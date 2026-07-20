@@ -232,35 +232,13 @@
       "id": "return_with_ticket",
       "title": "有票者的归途",
       "summary": "空白车票浮现出只属于你的目的地。列车终于启动，载着你驶向那个一直不敢承认的归处。",
-      "priority": 100,
-      "conditions": [
-        {
-          "kind": "objective_completed",
-          "objectiveId": "face_shadow"
-        },
-        {
-          "kind": "item_owned",
-          "itemId": "ticket",
-          "owned": true
-        }
-      ]
+      "criteria": "玩家已经真正面对并解决最后车厢的阴影，仍持有旧车票，并通过言行明确接受或认出了自己真正想回去的地方。仅仅击败敌人或走到最后车厢还不够。"
     },
     {
       "id": "lost_without_ticket",
       "title": "无票旅客",
       "summary": "阴影散去，铁门却没有打开。没有车票证明你的归途，你只能在空白时刻表下等待下一班永远不会抵达的列车。",
-      "priority": 10,
-      "conditions": [
-        {
-          "kind": "objective_completed",
-          "objectiveId": "face_shadow"
-        },
-        {
-          "kind": "item_owned",
-          "itemId": "ticket",
-          "owned": false
-        }
-      ]
+      "criteria": "玩家已经解决最后车厢的阴影并明确尝试离开，但此时没有持有旧车票，或主动拒绝承认任何归途。只有当继续探索已无法改变这一选择时才触发。"
     }
   ]
 }

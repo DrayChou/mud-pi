@@ -49,6 +49,35 @@ describe("DM-created interactive items", () => {
     });
   });
 
+  test("accepts a configured ending proposed by the DM", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const response = parseDmResponse(
+      `<NARRATION>车票上浮现出归途。</NARRATION><WORLD_UPDATE>{"endingReached":{"id":"return_with_ticket","reason":"玩家承认了真正的归处。"}}</WORLD_UPDATE>`,
+      state.schema,
+      state.player.roomId
+    );
+
+    applyMutations(state, response.mutations);
+
+    expect(state.ending).toMatchObject({
+      id: "return_with_ticket",
+      reason: "玩家承认了真正的归处。",
+    });
+  });
+
+  test("rejects an ending id not declared by the world pack", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const response = parseDmResponse(
+      `<NARRATION>结束。</NARRATION><WORLD_UPDATE>{"endingReached":{"id":"invented_ending"}}</WORLD_UPDATE>`,
+      state.schema,
+      state.player.roomId
+    );
+
+    applyMutations(state, response.mutations);
+
+    expect(state.ending).toBeUndefined();
+  });
+
   test("rejects a DM item placed in a nonexistent room", async () => {
     const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
     const response = parseDmResponse(

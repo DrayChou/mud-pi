@@ -155,19 +155,6 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
-    case "engine/ending_reached": {
-      if (state.ending) return;
-      const ending = state.endingRules.find((rule) => rule.id === mut.endingId);
-      if (!ending) return;
-      state.ending = {
-        id: ending.id,
-        title: ending.title,
-        summary: ending.summary,
-        reachedTurn: state.turn + 1,
-      };
-      break;
-    }
-
     case "engine/turn_advanced": {
       state.turn += 1;
       break;
@@ -185,6 +172,23 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         return;
       }
       state.rooms[mut.room.id] = { ...mut.room, source: "dm_generated", createdTurn: state.turn };
+      break;
+    }
+
+    case "dm/ending_reached": {
+      if (state.ending) return;
+      const ending = state.endingRules.find((rule) => rule.id === mut.endingId);
+      if (!ending) {
+        console.warn(`[apply] DM proposed unknown ending: ${mut.endingId}`);
+        return;
+      }
+      state.ending = {
+        id: ending.id,
+        title: ending.title,
+        summary: ending.summary,
+        reachedTurn: state.turn + 1,
+        reason: mut.reason,
+      };
       break;
     }
 

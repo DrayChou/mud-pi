@@ -28,6 +28,7 @@ interface RawWorldUpdate {
   npcsAdded?: Array<{ id: string; name: string; roomId: string; personality: string; stats?: Record<string, number>; hostile?: boolean }>;
   npcsMoved?: Array<{ id: string; toRoomId: string }>;
   npcsKilled?: string[];
+  endingReached?: { id: string; reason?: string } | null;
 }
 
 export function parseDmResponse(raw: string, schema: StatsSchema, currentRoomId?: string): DmResponse {
@@ -126,5 +127,13 @@ function buildMutations(
 
   for (const id of u.npcsKilled ?? []) {
     if (typeof id === "string") out.push({ kind: "dm/npc_killed", npcId: id });
+  }
+
+  if (u.endingReached?.id) {
+    out.push({
+      kind: "dm/ending_reached",
+      endingId: u.endingReached.id,
+      reason: typeof u.endingReached.reason === "string" ? u.endingReached.reason : undefined,
+    });
   }
 }

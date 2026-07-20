@@ -20,7 +20,6 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
     case "engine/item_equipped":     return `玩家装备了 ${m.itemId}`;
     case "engine/objective_completed": return `玩家完成目标 ${m.objectiveId}`;
-    case "engine/ending_reached":    return `玩家达成结局 ${m.endingId}`;
     case "engine/turn_advanced":     return null;
   }
 }
@@ -117,6 +116,14 @@ export function buildDmPrompt(
   }
   if (state.ending) {
     parts.push(`[已达成结局]\n${state.ending.title}：${state.ending.summary}`);
+  } else if (state.endingRules.length > 0) {
+    parts.push(
+      `[剧本可用结局]\n` +
+      state.endingRules.map((ending) =>
+        `• ${ending.title}（id: ${ending.id}）\n  判定标准：${ending.criteria}\n  结局摘要：${ending.summary}`
+      ).join("\n") +
+      `\n结局判定由你依据上述剧本标准完成。只有标准已经明确满足时才返回 endingReached；不满足时必须返回 null。`
+    );
   }
 
   // ── Active plot threads ──
@@ -231,7 +238,8 @@ itemsAdded 格式：{"id":"稳定的英文或拼音ID","name":"显示名","desc"
   "itemsAdded": [],
   "npcsAdded": [],
   "npcsMoved": [],
-  "npcsKilled": []
+  "npcsKilled": [],
+  "endingReached": null
 }
 </WORLD_UPDATE>`
   );

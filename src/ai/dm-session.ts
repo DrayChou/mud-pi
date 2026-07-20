@@ -120,6 +120,7 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
 1. 用第二人称写出沉浸式叙事（2-4句，不超过120字）
 2. 如有必要，通过 WORLD_UPDATE 扩展世界（新房间、新事实、可交互道具、更新剧情线）
 3. 叙事中新出现且玩家可以检查、拾取或使用的具体道具，必须在同一轮写入 itemsAdded；否则引擎无法让玩家与它交互
+4. 只有当世界包提供的某个结局 criteria 已经在当前权威状态和本轮结果中满足时，才通过 endingReached 提出该结局；否则必须返回 null
 
 ## 限制
 
@@ -142,7 +143,8 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
   "itemsAdded": [],
   "npcsAdded": [],
   "npcsMoved": [],
-  "npcsKilled": []
+  "npcsKilled": [],
+  "endingReached": null
 }
 </WORLD_UPDATE>`;
 }

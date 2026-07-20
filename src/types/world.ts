@@ -141,16 +141,11 @@ export interface ObjectiveState extends ObjectiveDef {
   completedTurn?: number;
 }
 
-export type EndingCondition =
-  | { kind: "objective_completed"; objectiveId: string }
-  | { kind: "item_owned"; itemId: string; owned?: boolean };
-
 export interface EndingRule {
   id: string;
   title: string;
   summary: string;
-  priority?: number;
-  conditions: EndingCondition[];
+  criteria: string; // world-pack guidance evaluated by the DM, never hardcoded in Engine
 }
 
 export interface EndingState {
@@ -158,6 +153,7 @@ export interface EndingState {
   title: string;
   summary: string;
   reachedTurn: number;
+  reason?: string;
 }
 
 export interface ProtagonistProfile {

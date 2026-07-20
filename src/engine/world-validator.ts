@@ -152,14 +152,7 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     if (!ending.id) errors.push("endings contains an ending with empty id");
     if (endingIds.has(ending.id)) errors.push(`duplicate ending id: ${ending.id}`);
     endingIds.add(ending.id);
-    for (const condition of ending.conditions ?? []) {
-      if (condition.kind === "objective_completed" && !objectiveIds.has(condition.objectiveId)) {
-        errors.push(`ending ${ending.id} references missing objective: ${condition.objectiveId}`);
-      }
-      if (condition.kind === "item_owned" && !itemIds.has(condition.itemId)) {
-        errors.push(`ending ${ending.id} references missing item: ${condition.itemId}`);
-      }
-    }
+    if (!ending.criteria?.trim()) errors.push(`ending ${ending.id} has empty criteria`);
   }
 
   if (errors.length > 0) {
