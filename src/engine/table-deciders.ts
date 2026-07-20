@@ -78,7 +78,7 @@ export const decideItem: Decider<ItemProposal, ItemProposal> = (state, envelope)
   if (proposal.kind === "grant_item_reward" && sourceKind !== "dm" && sourceKind !== "engine" && sourceKind !== "npc") {
     return reject("permission_denied", `${sourceKind} cannot grant item rewards.`);
   }
-  if (playerOperation && sourceKind !== "player" && sourceKind !== "engine" && sourceKind !== "dm" && sourceKind !== "world_script") {
+  if (playerOperation && sourceKind !== "player" && sourceKind !== "engine") {
     return reject("permission_denied", `${sourceKind} cannot perform player inventory operations.`);
   }
 

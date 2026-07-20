@@ -105,6 +105,7 @@ describe("NPC event perception routing", () => {
       targetId: "guard",
     };
     expect(selectNpcIdsForEvents(state, [directedSignal], 2)).toEqual(["guard"]);
+    expect(selectNpcIdsForEvents(state, [{ ...directedSignal, roomId: "Platform" }], 2)).toEqual([]);
   });
 
   test("lets NPCs in either room perceive movement while excluding the mover", async () => {

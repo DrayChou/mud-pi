@@ -260,7 +260,8 @@ export function selectNpcIdsForEvents(
 }
 
 function npcCanPerceiveEvent(npc: NpcDef, event: GameEvent): boolean {
-  if ((event.kind === "player_spoke" || event.kind === "perceptible_signal") && event.targetId) return event.targetId === npc.id;
+  if (event.kind === "player_spoke" && event.targetId) return event.targetId === npc.id;
+  if (event.kind === "perceptible_signal" && event.targetId) return event.targetId === npc.id && npc.roomId === event.roomId;
   if (event.kind === "player_moved") {
     return npc.roomId === event.fromRoomId || npc.roomId === event.toRoomId;
   }

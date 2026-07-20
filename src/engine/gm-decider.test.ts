@@ -46,10 +46,22 @@ test("GM parameter adjustment clamps explicitly and changes lifecycle atomically
   expect(state.player.stats[parameterId]).not.toBe(before);
 });
 
+test("GM card operations are explicit and player-style inventory actions remain denied", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const itemId = state.player.inventory.find((id) => state.items[id]?.consumable === true);
+  if (!itemId) return;
+  const consumed = settle(state, envelope(state, { kind: "consume_card", itemId }, "gm-consume"), decideGmProposal, { storyOutcomes: [] });
+  expect(consumed.accepted).toBe(true);
+  expect(state.items[itemId]?.location).toEqual({ kind: "destroyed" });
+});
+
 test("GM protocol only completes allowed objectives and outcomes", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const storyOutcomes = await loadStoryOutcomes(state.worldPack);
   const objective = Object.values(state.objectives).find((candidate) => (candidate.requires ?? []).length === 0)!;
+  objective.gmCompletionAllowed = true;
+  const deniedObjective = Object.values(state.objectives).find((candidate) => candidate.id !== objective.id && (candidate.requires ?? []).length === 0);
+  if (deniedObjective) expect(settle(state, envelope(state, { kind: "complete_objective", objectiveId: deniedObjective.id }, "denied-objective"), decideGmProposal, { storyOutcomes }).accepted).toBe(false);
   const completed = settle(state, envelope(state, { kind: "complete_objective", objectiveId: objective.id, reason: "GM accepted a creative solution." }, "objective"), decideGmProposal, { storyOutcomes });
   expect(completed.accepted).toBe(true);
 

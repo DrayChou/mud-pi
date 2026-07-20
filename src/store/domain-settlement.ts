@@ -1,9 +1,9 @@
-import { decideGmProposal } from "../engine/gm-decider.ts";
 import { decideItem, decideMovement } from "../engine/table-deciders.ts";
-import type { GmProposal } from "../types/gm-proposals.ts";
+import type { GmProposal, GmTableProposal } from "../types/gm-proposals.ts";
 import type { AnyMutation } from "../types/mutations.ts";
 import type { ItemProposal, MovementProposal } from "../types/table-proposals.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
+import { settleGmOperation } from "./gm-protocol.ts";
 import { settleLegacyMutation, type LegacyProposalMetadata } from "./legacy-settlement.ts";
 import { settle, type Settlement } from "./settlement.ts";
 
@@ -54,6 +54,27 @@ function settleTyped<TProposal>(
   );
 }
 
+function settleTypedGm(
+  state: WorldState,
+  payload: GmProposal,
+  metadata: LegacyProposalMetadata,
+  storyOutcomes: readonly StoryOutcomeDef[],
+): Settlement<GmTableProposal> {
+  return settleGmOperation(state, {
+    proposalId: metadata.proposalId,
+    correlationId: metadata.correlationId,
+    causationId: metadata.causationId,
+    source: {
+      kind: metadata.sourceId === "dm" || metadata.sourceId === "opening-dm" ? "dm" : "engine",
+      id: metadata.sourceId ?? "runtime",
+      sessionId: metadata.sessionId,
+    },
+    expectedRevision: state.revision,
+    observedTurn: state.turn,
+    payload,
+  }, storyOutcomes);
+}
+
 export function settleRuntimeMutation(
   state: WorldState,
   mutation: AnyMutation,
@@ -77,22 +98,22 @@ export function settleRuntimeMutation(
     case "engine/item_consumed":
       return settleTyped<ItemProposal>(state, { kind: "consume_item", itemId: mutation.itemId }, metadata, decideItem);
     case "dm/room_exit_added":
-      return settleTyped<GmProposal>(state, { kind: "set_exit", roomId: mutation.roomId, direction: mutation.direction, toRoomId: mutation.toRoomId }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "set_exit", roomId: mutation.roomId, direction: mutation.direction, toRoomId: mutation.toRoomId }, metadata, storyOutcomes);
     case "engine/player_stat_changed":
-      return settleTyped<GmProposal>(state, { kind: "adjust_parameter", entityId: state.player.id, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "adjust_parameter", entityId: state.player.id, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, storyOutcomes);
     case "engine/npc_stat_changed":
     case "dm/npc_stat_changed":
-      return settleTyped<GmProposal>(state, { kind: "adjust_parameter", entityId: mutation.npcId, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "adjust_parameter", entityId: mutation.npcId, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, storyOutcomes);
     case "dm/npc_moved":
-      return settleTyped<GmProposal>(state, { kind: "move_npc", npcId: mutation.npcId, toRoomId: mutation.toRoomId }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "move_npc", npcId: mutation.npcId, toRoomId: mutation.toRoomId }, metadata, storyOutcomes);
     case "dm/fact_added":
-      return settleTyped<GmProposal>(state, { kind: "record_fact", text: mutation.text, roomId: mutation.tile ?? undefined }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "record_fact", text: mutation.text, roomId: mutation.tile ?? undefined }, metadata, storyOutcomes);
     case "dm/fact_removed":
-      return settleTyped<GmProposal>(state, { kind: "remove_fact", text: mutation.text }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "remove_fact", text: mutation.text }, metadata, storyOutcomes);
     case "engine/objective_completed":
-      return settleTyped<GmProposal>(state, { kind: "complete_objective", objectiveId: mutation.objectiveId }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "complete_objective", objectiveId: mutation.objectiveId }, metadata, storyOutcomes);
     case "dm/outcome_reached":
-      return settleTyped<GmProposal>(state, { kind: "reach_outcome", outcome: mutation.outcome, requestedAtTurn: mutation.requestedAtTurn, reason: mutation.outcome.reason }, metadata, decideGmProposal, storyOutcomes);
+      return settleTypedGm(state, { kind: "reach_outcome", outcome: mutation.outcome, requestedAtTurn: mutation.requestedAtTurn, reason: mutation.outcome.reason }, metadata, storyOutcomes);
     default:
       return settleLegacyMutation(state, mutation, metadata);
   }

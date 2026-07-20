@@ -73,6 +73,14 @@ test("typed deciders enforce proposal source permissions", async () => {
 
   expect(npcMove.accepted).toBe(false);
   expect(playerCreate.accepted).toBe(false);
+  const consumableId = state.player.inventory.find((id) => state.items[id]?.consumable === true);
+  if (consumableId) {
+    const dmConsume = settle(state, {
+      ...envelope<ItemProposal>(state.revision, { kind: "consume_item", itemId: consumableId }, "dm-consume"),
+      source: { kind: "dm" as const, id: "dm" },
+    }, decideItem, context);
+    expect(dmConsume.accepted).toBe(false);
+  }
   expect(state.revision).toBe(0);
 });
 

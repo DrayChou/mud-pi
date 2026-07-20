@@ -247,6 +247,8 @@ export interface ObjectiveDef {
   requires?: string[];
   hidden?: boolean;
   completion: ObjectiveCompletion;
+  /** World-pack opt-in for semantic completion proposed by the Pi GM. */
+  gmCompletionAllowed?: boolean;
   reward?: ObjectiveRewardPolicy;
 }
 
