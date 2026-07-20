@@ -152,6 +152,36 @@ describe("settlement", () => {
     expect(live.revision).toBe(5);
   });
 
+  test("returns prior child settlements when a completed batch is retried", () => {
+    const live = state();
+    const batch = {
+      batchId: "batch-retry",
+      correlationId: "correlation-retry",
+      source: { kind: "dm" as const, id: "dm" },
+      expectedRevision: 3,
+      observedTurn: 7,
+      proposals: [{ proposalId: "retry-child", payload: { action: "once" } }],
+    };
+    let decisions = 0;
+    const decider = (snapshot: WorldState, child: ProposalEnvelope<{ action: string }>) => {
+      decisions += 1;
+      return {
+        accepted: true as const,
+        result: child.payload.action,
+        events: [{ kind: "player_spoke" as const, playerId: snapshot.player.id, roomId: snapshot.player.roomId, message: child.payload.action }] as const,
+        warnings: [],
+      };
+    };
+
+    const first = settleBatch(live, batch, decider, context);
+    const retry = settleBatch(live, batch, decider, context);
+
+    expect(first.accepted).toBe(true);
+    expect(retry).toEqual(first);
+    expect(decisions).toBe(1);
+    expect(live.revision).toBe(4);
+  });
+
   test("prevents an unrelated settlement from interleaving with an active batch", () => {
     const live = state();
     let externalAccepted: boolean | undefined;

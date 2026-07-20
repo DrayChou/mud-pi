@@ -219,6 +219,20 @@ export function settleBatch<TProposal, TResult>(
   decider: Decider<TProposal, TResult>,
   context: Readonly<DecisionContext>,
 ): BatchSettlement<TResult> {
+  const priorSettlements = batch.proposals.map((proposal) => settlementsByState.get(state)?.get(proposal.proposalId));
+  if (priorSettlements.length > 0 && priorSettlements.every((settlement) => settlement !== undefined)) {
+    const settlements = priorSettlements as Settlement<TResult>[];
+    return {
+      accepted: true,
+      batchId: batch.batchId,
+      correlationId: batch.correlationId,
+      revisionBefore: settlements[0]!.revisionBefore,
+      revisionAfter: settlements.at(-1)!.revisionAfter,
+      settlements,
+      allAccepted: settlements.every((settlement) => settlement.accepted),
+    };
+  }
+
   const revisionBefore = currentRevision(state);
   if (batch.expectedRevision !== revisionBefore) {
     return {
