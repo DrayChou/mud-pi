@@ -29,11 +29,13 @@ describe("state compatibility", () => {
       player: { roomId: string; inventory: string[]; equipment: Record<string, string> };
       objectives?: unknown;
       endingRules?: unknown;
+      itemRewardRules?: unknown;
     };
     delete legacyState.items.ticket?.location;
     delete legacyState.items.rusty_knife?.location;
     delete legacyState.objectives;
     delete legacyState.endingRules;
+    delete legacyState.itemRewardRules;
     for (const room of Object.values(legacyState.rooms)) {
       delete room.discovered;
       delete room.visitedTurn;
@@ -55,6 +57,7 @@ describe("state compatibility", () => {
       roomId: "Compartment1",
     });
     expect(loaded?.objectives.ask_ticket_clerk?.status).toBe("active");
+    expect(loaded?.itemRewardRules?.templates.length).toBeGreaterThan(0);
     expect(loaded?.rooms.StationHall?.discovered).toBe(true);
     expect(Object.values(loaded?.rooms ?? {}).filter((room) => room.discovered)).toHaveLength(1);
     expect(loaded?.generation).toEqual(state.generation);

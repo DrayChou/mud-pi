@@ -242,5 +242,53 @@
       "defense": "ac"
     }
   },
-  "conflictScript": "./conflict.ts"
+  "conflictScript": "./conflict.ts",
+  "itemRewardRules": {
+    "maxGrantedPerTurn": 2,
+    "templates": [
+      {
+        "id": "minor_healing_draught",
+        "label": "次级治疗饮剂",
+        "guidance": "适合作为救助、委托完成或合理交易的奖励；使用后恢复 2d4+2 HP。",
+        "kind": "item",
+        "effects": [
+          {
+            "code": "recover_parameter",
+            "parameterId": "hp",
+            "value": 2,
+            "dice": {
+              "count": 2,
+              "sides": 4
+            }
+          }
+        ],
+        "consumable": true,
+        "cooldownTurns": 3,
+        "maxPerGrantor": 2
+      },
+      {
+        "id": "minor_protective_token",
+        "label": "次级防护信物",
+        "guidance": "只在建立明显信任或完成重要委托后授予；提供少量 AC。",
+        "kind": "equipment",
+        "equipSlot": "charm",
+        "parameterModifiers": [
+          {
+            "parameterId": "ac",
+            "operation": "add",
+            "value": 1
+          }
+        ],
+        "traits": [
+          {
+            "code": "reward_origin",
+            "dataId": "npc_gift",
+            "value": 1
+          }
+        ],
+        "cooldownTurns": 8,
+        "maxPerGrantor": 1
+      }
+    ]
+  }
 }

@@ -22,6 +22,7 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
     case "engine/item_equipped":     return `玩家装备了 ${m.itemId}`;
     case "engine/item_consumed":     return `玩家使用并消耗了 ${m.itemId}`;
+    case "engine/item_reward_granted": return `NPC ${m.grantorNpcId} 向玩家交付了奖励 ${m.itemId}`;
     case "engine/objective_completed": return `玩家完成目标 ${m.objectiveId}`;
     case "engine/turn_advanced":     return null;
   }
@@ -51,6 +52,7 @@ function formatNpcAction(action: NpcPublicAction): string {
   switch (action.verb) {
     case "say": return `${action.npcName}说：“${action.content}”`;
     case "move": return `${action.npcName}向${action.direction}移动到${action.toRoomId}`;
+    case "give_item": return `${action.npcName}说：“${action.content}”，并交给玩家${action.itemName ?? action.itemId}`;
     case "wait": return `${action.npcName}保持沉默`;
   }
 }
@@ -63,7 +65,11 @@ function describeItemData(state: WorldState, item: ItemDef): string {
       : `${label}×${modifier.value}`;
   });
   const traits = (item.traits ?? []).map((trait) => `${trait.code}${trait.dataId ? `:${trait.dataId}` : ""}=${trait.value}`);
-  const metadata = [...modifiers, ...traits];
+  const provenance = [
+    item.rewardTemplateId ? `奖励模板:${item.rewardTemplateId}` : undefined,
+    item.grantedByEntityId ? `赠予者:${item.grantedByEntityId}` : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const metadata = [...modifiers, ...traits, ...provenance];
   return `${item.desc}${item.kind ? ` [${item.kind}]` : ""}${item.equipSlot ? ` [槽位:${item.equipSlot}]` : ""}${metadata.length ? ` [${metadata.join("，")}]` : ""}`;
 }
 
@@ -280,9 +286,13 @@ export function buildDmPrompt(
 玩家进入新的地点时，可以按场景逻辑生成少量有意义的道具或可检查陈设，但不要保证每个房间都有奖励，也不要无理由刷出强力装备。
 itemsAdded 基础格式：{"id":"稳定且唯一的英文或拼音ID","name":"显示名","desc":"可检查描述","aliases":["简称或同义词"],"placement":"room","roomId":"当前房间ID","portable":true,"kind":"item"}。
 - placement="room"：道具出现在场景中，玩家需要拾取；roomId 省略时默认为当前房间。
-- placement="inventory"：只有当叙事明确表达 NPC 交付、奖励入手、玩家已经拿到时使用，道具会直接进入玩家背包。
-- kind 可为 item/equipment/key/scenery；equipment 必须提供 equipSlot；scenery 会被视为不可携带。
-- 可选 parameterModifiers/traits/effects/consumable 必须使用当前世界已经声明的参数 ID，数值应克制且符合剧情。
+- placement="inventory"：仅用于 AI 判定的 NPC/任务奖励，必须提供当前世界允许的 rewardTemplateId；若是 NPC 当面赠予，同时提供 grantedByNpcId。Engine 会使用模板中的固定机械规则，AI 只能创作名称、描述和别名。
+- placement="room" 的场景物品 kind 可为 item/equipment/key/scenery；equipment 必须提供 equipSlot；scenery 会被视为不可携带。
+- 场景物品可选 parameterModifiers/traits/effects/consumable 必须使用当前世界已经声明的参数 ID，数值应克制且符合剧情。
+- 奖励不是每个任务或对话都必须有。只有根据已结算事件、目标完成、NPC 动机、信任或交换关系判断确实应得时才发放。
+当前世界允许的 AI 奖励模板：
+${(state.itemRewardRules?.templates ?? []).map((template) => `- ${template.id}：${template.label}；${template.guidance}`).join("\n") || "- 无；不能直接向背包发放道具"}
+
 严格按以下格式返回：
 
 <NARRATION>

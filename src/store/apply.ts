@@ -4,6 +4,12 @@
 
 import type { WorldState, StatDef } from "../types/world.ts";
 import type { AnyMutation, EngineMutation, DmMutation } from "../types/mutations.ts";
+import { decideItemRewardGrant } from "../engine/item-rewards.ts";
+
+type ItemRewardGrantMutation = Extract<
+  AnyMutation,
+  { kind: "engine/item_reward_granted" | "dm/item_reward_granted" }
+>;
 
 export function applyMutation(state: WorldState, mut: AnyMutation): void {
   if (mut.kind.startsWith("engine/")) applyEngine(state, mut as EngineMutation);
@@ -120,6 +126,11 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
+    case "engine/item_reward_granted": {
+      applyItemRewardGrant(state, mut);
+      break;
+    }
+
     case "engine/item_consumed": {
       const item = state.items[mut.itemId];
       if (!item || !p.inventory.includes(mut.itemId)) return;
@@ -166,6 +177,16 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
   }
 }
 
+function applyItemRewardGrant(state: WorldState, mut: ItemRewardGrantMutation): void {
+  const decision = decideItemRewardGrant(state, mut);
+  if (!decision.accepted) {
+    console.warn(`[apply] rejected item reward ${mut.itemId}: ${decision.reason}`);
+    return;
+  }
+  state.items[decision.item.id] = decision.item;
+  state.player.inventory.push(decision.item.id);
+}
+
 // ── DM mutations ───────────────────────────────────────────────────────────
 
 function applyDm(state: WorldState, mut: DmMutation): void {
@@ -191,6 +212,11 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         return;
       }
       state.outcome = { ...mut.outcome, reachedTurn: state.turn + 1 };
+      break;
+    }
+
+    case "dm/item_reward_granted": {
+      applyItemRewardGrant(state, mut);
       break;
     }
 

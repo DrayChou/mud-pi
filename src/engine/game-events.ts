@@ -49,6 +49,27 @@ export function deriveGameEvents(
         });
         break;
 
+      case "engine/item_reward_granted":
+      case "dm/item_reward_granted": {
+        if (before.items[mutation.itemId]) break;
+        const item = after.items[mutation.itemId];
+        if (!item || item.location.kind !== "inventory" || item.location.ownerId !== after.player.id) break;
+        events.push({
+          kind: "item_created",
+          turn,
+          itemId: item.id,
+          roomId: before.player.roomId,
+        });
+        events.push({
+          kind: "item_granted",
+          turn,
+          actorId: before.player.id,
+          itemId: item.id,
+          roomId: before.player.roomId,
+        });
+        break;
+      }
+
       case "dm/item_added": {
         if (before.items[mutation.item.id]) break;
         const item = after.items[mutation.item.id];

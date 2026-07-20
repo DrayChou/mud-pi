@@ -6,7 +6,14 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
-import type { ConflictRules, ItemLocation, ObjectiveDef, ReachedOutcome, WorldState } from "../types/world.ts";
+import type {
+  ConflictRules,
+  ItemLocation,
+  ItemRewardRules,
+  ObjectiveDef,
+  ReachedOutcome,
+  WorldState,
+} from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
 
 function savesDir(worldId: string): string {
@@ -70,6 +77,7 @@ async function normalizeConflictRules(state: WorldState): Promise<void> {
         conflictRules?: ConflictRules;
         conflictScript?: string;
         conflictOptions?: Record<string, unknown>;
+        itemRewardRules?: ItemRewardRules;
       }
     : {};
   if (!state.conflictRules) {
@@ -86,6 +94,7 @@ async function normalizeConflictRules(state: WorldState): Promise<void> {
   }
   state.conflictScript ??= pack.conflictScript;
   state.conflictOptions ??= structuredClone(pack.conflictOptions ?? {});
+  state.itemRewardRules ??= structuredClone(pack.itemRewardRules ?? { templates: [] });
 }
 
 function normalizeRoomDiscovery(state: WorldState): void {

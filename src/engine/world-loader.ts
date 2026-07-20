@@ -8,6 +8,7 @@ import type {
   ConflictRules,
   ItemDef,
   ItemEffect,
+  ItemRewardRules,
   ItemKind,
   NpcController,
   ParameterModifier,
@@ -71,6 +72,7 @@ interface WorldPackJson {
   conflictRules?: ConflictRules;
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
+  itemRewardRules?: ItemRewardRules;
 }
 
 export interface WorldPackSummary {
@@ -242,6 +244,7 @@ export async function loadWorldPack(
     }),
     conflictScript: pack.conflictScript,
     conflictOptions: structuredClone(pack.conflictOptions ?? {}),
+    itemRewardRules: structuredClone(pack.itemRewardRules ?? { templates: [] }),
     player: {
       id: "player1",
       name: playerName,

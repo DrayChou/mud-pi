@@ -24,6 +24,11 @@ interface RawNpcResponse {
     verb?: unknown;
     content?: unknown;
     direction?: unknown;
+    templateId?: unknown;
+    itemId?: unknown;
+    name?: unknown;
+    desc?: unknown;
+    aliases?: unknown;
   } | null;
 }
 
@@ -179,13 +184,16 @@ ${goals}
 ${constraints}
 - 你只能依据自己的 Pi Session 记忆和本轮提供的感知作出决定。
 - 你不知道其他房间发生的事情，除非亲历或被告知。
-- 你不能直接改变生命、物品、位置或世界状态。
-- 每轮只能选择一个行动：说一句话、沿当前房间出口移动、或保持不动。
+- 你不能直接改变生命、物品、位置或世界状态；你只能提出受 Engine 校验的奖励意图。
+- 每轮只能选择一个行动：说一句话、沿当前房间出口移动、向面前玩家交付一件规则允许的奖励、或保持不动。
+- 只有当你依据亲历事件、任务完成、信任或交换关系真诚判断玩家应得奖励时，才能 give_item；不要为了每次对话都送东西。
+- give_item 必须选择本轮列出的 reward template。你只能创作名称、描述和别名，不能自行编造数值效果。
 - thought 是你的私人想法，不会展示给玩家；不要把 thought 写进台词。
 
 严格返回 JSON，不要 Markdown：
 {"thought":"简短的私人想法","action":{"verb":"say","content":"符合角色身份的一句话"}}
 {"thought":"简短的私人想法","action":{"verb":"move","direction":"east|west|north|south|up|down"}}
+{"thought":"玩家确实完成了我关心的事","action":{"verb":"give_item","content":"这是你应得的。","templateId":"本轮允许的模板ID","itemId":"唯一英文ID，建议包含NPC和回合","name":"符合世界观的名称","desc":"可检查描述","aliases":["简称"]}}
 或：
 {"thought":"简短的私人想法","action":{"verb":"wait"}}`;
 }
@@ -202,6 +210,12 @@ function buildNpcEventPrompt(state: WorldState, npc: NpcDef, events: GameEvent[]
   const groundItems = Object.values(state.items)
     .filter((item) => item.location.kind === "room" && item.location.roomId === npc.roomId)
     .map((item) => item.name);
+  const objectives = Object.values(state.objectives)
+    .filter((objective) => !objective.hidden || objective.status === "completed")
+    .map((objective) => `- ${objective.status === "completed" ? "已完成" : "进行中"}：${objective.title} — ${objective.description}`);
+  const rewardTemplates = (state.itemRewardRules?.templates ?? []).map((template) =>
+    `- ${template.id}：${template.label}；${template.guidance}`
+  );
 
   return `[当前权威状态]
 回合：${state.turn}
@@ -210,6 +224,12 @@ function buildNpcEventPrompt(state: WorldState, npc: NpcDef, events: GameEvent[]
 在场角色：${others.join("、") || "无"}
 玩家可见携带物：${carriedItems.join("、") || "无"}
 地面物品：${groundItems.join("、") || "无"}
+
+[玩家目标进度]
+${objectives.join("\n") || "- 无明确目标"}
+
+[本世界允许你判定并交付的奖励模板]
+${rewardTemplates.join("\n") || "- 无；本轮不能 give_item"}
 
 [刚刚感知到的已结算事件]
 ${events.map((event) => `- ${describeEvent(state, event)}`).join("\n")}
@@ -313,15 +333,40 @@ export function parseNpcResponse(raw: string, npc: NpcDef): NpcIntent | null {
       const direction = parsed.action.direction.trim().slice(0, 20);
       return direction ? { verb: "move", direction } : null;
     }
+    if (
+      verb === "give_item" &&
+      typeof parsed.action?.content === "string" &&
+      typeof parsed.action?.templateId === "string" &&
+      typeof parsed.action?.itemId === "string" &&
+      typeof parsed.action?.name === "string" &&
+      typeof parsed.action?.desc === "string"
+    ) {
+      const itemId = parsed.action.itemId.trim().toLowerCase().slice(0, 64);
+      const templateId = parsed.action.templateId.trim().slice(0, 64);
+      const content = sanitizeText(parsed.action.content, 300);
+      const name = sanitizeText(parsed.action.name, 80);
+      const desc = sanitizeText(parsed.action.desc, 600);
+      const aliases = Array.isArray(parsed.action.aliases)
+        ? parsed.action.aliases.filter((alias): alias is string => typeof alias === "string")
+          .map((alias) => sanitizeText(alias, 80)).filter(Boolean).slice(0, 12)
+        : undefined;
+      if (!/^[a-z][a-z0-9_-]{0,63}$/.test(itemId) || !templateId || !content || !name || !desc) return null;
+      return { verb: "give_item", content, templateId, itemId, name, desc, aliases };
+    }
     if (verb !== "say" || typeof parsed.action?.content !== "string") return null;
 
-    const content = parsed.action.content.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, 300);
+
+    const content = sanitizeText(parsed.action.content, 300);
     if (!content) return null;
     return { verb: "say", content };
   } catch {
     console.warn(`[npc:${npc.id}] failed to parse response`);
     return null;
   }
+}
+
+function sanitizeText(value: string, maxLength: number): string {
+  return value.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, maxLength);
 }
 
 function extractJson(text: string): string | null {

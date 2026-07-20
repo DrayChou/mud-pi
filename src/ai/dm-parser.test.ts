@@ -28,7 +28,7 @@ describe("DM-created interactive items", () => {
   test("grants a narrated reward directly to the player inventory", async () => {
     const state = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
     const response = parseDmResponse(
-      `<NARRATION>铁匠把一枚护符放进你的手中。</NARRATION><WORLD_UPDATE>{"itemsAdded":[{"id":"forge_charm","name":"炉火护符","desc":"仍带着炉膛的温度。","placement":"inventory","kind":"equipment","equipSlot":"neck","parameterModifiers":[{"parameterId":"ac","operation":"add","value":1}]}]}</WORLD_UPDATE>`,
+      `<NARRATION>铁匠把一枚护符放进你的手中。</NARRATION><WORLD_UPDATE>{"itemsAdded":[{"id":"forge_charm","name":"炉火护符","desc":"仍带着炉膛的温度。","placement":"inventory","rewardTemplateId":"minor_protective_token","parameterModifiers":[{"parameterId":"str","operation":"add","value":999}]}]}</WORLD_UPDATE>`,
       state.schema,
       state.player.roomId,
       [],
@@ -40,9 +40,11 @@ describe("DM-created interactive items", () => {
     expect(state.player.inventory).toContain("forge_charm");
     expect(state.items.forge_charm).toMatchObject({
       kind: "equipment",
-      equipSlot: "neck",
+      equipSlot: "charm",
       location: { kind: "inventory", ownerId: state.player.id },
       parameterModifiers: [{ parameterId: "ac", operation: "add", value: 1 }],
+      rewardTemplateId: "minor_protective_token",
+      grantedByEntityId: "dm",
     });
   });
 
@@ -59,7 +61,7 @@ describe("DM-created interactive items", () => {
     expect(state.items.absurd_sword?.effects).toEqual([]);
   });
 
-  test("keeps AI-created scenery in the room even when inventory placement is requested", async () => {
+  test("rejects inventory placement that does not use a world reward template", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const response = parseDmResponse(
       `<NARRATION>一座钟出现在大厅里。</NARRATION><WORLD_UPDATE>{"itemsAdded":[{"id":"hall_clock","name":"大厅钟","desc":"沉重得无法搬动。","kind":"scenery","placement":"inventory"}]}</WORLD_UPDATE>`,
@@ -72,8 +74,7 @@ describe("DM-created interactive items", () => {
     applyMutations(state, response.mutations);
 
     expect(state.player.inventory).not.toContain("hall_clock");
-    expect(state.items.hall_clock?.location).toEqual({ kind: "room", roomId: state.player.roomId });
-    expect(state.items.hall_clock?.portable).toBe(false);
+    expect(state.items.hall_clock).toBeUndefined();
   });
 
   test("can populate a newly generated room in the same update", async () => {

@@ -422,5 +422,53 @@
       "terminal": true
     }
   ],
-  "conflictScript": "./conflict.ts"
+  "conflictScript": "./conflict.ts",
+  "itemRewardRules": {
+    "maxGrantedPerTurn": 2,
+    "templates": [
+      {
+        "id": "small_recovery",
+        "label": "小型恢复用品",
+        "guidance": "用于真诚帮助、交换或阶段性任务奖励；使用后恢复少量生命。",
+        "kind": "item",
+        "effects": [
+          {
+            "code": "recover_parameter",
+            "parameterId": "hp",
+            "value": 4,
+            "dice": {
+              "count": 1,
+              "sides": 6
+            }
+          }
+        ],
+        "consumable": true,
+        "cooldownTurns": 3,
+        "maxPerGrantor": 2
+      },
+      {
+        "id": "modest_charm",
+        "label": "克制的护身装备",
+        "guidance": "用于重要信任或任务节点；提供小幅防护，不应频繁发放。",
+        "kind": "equipment",
+        "equipSlot": "charm",
+        "parameterModifiers": [
+          {
+            "parameterId": "defense",
+            "operation": "add",
+            "value": 1
+          }
+        ],
+        "traits": [
+          {
+            "code": "reward_origin",
+            "dataId": "npc_gift",
+            "value": 1
+          }
+        ],
+        "cooldownTurns": 8,
+        "maxPerGrantor": 1
+      }
+    ]
+  }
 }

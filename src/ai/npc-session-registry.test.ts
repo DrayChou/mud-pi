@@ -39,6 +39,21 @@ describe("NPC session response parsing", () => {
     )).toEqual({ verb: "move", direction: "east" });
   });
 
+  test("accepts a world-template item reward proposal", () => {
+    expect(parseNpcResponse(
+      '{"thought":"他确实帮了我","action":{"verb":"give_item","content":"拿着它。","templateId":"small_recovery","itemId":"clerk_tea_turn_3","name":"温热的站务茶","desc":"纸杯上印着已经停运的线路。","aliases":["茶"]}}',
+      npc
+    )).toEqual({
+      verb: "give_item",
+      content: "拿着它。",
+      templateId: "small_recovery",
+      itemId: "clerk_tea_turn_3",
+      name: "温热的站务茶",
+      desc: "纸杯上印着已经停运的线路。",
+      aliases: ["茶"],
+    });
+  });
+
   test("rejects unsupported NPC actions", () => {
     expect(parseNpcResponse(
       '{"action":{"verb":"teleport","content":"Platform"}}',

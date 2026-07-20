@@ -18,6 +18,16 @@ export type EngineMutation =
   | { kind: "engine/item_dropped"; itemId: string; roomId: string }
   | { kind: "engine/item_equipped"; itemId: string; slot: string }
   | { kind: "engine/item_consumed"; itemId: string }
+  | {
+      kind: "engine/item_reward_granted";
+      grantorNpcId: string;
+      templateId: string;
+      itemId: string;
+      name: string;
+      desc: string;
+      aliases?: string[];
+      requestedAtTurn: number;
+    }
   | { kind: "engine/objective_completed"; objectiveId: string }
   | { kind: "engine/turn_advanced" };
 
@@ -26,6 +36,16 @@ export type EngineMutation =
 export type DmMutation =
   | { kind: "dm/room_added"; room: RoomDef }
   | { kind: "dm/item_added"; item: ItemDef }
+  | {
+      kind: "dm/item_reward_granted";
+      grantorNpcId?: string;
+      templateId: string;
+      itemId: string;
+      name: string;
+      desc: string;
+      aliases?: string[];
+      requestedAtTurn: number;
+    }
   | { kind: "dm/outcome_reached"; outcome: ReachedOutcome; requestedAtTurn: number }
   | { kind: "dm/room_exit_added"; roomId: string; direction: string; toRoomId: string }
   | { kind: "dm/room_desc_updated"; roomId: string; descAppend: string }
@@ -58,13 +78,15 @@ export interface TurnRecord {
   npcActions?: Array<{
     npcId: string;
     npcName: string;
-    verb: "say" | "move" | "wait";
+    verb: "say" | "move" | "give_item" | "wait";
     content?: string;
     direction?: string;
     fromRoomId?: string;
     toRoomId?: string;
     succeeded: boolean;
     reason?: string;
+    itemId?: string;
+    itemName?: string;
   }>;
   narration: string;
   dmModel: string;

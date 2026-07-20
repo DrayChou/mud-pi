@@ -42,6 +42,8 @@ interface RawWorldUpdate {
     aliases?: string[];
     placement?: "room" | "inventory";
     roomId?: string;
+    rewardTemplateId?: string;
+    grantedByNpcId?: string;
     portable?: boolean;
     kind?: ItemKind;
     equipSlot?: string;
@@ -157,6 +159,24 @@ function buildMutations(
     ) continue;
     proposedItemIds.add(i.id);
 
+    if (i.placement === "inventory") {
+      if (!i.rewardTemplateId?.trim()) continue;
+      out.push({
+        kind: "dm/item_reward_granted",
+        grantorNpcId: i.grantedByNpcId?.trim() || undefined,
+        templateId: i.rewardTemplateId.trim().slice(0, 64),
+        itemId: i.id,
+        name: i.name.trim().slice(0, 80),
+        desc: i.desc.trim().slice(0, 600),
+        aliases: Array.isArray(i.aliases)
+          ? i.aliases.filter((alias): alias is string => typeof alias === "string" && alias.trim().length > 0)
+            .slice(0, 12).map((alias) => alias.trim().slice(0, 80))
+          : undefined,
+        requestedAtTurn,
+      });
+      continue;
+    }
+
     const kind: ItemKind = ["item", "equipment", "key", "scenery"].includes(i.kind ?? "")
       ? i.kind!
       : "item";
@@ -187,8 +207,7 @@ function buildMutations(
       ))
     ).slice(0, 16);
     const normalizedKind = kind === "equipment" && !i.equipSlot?.trim() ? "item" : kind;
-    const placement = normalizedKind === "scenery" ? "room" : i.placement;
-    if (placement !== "inventory" && !roomId) continue;
+    if (!roomId) continue;
     const item: ItemDef = {
       id: i.id,
       name: i.name.trim().slice(0, 80),
@@ -203,9 +222,7 @@ function buildMutations(
       traits,
       effects,
       consumable: i.consumable === true,
-      location: placement === "inventory"
-        ? { kind: "inventory", ownerId: playerId }
-        : { kind: "room", roomId: roomId! },
+      location: { kind: "room", roomId },
       portable: normalizedKind === "scenery" ? false : (i.portable ?? true),
       source: "dm_generated",
     };

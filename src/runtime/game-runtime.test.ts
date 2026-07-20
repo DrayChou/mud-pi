@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadStoryOutcomes, loadWorldPack } from "../engine/world-loader.ts";
 import { GameRuntime } from "./game-runtime.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
+import { visibleEntityIds } from "../engine/npc-intents.ts";
 
 function parsed(verb: string, args: Record<string, string> = {}): ParsedCommand {
   return { verb, args, confidence: 1, raw: verb };
@@ -33,6 +34,7 @@ describe("GameRuntime", () => {
     state.player.roomId = "Platform";
     state.objectives.ask_ticket_clerk!.status = "completed";
     let capturedPrompt = "";
+    let objectiveStatusSeenByNpc: string | undefined;
     const runtime = new GameRuntime({
       state,
       storyOutcomes: await loadStoryOutcomes("station-dream"),
@@ -43,7 +45,13 @@ describe("GameRuntime", () => {
           return `<NARRATION>你登上了列车。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>`;
         },
       },
-      npcSessions: { respondToPlayerSay: async () => [] },
+      npcSessions: {
+        respondToPlayerSay: async () => [],
+        respondToEvents: async (snapshot) => {
+          objectiveStatusSeenByNpc = snapshot.objectives.board_train?.status;
+          return [];
+        },
+      },
       persist: false,
     });
 
@@ -52,6 +60,7 @@ describe("GameRuntime", () => {
     expect(state.player.roomId).toBe("Compartment1");
     expect(state.objectives.board_train?.status).toBe("completed");
     expect(capturedPrompt).toContain("✓ 登上列车");
+    expect(objectiveStatusSeenByNpc).toBe("completed");
     expect(capturedPrompt).toContain("玩家从 Platform 移动到 Compartment1");
     expect(result.outputs.map((output) => output.kind)).toEqual([
       "narration",
@@ -83,6 +92,44 @@ describe("GameRuntime", () => {
 
     expect(perceivedKinds).toEqual(["player_moved"]);
     expect(state.player.roomId).toBe("Platform");
+  });
+
+  test("accepts an AI NPC reward after authoritative objective and room checks", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("say", { target: "售票员", message: "我帮你整理好了票根。" }) },
+      dm: { ask: async () => `<NARRATION>售票员把纸杯推到你面前。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>` },
+      npcSessions: {
+        respondToPlayerSay: async () => [],
+        respondToEvents: async (snapshot) => [{
+          npcId: "ticket_clerk",
+          context: {
+            requestedAtTurn: snapshot.turn,
+            roomId: snapshot.npcs.ticket_clerk!.roomId,
+            visibleEntityIds: visibleEntityIds(snapshot, snapshot.npcs.ticket_clerk!.roomId),
+          },
+          intent: {
+            verb: "give_item",
+            content: "拿去暖暖手。",
+            templateId: "small_recovery",
+            itemId: "ticket_clerk_tea_turn_1",
+            name: "售票员的热茶",
+            desc: "一杯带着淡淡铁锈气味的热茶。",
+          },
+        }],
+      },
+      persist: false,
+    });
+
+    await runtime.processInput("对售票员说我帮你整理好了票根");
+
+    expect(state.player.inventory).toContain("ticket_clerk_tea_turn_1");
+    expect(state.items.ticket_clerk_tea_turn_1).toMatchObject({
+      rewardTemplateId: "small_recovery",
+      grantedByEntityId: "ticket_clerk",
+    });
   });
 
   test("returns one structured auto-combat result without waking NPC sessions", async () => {

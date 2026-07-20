@@ -170,6 +170,26 @@ export interface ItemEffect {
   stateId?: string;
 }
 
+export interface AiItemRewardTemplate {
+  id: string;
+  label: string;
+  guidance: string;
+  kind: ItemKind;
+  equipSlot?: string;
+  parameterModifiers?: ParameterModifier[];
+  traits?: DataTrait[];
+  effects?: ItemEffect[];
+  consumable?: boolean;
+  portable?: boolean;
+  cooldownTurns?: number;
+  maxPerGrantor?: number;
+}
+
+export interface ItemRewardRules {
+  templates: AiItemRewardTemplate[];
+  maxGrantedPerTurn?: number;
+}
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -185,6 +205,8 @@ export interface ItemDef {
   portable?: boolean; // defaults to true; false means scenery that can be examined but not carried
   source?: RoomSource;
   createdTurn?: number;
+  rewardTemplateId?: string;
+  grantedByEntityId?: string;
 }
 
 export type PlotStatus = "active" | "resolved" | "dormant";
@@ -288,6 +310,7 @@ export interface WorldState {
   conflictRules?: ConflictRules; // data consumed by the selected world conflict script
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
+  itemRewardRules?: ItemRewardRules;
   player: PlayerState;
   rooms: Record<string, RoomDef>;
   npcs: Record<string, NpcDef>;

@@ -168,9 +168,12 @@ quit          保存并退出
 DM 可以在探索、NPC 交付、任务奖励和场景变化中创建新的权威道具，而不是只在叙事文字中提到它们：
 
 - `placement: "room"`：放入当前或新创建的房间，玩家需要检查、拾取或使用；
-- `placement: "inventory"`：仅用于叙事已经明确交付或获得的物品，直接进入玩家背包；
-- 支持 `item`、`equipment`、`key`、`scenery`，以及世界参数对应的 modifiers、traits 和 effects；
-- ID、位置、参数引用、修正范围、骰子规模和每轮创建数量均由解析层及 Mutation 层校验；
+- `placement: "inventory"`：仅用于 AI 根据任务完成、NPC 动机、信任或交换关系判定应发放的奖励，并且必须引用世界包 `itemRewardRules.templates`；
+- 任意 `pi_session` NPC 可以提出 `give_item`，DM 也可以代表普通 NPC 提出奖励；赠予者必须存活并与玩家同房间；
+- AI 只能决定是否奖励以及创作名称、描述、别名，物品种类、槽位、参数修正、traits、effects 和消耗规则全部来自世界包模板；
+- 奖励直接进入背包，并保证可以通过 `use` 使用或通过 `equip` 装备；
+- 普通场景物品仍支持 `item`、`equipment`、`key`、`scenery`，以及世界参数对应的 modifiers、traits 和 effects；
+- ID、位置、赠予者、模板、冷却、单 NPC 发放上限、参数引用、修正范围、骰子规模和每轮创建数量均由解析层及 Engine 判定层校验；
 - 新地点可以生成少量符合场景的物品或陈设，但 Prompt 会要求避免每房必掉和无理由生成强力装备。
 
 ## 存档

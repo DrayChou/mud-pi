@@ -264,5 +264,53 @@
       "luck": "psyche"
     }
   },
-  "conflictScript": "./conflict.ts"
+  "conflictScript": "./conflict.ts",
+  "itemRewardRules": {
+    "maxGrantedPerTurn": 2,
+    "templates": [
+      {
+        "id": "restorative_tonic",
+        "label": "恢复性饮品",
+        "guidance": "适合作为同事情谊、案件推进或合理交换的奖励；恢复少量健康。",
+        "kind": "item",
+        "effects": [
+          {
+            "code": "recover_parameter",
+            "parameterId": "health",
+            "value": 1,
+            "dice": {
+              "count": 1,
+              "sides": 2
+            }
+          }
+        ],
+        "consumable": true,
+        "cooldownTurns": 4,
+        "maxPerGrantor": 2
+      },
+      {
+        "id": "personal_badge",
+        "label": "带有私人意义的佩饰",
+        "guidance": "只在重要关系或任务节点授予；提供非常克制的精神支持。",
+        "kind": "equipment",
+        "equipSlot": "keepsake",
+        "parameterModifiers": [
+          {
+            "parameterId": "psyche",
+            "operation": "add",
+            "value": 1
+          }
+        ],
+        "traits": [
+          {
+            "code": "reward_origin",
+            "dataId": "npc_gift",
+            "value": 1
+          }
+        ],
+        "cooldownTurns": 10,
+        "maxPerGrantor": 1
+      }
+    ]
+  }
 }

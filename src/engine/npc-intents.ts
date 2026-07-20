@@ -6,6 +6,7 @@
 import type { EngineMutation } from "../types/mutations.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { WorldState } from "../types/world.ts";
+import { decideItemRewardGrant } from "./item-rewards.ts";
 
 export interface NpcIntentResult {
   mutations: EngineMutation[];
@@ -57,6 +58,33 @@ export function executeNpcDecision(
           succeeded: true,
         },
       };
+    case "give_item": {
+      if (npc.roomId !== state.player.roomId) return failed(decision, name, "玩家不在面前，无法交付奖励");
+      const mutation = {
+          kind: "engine/item_reward_granted" as const,
+          grantorNpcId: npc.id,
+          templateId: decision.intent.templateId,
+          itemId: decision.intent.itemId,
+          name: decision.intent.name,
+          desc: decision.intent.desc,
+          aliases: decision.intent.aliases,
+          requestedAtTurn: decision.context.requestedAtTurn,
+      };
+      const rewardDecision = decideItemRewardGrant(state, mutation);
+      if (!rewardDecision.accepted) return failed(decision, name, rewardDecision.reason);
+      return {
+        mutations: [mutation],
+        action: {
+          npcId: npc.id,
+          npcName: name,
+          verb: "give_item",
+          content: decision.intent.content,
+          itemId: decision.intent.itemId,
+          itemName: decision.intent.name,
+          succeeded: true,
+        },
+      };
+    }
     case "move": {
       const direction = normalizeDirection(decision.intent.direction);
       if (!direction) return failed(decision, name, "方向无效");
@@ -101,7 +129,9 @@ function failed(
       npcId: decision.npcId,
       npcName,
       verb: decision.intent.verb,
-      content: decision.intent.verb === "say" ? decision.intent.content : undefined,
+      content: decision.intent.verb === "say" || decision.intent.verb === "give_item"
+        ? decision.intent.content
+        : undefined,
       direction: decision.intent.verb === "move" ? direction ?? decision.intent.direction : undefined,
       succeeded: false,
       reason,

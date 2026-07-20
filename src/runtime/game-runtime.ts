@@ -111,6 +111,11 @@ export class GameRuntime {
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: initialSpeechTarget } }
         : undefined
     );
+    // Settle deterministic player-driven objective progress before waking NPCs,
+    // so an NPC can judge a just-completed task and choose a world-valid reward.
+    const playerProgressMutations = evaluateProgress(this.state, engineEvents);
+    applyMutations(this.state, playerProgressMutations);
+
     const sessionDecisions = result.combatContext
       ? []
       : this.npcSessions.respondToEvents
@@ -128,8 +133,16 @@ export class GameRuntime {
     for (const decision of npcDecisions) {
       const npcResult = executeNpcDecision(this.state, decision);
       applyMutations(this.state, npcResult.mutations);
-      npcMutations.push(...npcResult.mutations);
-      npcActions.push(npcResult.action);
+      if (
+        npcResult.action.verb === "give_item" &&
+        npcResult.action.succeeded &&
+        (!npcResult.action.itemId || this.state.items[npcResult.action.itemId]?.grantedByEntityId !== npcResult.action.npcId)
+      ) {
+        npcActions.push({ ...npcResult.action, succeeded: false, reason: "奖励在最终权威校验中被拒绝" });
+      } else {
+        npcMutations.push(...npcResult.mutations);
+        npcActions.push(npcResult.action);
+      }
     }
 
     const speechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, npcDecisions);
@@ -141,8 +154,9 @@ export class GameRuntime {
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
         : undefined
     );
-    const preDmProgressMutations = evaluateProgress(this.state, preDmEvents);
-    applyMutations(this.state, preDmProgressMutations);
+    const npcProgressMutations = evaluateProgress(this.state, preDmEvents);
+    applyMutations(this.state, npcProgressMutations);
+    const preDmProgressMutations = [...playerProgressMutations, ...npcProgressMutations];
 
     const stateBeforeDm = structuredClone(this.state);
     const dmPrompt = buildDmPrompt(

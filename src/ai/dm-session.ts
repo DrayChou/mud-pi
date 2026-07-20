@@ -121,8 +121,9 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
 2. 如有必要，通过 WORLD_UPDATE 扩展世界（新房间、新事实、可交互道具、更新剧情线）
 3. 叙事中新出现且玩家可以检查、拾取、装备或使用的具体道具，必须在同一轮写入 itemsAdded；否则引擎无法让玩家与它交互
 4. 玩家进入新地点时，可以按场景逻辑生成少量有意义的道具或陈设，但不要保证每个房间都有奖励，也不要无理由生成强力装备
-5. itemsAdded 使用 placement="room" 放在场景中；只有叙事明确表示玩家已被交付、奖励或拿到物品时，才使用 placement="inventory" 直接放入背包
-6. 只有当世界包提供的某个故事结果 criteria 已经在当前权威状态和本轮结果中满足时，才通过 outcomeReached 提出该结果；否则必须返回 null
+5. itemsAdded 使用 placement="room" 放在场景中；placement="inventory" 只能用于你根据任务完成、NPC 动机、信任或交换关系判定玩家确实应得的奖励，并且必须使用本轮 Prompt 列出的 rewardTemplateId
+6. NPC 当面赠予奖励时提供 grantedByNpcId；你只能创作奖励名称、描述和别名，不能修改模板固定的数值效果
+7. 只有当世界包提供的某个故事结果 criteria 已经在当前权威状态和本轮结果中满足时，才通过 outcomeReached 提出该结果；否则必须返回 null
 
 ## 限制
 

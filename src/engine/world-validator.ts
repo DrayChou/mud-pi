@@ -7,6 +7,7 @@ import type {
   ConflictRules,
   DataTrait,
   ItemEffect,
+  ItemRewardRules,
   ItemKind,
   NpcController,
   ParameterModifier,
@@ -52,6 +53,7 @@ export interface WorldPackForValidation {
   conflictRules?: ConflictRules;
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
+  itemRewardRules?: ItemRewardRules;
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -91,6 +93,7 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     errors.push("conflictScript must be a safe ./ path inside the world pack");
   }
   if (pack.conflictRules) validateConflictRules(pack.conflictRules, statKeys, errors);
+  validateItemRewardRules(pack.itemRewardRules, statKeys, errors);
 
   if (pack.proceduralMap) {
     const config = pack.proceduralMap;
@@ -294,6 +297,59 @@ function validateConflictRules(rules: ConflictRules, statKeys: Set<string>, erro
     if (!Number.isInteger(rules.dice.count) || rules.dice.count < 1 || !Number.isInteger(rules.dice.sides) || rules.dice.sides < 2) {
       errors.push("conflictRules.dice requires positive count and at least two sides");
     }
+  }
+}
+
+function validateItemRewardRules(
+  rules: ItemRewardRules | undefined,
+  statKeys: Set<string>,
+  errors: string[]
+): void {
+  if (!rules) return;
+  const ids = new Set<string>();
+  for (const template of rules.templates ?? []) {
+    if (!template.id?.trim() || ids.has(template.id)) {
+      errors.push(`itemRewardRules has invalid or duplicate template id: ${template.id}`);
+      continue;
+    }
+    ids.add(template.id);
+    if (!template.label?.trim() || !template.guidance?.trim()) {
+      errors.push(`item reward template ${template.id} requires label and guidance`);
+    }
+    if (template.kind !== "item" && template.kind !== "equipment") {
+      errors.push(`item reward template ${template.id} must be usable item or equipment`);
+    }
+    if (template.kind === "equipment" && !template.equipSlot?.trim()) {
+      errors.push(`item reward template ${template.id} equipment requires equipSlot`);
+    }
+    if (template.kind !== "equipment" && template.equipSlot) {
+      errors.push(`item reward template ${template.id} non-equipment cannot declare equipSlot`);
+    }
+    if (template.kind === "item" && (template.effects?.length ?? 0) === 0) {
+      errors.push(`item reward template ${template.id} usable item requires at least one effect`);
+    }
+    if ((template.cooldownTurns ?? 0) < 0 || !Number.isInteger(template.cooldownTurns ?? 0)) {
+      errors.push(`item reward template ${template.id} has invalid cooldownTurns`);
+    }
+    if ((template.maxPerGrantor ?? 1) < 1 || !Number.isInteger(template.maxPerGrantor ?? 1)) {
+      errors.push(`item reward template ${template.id} has invalid maxPerGrantor`);
+    }
+    for (const modifier of template.parameterModifiers ?? []) {
+      if (!statKeys.has(modifier.parameterId)) errors.push(`item reward template ${template.id} references missing parameter: ${modifier.parameterId}`);
+      if (!Number.isFinite(modifier.value) || (modifier.operation === "rate" && modifier.value <= 0)) {
+        errors.push(`item reward template ${template.id} has invalid parameter modifier`);
+      }
+    }
+    for (const effect of template.effects ?? []) {
+      if (effect.parameterId && !statKeys.has(effect.parameterId)) errors.push(`item reward template ${template.id} effect references missing parameter: ${effect.parameterId}`);
+      if (effect.value !== undefined && !Number.isFinite(effect.value)) errors.push(`item reward template ${template.id} has invalid effect value`);
+      if (effect.dice && (!Number.isInteger(effect.dice.count) || effect.dice.count < 1 || !Number.isInteger(effect.dice.sides) || effect.dice.sides < 2)) {
+        errors.push(`item reward template ${template.id} has invalid effect dice`);
+      }
+    }
+  }
+  if (rules.maxGrantedPerTurn !== undefined && (!Number.isInteger(rules.maxGrantedPerTurn) || rules.maxGrantedPerTurn < 1)) {
+    errors.push("itemRewardRules.maxGrantedPerTurn must be a positive integer");
   }
 }
 

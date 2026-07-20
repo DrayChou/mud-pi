@@ -89,7 +89,27 @@ describe("deriveGameEvents", () => {
     });
   });
 
-  test("publishes creation and direct acquisition for a DM-granted item", async () => {
+  test("publishes creation and acquisition for a template-validated NPC reward", async () => {
+  const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const after = structuredClone(before);
+  const mutations: AnyMutation[] = [{
+    kind: "engine/item_reward_granted",
+    grantorNpcId: "ticket_clerk",
+    templateId: "small_recovery",
+    itemId: "clerk_tea_turn_1",
+    name: "站务茶",
+    desc: "仍然温热。",
+    requestedAtTurn: before.turn,
+  }];
+  applyMutations(after, mutations);
+
+  expect(deriveGameEvents(before, mutations, after)).toEqual([
+    { kind: "item_created", turn: 1, itemId: "clerk_tea_turn_1", roomId: before.player.roomId },
+    { kind: "item_granted", turn: 1, actorId: before.player.id, itemId: "clerk_tea_turn_1", roomId: before.player.roomId },
+  ]);
+});
+
+test("publishes creation and direct acquisition for a DM-granted item", async () => {
   const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const after = structuredClone(before);
   const mutations: AnyMutation[] = [{

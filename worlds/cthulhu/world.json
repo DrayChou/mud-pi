@@ -220,5 +220,53 @@
       "luck": "luck"
     }
   },
-  "conflictScript": "./conflict.ts"
+  "conflictScript": "./conflict.ts",
+  "itemRewardRules": {
+    "maxGrantedPerTurn": 2,
+    "templates": [
+      {
+        "id": "field_dressing",
+        "label": "应急医疗用品",
+        "guidance": "适合调查协助、救援或交换后发放；使用后恢复少量 HP。",
+        "kind": "item",
+        "effects": [
+          {
+            "code": "recover_parameter",
+            "parameterId": "hp",
+            "value": 2,
+            "dice": {
+              "count": 1,
+              "sides": 4
+            }
+          }
+        ],
+        "consumable": true,
+        "cooldownTurns": 4,
+        "maxPerGrantor": 2
+      },
+      {
+        "id": "protective_keepsake",
+        "label": "微弱庇护纪念物",
+        "guidance": "只在重要信任节点授予；略微提升幸运，但不应被描述为绝对护身。",
+        "kind": "equipment",
+        "equipSlot": "keepsake",
+        "parameterModifiers": [
+          {
+            "parameterId": "luck",
+            "operation": "add",
+            "value": 2
+          }
+        ],
+        "traits": [
+          {
+            "code": "reward_origin",
+            "dataId": "npc_gift",
+            "value": 1
+          }
+        ],
+        "cooldownTurns": 10,
+        "maxPerGrantor": 1
+      }
+    ]
+  }
 }
