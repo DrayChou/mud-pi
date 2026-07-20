@@ -47,6 +47,6 @@ describe("evolve", () => {
     evolve(initial, { kind: "item_transferred", itemId: "sword", from: { kind: "equipped", ownerId: "player", slot: "hand" }, to: { kind: "inventory", ownerId: "player" } });
     evolve(initial, { kind: "item_transferred", itemId: "shield", from: { kind: "inventory", ownerId: "player" }, to: { kind: "equipped", ownerId: "player", slot: "hand" } });
     expect(initial.player.equipment).toEqual({ hand: "shield" });
-    expect(initial.player.inventory).toEqual(["sword"]);
+    expect(initial.player.inventory).toEqual(["sword", "shield"]);
   });
 });

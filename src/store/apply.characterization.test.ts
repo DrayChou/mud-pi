@@ -43,6 +43,7 @@ function item(id: string, location: ItemDef["location"], kind: ItemDef["kind"] =
 
 function makeState(): WorldState {
   return {
+    revision: 0,
     worldId: "characterization",
     worldPack: "characterization",
     turn: 4,

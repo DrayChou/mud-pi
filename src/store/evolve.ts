@@ -16,25 +16,38 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function removeOwnedItem(state: WorldState, itemId: string, location: ItemLocation): void {
-  if (location.kind !== "inventory" && location.kind !== "equipped") return;
-  invariant(location.ownerId === state.player.id, `unsupported item owner: ${location.ownerId}`, { kind: "item_transferred", itemId, from: location, to: location });
-  state.player.inventory = state.player.inventory.filter((id) => id !== itemId);
-  if (location.kind === "equipped") {
-    invariant(state.player.equipment[location.slot] === itemId, `equipment slot ${location.slot} does not contain ${itemId}`, { kind: "item_transferred", itemId, from: location, to: location });
-    delete state.player.equipment[location.slot];
-  }
+function isPlayerOwned(state: WorldState, location: ItemLocation): boolean {
+  return (location.kind === "inventory" || location.kind === "equipped") && location.ownerId === state.player.id;
 }
 
-function addOwnedItem(state: WorldState, itemId: string, location: ItemLocation, event: WorldEvent): void {
-  if (location.kind !== "inventory" && location.kind !== "equipped") return;
+function removeEquipmentIndex(state: WorldState, itemId: string, location: ItemLocation, event: WorldEvent): void {
+  if (location.kind !== "equipped") return;
   invariant(location.ownerId === state.player.id, `unsupported item owner: ${location.ownerId}`, event);
-  if (location.kind === "inventory") {
+  invariant(state.player.equipment[location.slot] === itemId, `equipment slot ${location.slot} does not contain ${itemId}`, event);
+  delete state.player.equipment[location.slot];
+}
+
+function addEquipmentIndex(state: WorldState, itemId: string, location: ItemLocation, event: WorldEvent): void {
+  if (location.kind !== "equipped") return;
+  invariant(location.ownerId === state.player.id, `unsupported item owner: ${location.ownerId}`, event);
+  invariant(state.player.equipment[location.slot] === undefined, `equipment slot ${location.slot} is occupied`, event);
+  state.player.equipment[location.slot] = itemId;
+}
+
+function transferOwnershipIndex(
+  state: WorldState,
+  itemId: string,
+  from: ItemLocation | undefined,
+  to: ItemLocation,
+  event: WorldEvent,
+): void {
+  const wasOwned = from ? isPlayerOwned(state, from) : false;
+  const isOwned = isPlayerOwned(state, to);
+  if (wasOwned) invariant(state.player.inventory.includes(itemId), `inventory does not contain owned item ${itemId}`, event);
+  if (wasOwned && !isOwned) state.player.inventory = state.player.inventory.filter((id) => id !== itemId);
+  if (!wasOwned && isOwned) {
     invariant(!state.player.inventory.includes(itemId), `inventory already contains ${itemId}`, event);
     state.player.inventory.push(itemId);
-  } else {
-    invariant(state.player.equipment[location.slot] === undefined, `equipment slot ${location.slot} is occupied`, event);
-    state.player.equipment[location.slot] = itemId;
   }
 }
 
@@ -77,15 +90,17 @@ export function evolve(state: WorldState, event: WorldEvent): void {
     }
     case "item_created":
       invariant(!state.items[event.item.id], `item already exists: ${event.item.id}`, event);
+      transferOwnershipIndex(state, event.item.id, undefined, event.item.location, event);
+      addEquipmentIndex(state, event.item.id, event.item.location, event);
       state.items[event.item.id] = structuredClone(event.item);
-      addOwnedItem(state, event.item.id, event.item.location, event);
       return;
     case "item_transferred": {
       const item = state.items[event.itemId];
       invariant(item, `item not found: ${event.itemId}`, event);
       invariant(same(item.location, event.from), `item location before mismatch: ${event.itemId}`, event);
-      removeOwnedItem(state, event.itemId, event.from);
-      addOwnedItem(state, event.itemId, event.to, event);
+      removeEquipmentIndex(state, event.itemId, event.from, event);
+      transferOwnershipIndex(state, event.itemId, event.from, event.to, event);
+      addEquipmentIndex(state, event.itemId, event.to, event);
       item.location = structuredClone(event.to);
       return;
     }

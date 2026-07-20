@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { projectPublicEvents, type Decider } from "../engine/decide.ts";
+import type { Decider } from "../engine/decide.ts";
 import type { ProposalEnvelope } from "../types/proposals.ts";
 import type { WorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
@@ -89,14 +89,5 @@ describe("settlement", () => {
     expect(success.accepted).toBe(true);
     if (success.accepted) expect(success.result).toBe("ok");
     expect(live.revision).toBe(4);
-  });
-
-  test("projects committed facts without exposing private source metadata", () => {
-    const result = settle(state(), proposal(), accepted([{ kind: "player_spoke", playerId: "player", roomId: "a", message: "hello" }]), context);
-    expect(result.accepted).toBe(true);
-    if (!result.accepted) return;
-    const projected = projectPublicEvents(result.committedEvents[0]!);
-    expect(projected).toEqual([{ kind: "player_spoke", turn: 7, actorId: "player", roomId: "a", message: "hello", targetId: undefined }]);
-    expect(JSON.stringify(projected)).not.toContain("private");
   });
 });

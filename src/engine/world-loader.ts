@@ -234,6 +234,7 @@ export async function loadWorldPack(
   }
 
   return {
+    revision: 0,
     worldId: `${packName}-${Date.now()}`,
     worldPack: packName,
     turn: 0,

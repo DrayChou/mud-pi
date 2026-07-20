@@ -7,7 +7,7 @@ import { executeNpcDecision, visibleEntityIds } from "./npc-intents.ts";
 
 function state(): WorldState {
   return {
-    worldId: "test", worldPack: "test", turn: 4, schema: { defs: [] },
+    revision: 0, worldId: "test", worldPack: "test", turn: 4, schema: { defs: [] },
     player: {
       id: "player1", name: "旅客", roomId: "hall", lifecycle: "active",
       stats: {}, maxStats: {}, inventory: [], equipment: {},
