@@ -142,7 +142,15 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
   );
   if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
 
-  const combat = simulateCombat(state.schema, state.player, npc);
+  const conflictRules = state.conflictRules ?? { mode: "auto_combat", algorithm: "gauge-random-v1" as const };
+  if (conflictRules.mode === "none") {
+    return { mutations: [], directReply: "这个剧本不使用数值战斗；请通过对话、选择或叙事行动解决冲突。" };
+  }
+  if (conflictRules.mode === "dice_check") {
+    return { mutations: [], directReply: "这个剧本使用掷骰检定而不是生命值战斗；请描述你想达成的行动。" };
+  }
+  const combatSeed = `${state.worldId}:turn:${state.turn + 1}:combat:${npc.id}`;
+  const combat = simulateCombat(state.schema, state.player, npc, conflictRules, combatSeed);
   const mutations: EngineMutation[] = [{ kind: "engine/combat_started", npcId: npc.id }];
   const npcDelta = combat.npc.poolAfter - combat.npc.poolBefore;
   const playerDelta = combat.player.poolAfter - combat.player.poolBefore;

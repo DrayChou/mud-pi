@@ -1,6 +1,23 @@
 {
   "name": "幻梦车站",
   "bornPoint": "StationHall",
+  "conflictRules": {
+    "mode": "auto_combat",
+    "algorithm": "gauge-random-v1",
+    "baseHitChance": 0.75,
+    "minHitChance": 0.05,
+    "maxHitChance": 0.95,
+    "accuracyScale": 0.015,
+    "luckHitScale": 0.005,
+    "baseCritChance": 0.05,
+    "luckCritScale": 0.005,
+    "maxCritChance": 0.35,
+    "normalDamageMin": 0.75,
+    "normalDamageMax": 1.25,
+    "critMultiplier": 2,
+    "likelyFailureWarning": "你听见远处列车发出一声不祥的长鸣。直觉告诉你，贸然与{target}交手，归途很可能会在这里中断。",
+    "dangerousWarning": "车窗里的倒影比你先一步后退。面对{target}，即使能赢，你也可能付出难以挽回的代价。"
+  },
   "proceduralMap": {
     "generator": "seeded-mst-v1",
     "totalRooms": {
@@ -78,6 +95,26 @@
         "display": "number",
         "onDeplete": "narrative",
         "role": "speed"
+      },
+      {
+        "key": "luck",
+        "label": "幸运",
+        "min": 0,
+        "max": 20,
+        "default": 5,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "luck"
+      },
+      {
+        "key": "accuracy",
+        "label": "命中",
+        "min": 0,
+        "max": 20,
+        "default": 5,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "accuracy"
       }
     ]
   },
@@ -85,7 +122,9 @@
     "hp": 100,
     "attack": 8,
     "defense": 2,
-    "speed": 10
+    "speed": 10,
+    "luck": 5,
+    "accuracy": 5
   },
   "defaultProtagonistId": "lost_commuter",
   "protagonists": [
@@ -99,7 +138,9 @@
         "hp": 100,
         "attack": 6,
         "defense": 3,
-        "speed": 9
+        "speed": 9,
+        "luck": 8,
+        "accuracy": 5
       },
       "initialInventory": [
         "ticket"
@@ -116,7 +157,9 @@
         "hp": 100,
         "attack": 9,
         "defense": 2,
-        "speed": 12
+        "speed": 12,
+        "luck": 3,
+        "accuracy": 8
       },
       "initialInventory": [],
       "openingHook": "售票员看见你时，第一次从窗口后抬起了头。"
@@ -217,7 +260,9 @@
         "hp": 30,
         "attack": 8,
         "defense": 2,
-        "speed": 8
+        "speed": 8,
+        "luck": 2,
+        "accuracy": 6
       }
     },
     {
@@ -230,7 +275,9 @@
         "hp": 20,
         "attack": 5,
         "defense": 0,
-        "speed": 6
+        "speed": 6,
+        "luck": 1,
+        "accuracy": 3
       }
     }
   ],

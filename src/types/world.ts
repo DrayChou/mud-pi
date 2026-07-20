@@ -35,12 +35,38 @@ export interface StatDef {
   // For combat: which stat the entity uses to deal/receive damage
   // "attack" stat contributes to outgoing damage
   // "defense" stat reduces incoming damage
-  role?: "pool" | "attack" | "defense" | "speed";
+  role?: "pool" | "attack" | "defense" | "speed" | "luck" | "accuracy" | "evasion";
 }
 
 export interface StatsSchema {
   defs: StatDef[];
 }
+
+export type ConflictRules =
+  | {
+      mode: "auto_combat";
+      algorithm: "gauge-random-v1";
+      baseHitChance?: number;
+      minHitChance?: number;
+      maxHitChance?: number;
+      accuracyScale?: number;
+      luckHitScale?: number;
+      baseCritChance?: number;
+      luckCritScale?: number;
+      maxCritChance?: number;
+      normalDamageMin?: number;
+      normalDamageMax?: number;
+      critMultiplier?: number;
+      likelyFailureWarning?: string;
+      dangerousWarning?: string;
+    }
+  | {
+      mode: "dice_check";
+      dice?: { count: number; sides: number };
+      criticalSuccess?: "all_max";
+      criticalFailure?: "all_min";
+    }
+  | { mode: "none" };
 
 // ── Runtime stat bag — key → current value ────────────────────────────────
 
@@ -220,6 +246,7 @@ export interface WorldState {
   worldPack: string;
   turn: number;
   schema: StatsSchema; // loaded from world.json, stays constant
+  conflictRules?: ConflictRules; // world-pack-owned conflict semantics; old saves default to auto combat
   player: PlayerState;
   rooms: Record<string, RoomDef>;
   npcs: Record<string, NpcDef>;

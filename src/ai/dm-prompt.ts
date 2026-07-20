@@ -219,12 +219,15 @@ export function buildDmPrompt(
   if (combatContext) {
     const statDef = state.schema.defs.find((def) => def.key === combatContext.poolKey);
     const statLabel = statDef?.label ?? combatContext.poolKey;
+    const misses = combatContext.actions.filter((frame) => !frame.hit).length;
+    const criticals = combatContext.actions.filter((frame) => frame.critical).length;
     parts.push(
       `[自动战斗模拟结果]\n` +
       `胜者：${combatContext.winner === "player" ? state.player.name : combatContext.npc.name}\n` +
       `${state.player.name}：${statLabel} ${combatContext.player.poolBefore} → ${combatContext.player.poolAfter}/${combatContext.player.poolMax}，速度 ${combatContext.player.speed}\n` +
       `${combatContext.npc.name}：${statLabel} ${combatContext.npc.poolBefore} → ${combatContext.npc.poolAfter}/${combatContext.npc.poolMax}，速度 ${combatContext.npc.speed}\n` +
-      `模拟 tick：${combatContext.ticks}；出手次数：${combatContext.actions.length}；风险：${combatContext.risk}\n` +
+      `模拟 tick：${combatContext.ticks}；出手次数：${combatContext.actions.length}；失手：${misses}；暴击：${criticals}\n` +
+      `预计玩家胜率：${Math.round(combatContext.estimatedPlayerWinChance * 100)}%；风险：${combatContext.risk}；随机种子：${combatContext.seed}\n` +
       `战斗已经一次性结算。只需叙述结果和代价，不要再追加攻击、反击、逃跑或其他战斗状态修改。前端会根据结构化帧渲染进度条和出手动画。`
     );
   }

@@ -4,6 +4,7 @@
 
 import { PROCEDURAL_MAP_VERSION, type ProceduralMapConfig } from "./procedural-map.ts";
 import type {
+  ConflictRules,
   NpcController,
   NpcPersona,
   NpcStoryRole,
@@ -33,6 +34,7 @@ export interface WorldPackForValidation {
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
+  conflictRules?: ConflictRules;
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -61,6 +63,8 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
   if (!roomIds.has(pack.bornPoint)) {
     errors.push(`bornPoint references missing room: ${pack.bornPoint}`);
   }
+
+  if (pack.conflictRules) validateConflictRules(pack.conflictRules, errors);
 
   if (pack.proceduralMap) {
     const config = pack.proceduralMap;
@@ -201,6 +205,34 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
 
   if (errors.length > 0) {
     throw new Error(`Invalid world pack ${label}:\n- ${errors.join("\n- ")}`);
+  }
+}
+
+function validateConflictRules(rules: ConflictRules, errors: string[]): void {
+  if (rules.mode === "auto_combat") {
+    if (rules.algorithm !== "gauge-random-v1") errors.push(`unsupported combat algorithm: ${rules.algorithm}`);
+    const probabilities = [
+      ["baseHitChance", rules.baseHitChance], ["minHitChance", rules.minHitChance],
+      ["maxHitChance", rules.maxHitChance], ["baseCritChance", rules.baseCritChance],
+      ["maxCritChance", rules.maxCritChance],
+    ] as const;
+    for (const [name, value] of probabilities) {
+      if (value !== undefined && (value < 0 || value > 1)) errors.push(`conflictRules.${name} must be between 0 and 1`);
+    }
+    if (rules.normalDamageMin !== undefined && rules.normalDamageMin < 0) {
+      errors.push("conflictRules.normalDamageMin cannot be negative");
+    }
+    if (
+      rules.normalDamageMin !== undefined && rules.normalDamageMax !== undefined &&
+      rules.normalDamageMax < rules.normalDamageMin
+    ) errors.push("conflictRules normalDamageMax cannot be smaller than normalDamageMin");
+    if (rules.critMultiplier !== undefined && rules.critMultiplier < 1) {
+      errors.push("conflictRules.critMultiplier must be at least 1");
+    }
+  } else if (rules.mode === "dice_check" && rules.dice) {
+    if (!Number.isInteger(rules.dice.count) || rules.dice.count < 1 || !Number.isInteger(rules.dice.sides) || rules.dice.sides < 2) {
+      errors.push("conflictRules.dice requires positive count and at least two sides");
+    }
   }
 }
 

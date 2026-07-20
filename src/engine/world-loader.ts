@@ -5,6 +5,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  ConflictRules,
   ItemDef,
   NpcController,
   NpcDef,
@@ -50,6 +51,7 @@ interface WorldPackJson {
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
+  conflictRules?: ConflictRules;
 }
 
 export interface WorldPackSummary {
@@ -208,6 +210,10 @@ export async function loadWorldPack(
     worldPack: packName,
     turn: 0,
     schema,
+    conflictRules: structuredClone(pack.conflictRules ?? {
+      mode: "auto_combat",
+      algorithm: "gauge-random-v1",
+    }),
     player: {
       id: "player1",
       name: playerName,

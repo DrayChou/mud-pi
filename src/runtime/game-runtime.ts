@@ -213,13 +213,25 @@ export class GameRuntime {
       outputs.push({
         kind: "combat_warning",
         risk: "likely_failure",
-        text: `数据模拟显示你很可能败给${result.combatContext.npc.name}。`,
+        text: formatCombatWarning(
+          this.state.conflictRules?.mode === "auto_combat"
+            ? this.state.conflictRules.likelyFailureWarning
+            : undefined,
+          "你本能地意识到，贸然与{target}正面对抗，很可能无法全身而退。",
+          result.combatContext
+        ),
       });
     } else if (result.combatContext?.risk === "dangerous") {
       outputs.push({
         kind: "combat_warning",
         risk: "dangerous",
-        text: `这场战斗风险很高，即使获胜也可能付出很大代价。`,
+        text: formatCombatWarning(
+          this.state.conflictRules?.mode === "auto_combat"
+            ? this.state.conflictRules.dangerousWarning
+            : undefined,
+          "面对{target}，一种强烈的不安提醒你：即使取胜，也可能付出沉重代价。",
+          result.combatContext
+        ),
       });
     }
     if (result.combatContext) outputs.push({ kind: "combat_result", result: result.combatContext });
@@ -244,6 +256,16 @@ export class GameRuntime {
 
     return { outputs, quit: false, turnAdvanced: true };
   }
+}
+
+function formatCombatWarning(
+  configured: string | undefined,
+  fallback: string,
+  combat: NonNullable<ReturnType<typeof executeCommand>["combatContext"]>
+): string {
+  return (configured?.trim() || fallback)
+    .replaceAll("{target}", combat.npc.name)
+    .replaceAll("{chance}", String(Math.round(combat.estimatedPlayerWinChance * 100)));
 }
 
 function resolveSpeechTarget(

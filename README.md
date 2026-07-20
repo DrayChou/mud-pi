@@ -155,7 +155,7 @@ say <内容>    说话（DM 会让 NPC 响应）
 get <物品>    拾取
 drop <物品>   丢弃
 equip <物品>  装备
-attack <目标> 自动模拟整场战斗（速度行动条；一次性结算并输出可渲染帧）
+attack <目标> 按当前世界包的冲突规则结算（自动战斗、掷骰或无数值战斗）
 inv           查看背包
 status        查看状态
 help          显示帮助
@@ -273,6 +273,10 @@ codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval nev
 ```
 
 这样 Codex 只作为只读 AI 生成 backend 使用，不会让 Codex 修改项目文件。DM、指令解析、角色生成都可以统一走 Codex；也可以用 `DM_BACKEND` / `INTERPRETER_BACKEND` / `CHARACTER_BACKEND` 混用 Pi 和 Codex。
+
+## 剧本化冲突规则
+
+每个世界包可通过 `conflictRules` 选择 `auto_combat`、`dice_check` 或 `none`。自动战斗使用可复现随机的命中、失手、暴击、伤害浮动、幸运修正和速度行动条；风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。详细调研、公式和配置示例见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。
 
 ## 开发命令
 

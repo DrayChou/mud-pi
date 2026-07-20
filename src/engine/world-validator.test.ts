@@ -67,6 +67,21 @@ describe("validateWorldPack", () => {
     expect(() => validateWorldPack(pack, "missing-persona")).toThrow(/uses pi_session but has no persona/);
   });
 
+  test("rejects invalid world-owned conflict rules", () => {
+    const pack = basePack();
+    pack.conflictRules = {
+      mode: "auto_combat",
+      algorithm: "gauge-random-v1",
+      baseHitChance: 2,
+      normalDamageMin: 2,
+      normalDamageMax: 1,
+      critMultiplier: 0.5,
+    };
+    expect(() => validateWorldPack(pack, "broken-conflict")).toThrow(/baseHitChance must be between 0 and 1/);
+    expect(() => validateWorldPack(pack, "broken-conflict")).toThrow(/normalDamageMax cannot be smaller/);
+    expect(() => validateWorldPack(pack, "broken-conflict")).toThrow(/critMultiplier must be at least 1/);
+  });
+
   test("rejects invalid procedural map configuration", () => {
     const pack = basePack();
     pack.proceduralMap = {

@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
-import type { ItemLocation, ObjectiveDef, ReachedOutcome, WorldState } from "../types/world.ts";
+import type { ConflictRules, ItemLocation, ObjectiveDef, ReachedOutcome, WorldState } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
 
 function savesDir(worldId: string): string {
@@ -29,6 +29,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   try {
     const state = await f.json() as WorldState;
     normalizePlayerLifecycle(state);
+    await normalizeConflictRules(state);
     normalizeRoomDiscovery(state);
     await normalizeItemLocations(state);
     await normalizeProgressState(state);
@@ -41,6 +42,18 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
 
 function normalizePlayerLifecycle(state: WorldState): void {
   if (!state.player.lifecycle) state.player.lifecycle = "active";
+}
+
+async function normalizeConflictRules(state: WorldState): Promise<void> {
+  if (state.conflictRules) return;
+  const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
+  const pack = await worldFile.exists()
+    ? await worldFile.json() as { conflictRules?: ConflictRules }
+    : {};
+  state.conflictRules = structuredClone(pack.conflictRules ?? {
+    mode: "auto_combat",
+    algorithm: "gauge-random-v1",
+  });
 }
 
 function normalizeRoomDiscovery(state: WorldState): void {
