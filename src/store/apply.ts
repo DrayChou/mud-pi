@@ -57,6 +57,8 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
         return;
       }
       p.roomId = mut.toRoomId;
+      state.rooms[mut.toRoomId]!.discovered = true;
+      state.rooms[mut.toRoomId]!.visitedTurn ??= state.turn + 1;
       break;
     }
 
@@ -181,7 +183,12 @@ function applyDm(state: WorldState, mut: DmMutation): void {
         console.warn(`[apply] dm tried to add existing room: ${mut.room.id}`);
         return;
       }
-      state.rooms[mut.room.id] = { ...mut.room, source: "dm_generated", createdTurn: state.turn };
+      state.rooms[mut.room.id] = {
+        ...mut.room,
+        source: "dm_generated",
+        createdTurn: state.turn,
+        discovered: mut.room.discovered ?? false,
+      };
       break;
     }
 

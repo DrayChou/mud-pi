@@ -87,7 +87,15 @@ function buildMutations(
 
   for (const r of u.roomsAdded ?? []) {
     if (!r.id || !r.title || !r.desc) continue;
-    const room: RoomDef = { id: r.id, title: r.title, desc: r.desc, exits: r.exits ?? {}, source: "dm_generated", tags: r.tags };
+    const room: RoomDef = {
+      id: r.id,
+      title: r.title,
+      desc: r.desc,
+      exits: r.exits ?? {},
+      source: "dm_generated",
+      tags: r.tags,
+      discovered: false,
+    };
     out.push({ kind: "dm/room_added", room });
   }
 

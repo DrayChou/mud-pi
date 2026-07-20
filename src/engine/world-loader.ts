@@ -128,7 +128,14 @@ export async function loadWorldPack(
   }
 
   const rooms: Record<string, RoomDef> = {};
-  for (const r of pack.rooms) rooms[r.id] = { ...r, source: "static" };
+  for (const r of pack.rooms) {
+    rooms[r.id] = {
+      ...r,
+      source: "static",
+      discovered: r.id === pack.bornPoint,
+      visitedTurn: r.id === pack.bornPoint ? 0 : undefined,
+    };
+  }
 
   const npcs: Record<string, NpcDef> = {};
   for (const n of pack.npcs) {

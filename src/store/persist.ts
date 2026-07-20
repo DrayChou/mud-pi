@@ -29,6 +29,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   try {
     const state = await f.json() as WorldState;
     normalizePlayerLifecycle(state);
+    normalizeRoomDiscovery(state);
     await normalizeItemLocations(state);
     await normalizeProgressState(state);
     return state;
@@ -40,6 +41,17 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
 
 function normalizePlayerLifecycle(state: WorldState): void {
   if (!state.player.lifecycle) state.player.lifecycle = "active";
+}
+
+function normalizeRoomDiscovery(state: WorldState): void {
+  for (const room of Object.values(state.rooms)) {
+    if (typeof room.discovered !== "boolean") room.discovered = room.id === state.player.roomId;
+  }
+  const currentRoom = state.rooms[state.player.roomId];
+  if (currentRoom) {
+    currentRoom.discovered = true;
+    currentRoom.visitedTurn ??= state.turn;
+  }
 }
 
 async function normalizeItemLocations(state: WorldState): Promise<void> {

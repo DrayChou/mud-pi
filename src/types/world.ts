@@ -61,6 +61,8 @@ export interface RoomDef {
   source: RoomSource;
   createdTurn?: number;
   tags?: string[];
+  discovered: boolean;
+  visitedTurn?: number;
 }
 
 export type NpcController = "dm" | "pi_session" | "rule";

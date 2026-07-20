@@ -25,7 +25,8 @@ describe("state compatibility", () => {
 
     const legacyState = structuredClone(state) as unknown as {
       items: Record<string, { location?: unknown }>;
-      player: { inventory: string[]; equipment: Record<string, string> };
+      rooms: Record<string, { discovered?: unknown; visitedTurn?: unknown }>;
+      player: { roomId: string; inventory: string[]; equipment: Record<string, string> };
       objectives?: unknown;
       endingRules?: unknown;
     };
@@ -33,6 +34,10 @@ describe("state compatibility", () => {
     delete legacyState.items.rusty_knife?.location;
     delete legacyState.objectives;
     delete legacyState.endingRules;
+    for (const room of Object.values(legacyState.rooms)) {
+      delete room.discovered;
+      delete room.visitedTurn;
+    }
     legacyState.player.inventory.push("ticket");
 
     const dir = join(import.meta.dir, "../../saves", state.worldId);
@@ -50,6 +55,8 @@ describe("state compatibility", () => {
       roomId: "Compartment1",
     });
     expect(loaded?.objectives.ask_ticket_clerk?.status).toBe("active");
+    expect(loaded?.rooms.StationHall?.discovered).toBe(true);
+    expect(Object.values(loaded?.rooms ?? {}).filter((room) => room.discovered)).toHaveLength(1);
     expect(loaded).not.toHaveProperty("endingRules");
   });
 });

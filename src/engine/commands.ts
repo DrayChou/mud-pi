@@ -6,6 +6,7 @@
 import type { WorldState, StatDef } from "../types/world.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
+import { buildMapSnapshot, formatTextMap } from "./map.ts";
 
 export interface CombatContext {
   npcId: string;
@@ -28,7 +29,7 @@ export interface CommandResult {
 }
 
 export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandResult {
-  const informational = new Set(["look", "inv", "status", "objectives", "help", "quit"]);
+  const informational = new Set(["look", "inv", "status", "objectives", "map", "help", "quit"]);
   if (state.outcome?.terminal && !informational.has(cmd.verb)) {
     return { mutations: [], directReply: "这个故事已经结束。你仍可以查看状态、目标或退出。" };
   }
@@ -51,6 +52,7 @@ export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandRe
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
     case "objectives": return cmdObjectives(state);
+    case "map":    return { mutations: [], directReply: formatTextMap(buildMapSnapshot(state)) };
     case "help":   return cmdHelp(state);
     case "say":    return { mutations: [] };
     case "quit":   return { mutations: [], directReply: "__QUIT__" };
@@ -286,7 +288,8 @@ function cmdHelp(state: WorldState): CommandResult {
   attack <目标>  攻击
   inv            查看背包
   status         查看状态（${poolStats}）
-  objectives     查看当前目标与结局
+  objectives     查看当前目标与故事结果
+  map            查看已探索地图
   help           显示帮助
   quit           保存并退出`,
   };

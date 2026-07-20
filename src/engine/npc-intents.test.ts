@@ -14,8 +14,8 @@ function state(): WorldState {
       stats: {}, maxStats: {}, inventory: [], equipment: {},
     },
     rooms: {
-      hall: { id: "hall", title: "大厅", desc: "", exits: { east: "platform" }, source: "static" },
-      platform: { id: "platform", title: "站台", desc: "", exits: { west: "hall" }, source: "static" },
+      hall: { id: "hall", title: "大厅", desc: "", exits: { east: "platform" }, source: "static", discovered: true },
+      platform: { id: "platform", title: "站台", desc: "", exits: { west: "hall" }, source: "static", discovered: false },
     },
     npcs: {
       clerk: {

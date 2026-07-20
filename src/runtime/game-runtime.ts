@@ -11,6 +11,7 @@ import type { EngineMutation } from "../types/mutations.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
 import type { GameOutput, GameTurnResult } from "./game-output.ts";
+import { buildMapSnapshot, type MapSnapshot } from "../engine/map.ts";
 
 export interface RuntimeInterpreter {
   parse(input: string): Promise<ParsedCommand>;
@@ -60,6 +61,10 @@ export class GameRuntime {
 
   getSnapshot(): WorldState {
     return structuredClone(this.state);
+  }
+
+  getMapSnapshot(): MapSnapshot {
+    return buildMapSnapshot(this.state);
   }
 
   async save(): Promise<void> {
