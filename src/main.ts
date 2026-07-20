@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // main.ts — CLI entry point
-// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>]
+// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>] [--tui]
 // ─────────────────────────────────────────────────────────────
 
 import { createInterface as createLineInterface } from "node:readline";
@@ -13,6 +13,7 @@ import { validatePlayerName } from "./engine/player-name.ts";
 import { applyMutations } from "./store/apply.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
 import type { GameOutput } from "./runtime/game-output.ts";
+import { runMudTui } from "./adapters/tui.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
@@ -24,13 +25,14 @@ import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
 
-function parseArgs(): { worldPack?: string; playerName?: string; saveId?: string } {
+function parseArgs(): { worldPack?: string; playerName?: string; saveId?: string; tui?: boolean } {
   const args = process.argv.slice(2);
   const result: ReturnType<typeof parseArgs> = {};
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--world" && args[i + 1]) result.worldPack = args[++i];
     if (args[i] === "--name" && args[i + 1]) result.playerName = args[++i];
     if (args[i] === "--save" && args[i + 1]) result.saveId = args[++i];
+    if (args[i] === "--tui") result.tui = true;
   }
   return result;
 }
@@ -374,6 +376,17 @@ async function main() {
     npcSessions,
     dmModelLabel: backendLabel(config, "dm"),
   });
+
+  if (args.tui) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error("--tui 需要交互式终端");
+    }
+    await runMudTui(runtime, { title: `mud-pi · ${state.worldPack}` });
+    await runtime.save();
+    dm.dispose();
+    npcSessions.dispose();
+    return;
+  }
 
   // ── Input loop ─────────────────────────────────────────────
   const rl = createLineInterface({

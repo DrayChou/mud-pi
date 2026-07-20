@@ -6,11 +6,13 @@
   "scripts": {
     "start": "bun run src/main.ts",
     "dev": "bun --watch src/main.ts",
+    "tui": "bun run src/main.ts --tui",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.3"
+    "@earendil-works/pi-coding-agent": "^0.80.3",
+    "@earendil-works/pi-tui": "^0.80.10"
   },
   "devDependencies": {
     "@types/bun": "latest",

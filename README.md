@@ -102,7 +102,11 @@ bun run dev
 bun start --world station-dream   # 指定世界包
 bun start --save station-dream-001 # 读取存档
 bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
+bun run tui                         # 使用本地多面板 TUI
+bun start --tui --save <存档ID>     # 用 TUI 读取指定存档
 ```
+
+TUI 在宽终端中显示玩家/目标、叙事、房间/地图三个面板；窄终端自动切换为纵向布局。按 Enter 发送指令，Esc 或 Ctrl+C 保存并退出。传统逐行 CLI 仍是默认 adapter。
 
 新游戏启动后会先进入剧本选择流程；选择剧本后再进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。玩家姓名限制为 1-16 个字符；背景、作品参考和人物描述请写到“角色描述”里。非交互环境会自动使用 `.env` 中的 `WORLD_PACK`。
 
@@ -270,7 +274,8 @@ codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval nev
 ```bash
 bun install       # 安装依赖
 bun run dev       # watch 模式启动
-bun start         # 启动游戏
+bun start         # 启动传统 CLI
+bun run tui       # 启动多面板 TUI
 bun test          # 运行测试
 bun run typecheck # TypeScript 类型检查
 ```
