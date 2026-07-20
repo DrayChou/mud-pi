@@ -20,6 +20,9 @@ function reject(code: "entity_not_found" | "duplicate_entity" | "invalid_locatio
 
 export const decideMovement: Decider<MovementProposal, MovementProposal> = (state, envelope) => {
   const proposal = envelope.payload;
+  if (envelope.source.kind !== "player" && envelope.source.kind !== "engine" && envelope.source.kind !== "dm") {
+    return reject("permission_denied", `${envelope.source.kind} cannot move the player.`);
+  }
   const fromRoom = state.rooms[state.player.roomId];
   if (!fromRoom) return reject("entity_not_found", `Player room not found: ${state.player.roomId}`);
   const destination = state.rooms[proposal.toRoomId];
@@ -64,11 +67,34 @@ function normalizedCreatedItem(item: ItemDef, turn: number): ItemDef {
 export const decideItem: Decider<ItemProposal, ItemProposal> = (state, envelope) => {
   const proposal = envelope.payload;
   const player = state.player;
+  const sourceKind = envelope.source.kind;
+  const playerOperation = proposal.kind === "pick_up_item"
+    || proposal.kind === "drop_item"
+    || proposal.kind === "equip_item"
+    || proposal.kind === "consume_item";
+  if (proposal.kind === "create_item" && sourceKind !== "dm" && sourceKind !== "engine" && sourceKind !== "world_script") {
+    return reject("permission_denied", `${sourceKind} cannot create item entities.`);
+  }
+  if (proposal.kind === "grant_item_reward" && sourceKind !== "dm" && sourceKind !== "engine" && sourceKind !== "npc") {
+    return reject("permission_denied", `${sourceKind} cannot grant item rewards.`);
+  }
+  if (playerOperation && sourceKind !== "player" && sourceKind !== "engine" && sourceKind !== "dm" && sourceKind !== "world_script") {
+    return reject("permission_denied", `${sourceKind} cannot perform player inventory operations.`);
+  }
 
   switch (proposal.kind) {
     case "create_item": {
       if (state.items[proposal.item.id]) return reject("duplicate_entity", `Item already exists: ${proposal.item.id}`);
       const item = normalizedCreatedItem(proposal.item, state.turn);
+      if (item.kind === "equipment" && !item.equipSlot) {
+        return reject("precondition_failed", `Equipment requires an equip slot: ${item.id}`);
+      }
+      if (item.kind !== "equipment" && item.equipSlot) {
+        return reject("precondition_failed", `Only equipment can declare an equip slot: ${item.id}`);
+      }
+      if (item.kind === "scenery" && (item.portable !== false || item.location.kind !== "room")) {
+        return reject("precondition_failed", `Scenery must be non-portable and remain in a room: ${item.id}`);
+      }
       const validRoom = item.location.kind === "room" && Boolean(state.rooms[item.location.roomId]);
       const validInventory = item.location.kind === "inventory" && item.location.ownerId === player.id;
       if (!validRoom && !validInventory) return reject("invalid_location", `Invalid item location: ${item.id}`);
@@ -155,6 +181,9 @@ export const decideItem: Decider<ItemProposal, ItemProposal> = (state, envelope)
       if (!item) return reject("entity_not_found", `Item not found: ${proposal.itemId}`);
       if (item.location.kind !== "inventory" || item.location.ownerId !== player.id) {
         return reject("invalid_location", `Item is not consumable from inventory: ${proposal.itemId}`);
+      }
+      if (item.consumable !== true) {
+        return reject("precondition_failed", `Item is not marked consumable: ${proposal.itemId}`);
       }
       return {
         accepted: true,

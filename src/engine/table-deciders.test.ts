@@ -59,12 +59,40 @@ test("typed item equipment replacement replays atomically", async () => {
   if (replacement.accepted) expect(replacement.committedEvents).toHaveLength(2);
 });
 
+test("typed deciders enforce proposal source permissions", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const destination = Object.values(state.rooms[state.player.roomId]!.exits)[0]!;
+  const npcMove = settle(state, {
+    ...envelope<MovementProposal>(state.revision, { kind: "move_player", toRoomId: destination }, "npc-move"),
+    source: { kind: "npc" as const, id: "ticket_clerk" },
+  }, decideMovement, context);
+  const playerCreate = settle(state, {
+    ...envelope<ItemProposal>(state.revision, { kind: "create_item", item: { id: "forged", name: "Forged", desc: "Invalid", location: { kind: "room", roomId: state.player.roomId } } }, "player-create"),
+    source: { kind: "player" as const, id: state.player.id },
+  }, decideItem, context);
+
+  expect(npcMove.accepted).toBe(false);
+  expect(playerCreate.accepted).toBe(false);
+  expect(state.revision).toBe(0);
+});
+
+test("typed item creation and consumption enforce item invariants", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const settleItem = (payload: ItemProposal, id: string) => settle(state, envelope(state.revision, payload, id), decideItem, context);
+
+  expect(settleItem({ kind: "create_item", item: { id: "bad-equipment", name: "Bad", desc: "Bad", kind: "equipment", location: { kind: "room", roomId: state.player.roomId } } }, "bad-equipment").accepted).toBe(false);
+  expect(settleItem({ kind: "create_item", item: { id: "bad-scenery", name: "Bad Scenery", desc: "Bad", kind: "scenery", portable: true, location: { kind: "room", roomId: state.player.roomId } } }, "bad-scenery").accepted).toBe(false);
+  expect(settleItem({ kind: "create_item", item: { id: "mundane", name: "Mundane", desc: "Not consumable", location: { kind: "inventory", ownerId: state.player.id } } }, "mundane").accepted).toBe(true);
+  expect(settleItem({ kind: "consume_item", itemId: "mundane" }, "consume-mundane").accepted).toBe(false);
+  expect(state.items.mundane?.location).toEqual({ kind: "inventory", ownerId: state.player.id });
+});
+
 test("typed item lifecycle handles create, pickup, drop and consume", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const itemId = "typed-token";
   const settleItem = (payload: ItemProposal, id: string) => settle(state, envelope(state.revision, payload, id), decideItem, context);
 
-  expect(settleItem({ kind: "create_item", item: { id: itemId, name: "Token", desc: "A token", location: { kind: "room", roomId: state.player.roomId } } }, "create").accepted).toBe(true);
+  expect(settleItem({ kind: "create_item", item: { id: itemId, name: "Token", desc: "A token", consumable: true, location: { kind: "room", roomId: state.player.roomId } } }, "create").accepted).toBe(true);
   expect(settleItem({ kind: "pick_up_item", itemId }, "pickup").accepted).toBe(true);
   expect(settleItem({ kind: "drop_item", itemId, roomId: state.player.roomId }, "drop").accepted).toBe(true);
   expect(settleItem({ kind: "pick_up_item", itemId }, "pickup-again").accepted).toBe(true);
