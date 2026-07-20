@@ -146,10 +146,16 @@ function buildMutations(
 
   const parameterDefs = new Map(schema.defs.map((def) => [def.key, def]));
   const parameterIds = new Set(parameterDefs.keys());
+  const proposedItemIds = new Set<string>();
   for (const i of (u.itemsAdded ?? []).slice(0, 8)) {
     const roomId = i.roomId || currentRoomId;
-    if (!/^[a-z][a-z0-9_-]{0,63}$/.test(i.id ?? "") || !i.name?.trim() || !i.desc?.trim()) continue;
-    if (i.placement !== "inventory" && !roomId) continue;
+    if (
+      !/^[a-z][a-z0-9_-]{0,63}$/.test(i.id ?? "") ||
+      proposedItemIds.has(i.id) ||
+      !i.name?.trim() ||
+      !i.desc?.trim()
+    ) continue;
+    proposedItemIds.add(i.id);
 
     const kind: ItemKind = ["item", "equipment", "key", "scenery"].includes(i.kind ?? "")
       ? i.kind!
@@ -160,7 +166,7 @@ function buildMutations(
       Number.isFinite(modifier.value) &&
       (modifier.operation === "add"
         ? Math.abs(modifier.value) <= (parameterDefs.get(modifier.parameterId)!.max - parameterDefs.get(modifier.parameterId)!.min)
-        : modifier.value >= 0 && modifier.value <= 4)
+        : modifier.value > 0 && modifier.value <= 4)
     ).slice(0, 16);
     const traits = (i.traits ?? []).filter((trait) =>
       typeof trait.code === "string" && trait.code.trim().length > 0 &&
@@ -181,6 +187,8 @@ function buildMutations(
       ))
     ).slice(0, 16);
     const normalizedKind = kind === "equipment" && !i.equipSlot?.trim() ? "item" : kind;
+    const placement = normalizedKind === "scenery" ? "room" : i.placement;
+    if (placement !== "inventory" && !roomId) continue;
     const item: ItemDef = {
       id: i.id,
       name: i.name.trim().slice(0, 80),
@@ -195,7 +203,7 @@ function buildMutations(
       traits,
       effects,
       consumable: i.consumable === true,
-      location: i.placement === "inventory"
+      location: placement === "inventory"
         ? { kind: "inventory", ownerId: playerId }
         : { kind: "room", roomId: roomId! },
       portable: normalizedKind === "scenery" ? false : (i.portable ?? true),

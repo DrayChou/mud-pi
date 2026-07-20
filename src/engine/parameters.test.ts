@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { applyParameterModifiers, effectivePlayerStats, effectivePlayerTraits } from "./parameters.ts";
+import {
+  applyParameterModifiers,
+  baseDeltaForEffectivePlayerChange,
+  effectivePlayerStats,
+  effectivePlayerTraits,
+} from "./parameters.ts";
 import { loadWorldPack } from "./world-loader.ts";
 
  describe("RPG Maker-style parameters", () => {
@@ -12,6 +17,22 @@ import { loadWorldPack } from "./world-loader.ts";
         { parameterId: "guard", operation: "add", value: 2 },
       ]
     )).toEqual({ power: 18, guard: 10 });
+  });
+
+  test("does not turn recovery into an infinite base delta when an invalid zero rate exists", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.items.zero_rate_relic = {
+      id: "zero_rate_relic",
+      name: "凝滞遗物",
+      desc: "测试用。",
+      kind: "equipment",
+      equipSlot: "relic",
+      location: { kind: "equipped", ownerId: state.player.id, slot: "relic" },
+      parameterModifiers: [{ parameterId: "hp", operation: "rate", value: 0 }],
+    };
+    state.player.equipment.relic = "zero_rate_relic";
+
+    expect(baseDeltaForEffectivePlayerChange(state, "hp", 10)).toBe(0);
   });
 
   test("derives effective values from equipped world-pack items without changing base stats", async () => {

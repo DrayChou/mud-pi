@@ -50,6 +50,7 @@ export function deriveGameEvents(
         break;
 
       case "dm/item_added": {
+        if (before.items[mutation.item.id]) break;
         const item = after.items[mutation.item.id];
         if (!item || item.source !== "dm_generated") break;
         const roomId = mutation.item.location.kind === "room"

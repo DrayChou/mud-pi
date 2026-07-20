@@ -112,14 +112,57 @@ export function validateCombatScriptResult(
   if (result.player.id !== actorId || result.npc.id !== targetId) {
     throw new Error("Conflict script returned mismatched actor or target ids");
   }
-  if (![result.player.poolBefore, result.player.poolAfter, result.npc.poolBefore, result.npc.poolAfter].every(Number.isFinite)) {
+  const combatantNumbers = [
+    result.player.poolBefore,
+    result.player.poolAfter,
+    result.player.poolMax,
+    result.player.attack,
+    result.player.defense,
+    result.player.speed,
+    result.player.luck,
+    result.npc.poolBefore,
+    result.npc.poolAfter,
+    result.npc.poolMax,
+    result.npc.attack,
+    result.npc.defense,
+    result.npc.speed,
+    result.npc.luck,
+    result.estimatedPlayerWinChance,
+    result.ticks,
+  ];
+  if (!combatantNumbers.every(Number.isFinite)) {
     throw new Error("Conflict script returned non-finite parameter values");
   }
+  if (
+    !["player", "npc"].includes(result.winner) ||
+    !["safe", "dangerous", "likely_failure"].includes(result.risk) ||
+    result.estimatedPlayerWinChance < 0 || result.estimatedPlayerWinChance > 1 ||
+    !Number.isInteger(result.ticks) || result.ticks < 0 || result.ticks > 10_000
+  ) throw new Error("Conflict script returned invalid summary values");
   if (result.player.poolAfter < 0 || result.npc.poolAfter < 0) {
     throw new Error("Conflict script returned negative final parameter values");
   }
   if (!Array.isArray(result.actions) || result.actions.length > 10_000) {
     throw new Error("Conflict script returned too many presentation frames");
+  }
+  for (const frame of result.actions) {
+    if (
+      ![actorId, targetId].includes(frame.actorId) ||
+      ![actorId, targetId].includes(frame.targetId) ||
+      frame.actorId === frame.targetId ||
+      ![
+        frame.tick,
+        frame.hitChance,
+        frame.hitRoll,
+        frame.damageMultiplier,
+        frame.damage,
+        frame.targetPoolAfter,
+      ].every(Number.isFinite) ||
+      !Number.isInteger(frame.tick) || frame.tick < 0 ||
+      frame.hitChance < 0 || frame.hitChance > 1 ||
+      frame.hitRoll < 0 || frame.hitRoll > 1 ||
+      frame.damage < 0 || frame.targetPoolAfter < 0
+    ) throw new Error("Conflict script returned an invalid presentation frame");
   }
   return result;
 }

@@ -15,6 +15,7 @@ export function baseDeltaForEffectivePlayerChange(
   const rate = modifiers.filter((modifier) => modifier.operation === "rate").reduce((product, modifier) => product * modifier.value, 1);
   const baseBefore = state.player.stats[parameterId] ?? 0;
   const effectiveBefore = Math.round((baseBefore + add) * rate);
+  if (!Number.isFinite(rate) || rate <= 0) return 0;
   const effectiveAfter = effectiveBefore + effectiveDelta;
   const baseAfter = Math.round(effectiveAfter / rate - add);
   return baseAfter - baseBefore;

@@ -122,6 +122,23 @@ describe("deriveGameEvents", () => {
   ]);
 });
 
+test("does not publish creation for a rejected duplicate item mutation", async () => {
+  const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const after = structuredClone(before);
+  const existing = before.items.ticket!;
+  const mutations: AnyMutation[] = [{
+    kind: "dm/item_added",
+    item: {
+      ...structuredClone(existing),
+      name: "伪造车票",
+      location: { kind: "room", roomId: before.player.roomId },
+    },
+  }];
+  applyMutations(after, mutations);
+
+  expect(deriveGameEvents(before, mutations, after)).toEqual([]);
+});
+
 test("publishes creation and pickup for a DM-created item", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

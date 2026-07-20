@@ -148,8 +148,8 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
         errors.push(`item ${item.id} modifier references missing parameter: ${modifier.parameterId}`);
       }
       if (!Number.isFinite(modifier.value)) errors.push(`item ${item.id} modifier value must be finite`);
-      if (modifier.operation === "rate" && modifier.value < 0) {
-        errors.push(`item ${item.id} parameter rate cannot be negative`);
+      if (modifier.operation === "rate" && modifier.value <= 0) {
+        errors.push(`item ${item.id} parameter rate must be greater than zero`);
       }
     }
     for (const effect of item.effects ?? []) {

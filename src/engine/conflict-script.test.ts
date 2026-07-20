@@ -10,6 +10,22 @@ import { loadWorldPack } from "./world-loader.ts";
     await expect(loadWorldConflictResolver("station-dream", "./missing.ts")).rejects.toThrow(/not found/);
   });
 
+  test("rejects invalid numeric data returned by a world script", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const resolver = await loadWorldConflictResolver(state.worldPack, state.conflictScript);
+    const target = state.npcs.shadow!;
+    const result = resolver.resolve({
+      schema: structuredClone(state.schema),
+      actor: structuredClone(state.player),
+      target: structuredClone(target),
+      rules: structuredClone(state.conflictRules!),
+      seed: "invalid-frame-test",
+      options: {},
+    });
+    result.actions[0]!.damage = Number.NaN;
+    expect(() => validateCombatScriptResult(result, state.player.id, target.id)).toThrow(/invalid presentation frame/);
+  });
+
   test("executes the world script with world-owned parameter bindings", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const resolver = await loadWorldConflictResolver(state.worldPack, state.conflictScript);

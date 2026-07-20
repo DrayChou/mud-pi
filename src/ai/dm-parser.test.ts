@@ -59,6 +59,23 @@ describe("DM-created interactive items", () => {
     expect(state.items.absurd_sword?.effects).toEqual([]);
   });
 
+  test("keeps AI-created scenery in the room even when inventory placement is requested", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const response = parseDmResponse(
+      `<NARRATION>一座钟出现在大厅里。</NARRATION><WORLD_UPDATE>{"itemsAdded":[{"id":"hall_clock","name":"大厅钟","desc":"沉重得无法搬动。","kind":"scenery","placement":"inventory"}]}</WORLD_UPDATE>`,
+      state.schema,
+      state.player.roomId,
+      [],
+      state.turn,
+      state.player.id
+    );
+    applyMutations(state, response.mutations);
+
+    expect(state.player.inventory).not.toContain("hall_clock");
+    expect(state.items.hall_clock?.location).toEqual({ kind: "room", roomId: state.player.roomId });
+    expect(state.items.hall_clock?.portable).toBe(false);
+  });
+
   test("can populate a newly generated room in the same update", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const response = parseDmResponse(
