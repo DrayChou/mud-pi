@@ -3,7 +3,7 @@ import type { Decider } from "../engine/decide.ts";
 import type { ProposalEnvelope } from "../types/proposals.ts";
 import type { WorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
-import { commitPreparedSettlement, prepareSettlement, settle } from "./settlement.ts";
+import { commitPreparedSettlement, prepareSettlement, settle, settleBatch } from "./settlement.ts";
 
 function state(): WorldState {
   return {
@@ -78,6 +78,72 @@ describe("settlement", () => {
     const committed = commitPreparedSettlement(live, prepared);
     expect(committed.accepted).toBe(false);
     expect(live.revision).toBe(4);
+  });
+
+  test("returns the prior settlement when the same proposal id is retried", () => {
+    const live = state();
+    const first = settle(live, proposal(), accepted([{ kind: "player_spoke", playerId: "player", roomId: "a", message: "hello" }]), context);
+    expect(first.accepted).toBe(true);
+    expect(live.revision).toBe(4);
+
+    let decidedAgain = false;
+    const retried = settle(
+      live,
+      { ...proposal(4), payload: { action: "changed" } },
+      (() => { decidedAgain = true; throw new Error("must not decide twice"); }) as Decider<{ action: string }, string>,
+      context,
+    );
+    expect(retried).toBe(first);
+    expect(decidedAgain).toBe(false);
+    expect(live.revision).toBe(4);
+  });
+
+  test("settles a batch from one observed revision and continues after sibling rejection", () => {
+    const live = state();
+    const result = settleBatch(live, {
+      batchId: "batch-1",
+      correlationId: "correlation-1",
+      source: { kind: "dm", id: "dm" },
+      expectedRevision: 3,
+      observedTurn: 7,
+      proposals: [
+        { proposalId: "batch-child-1", payload: { action: "first" } },
+        { proposalId: "batch-child-2", payload: { action: "reject" } },
+        { proposalId: "batch-child-3", payload: { action: "third" } },
+      ],
+    }, (snapshot, child) => child.payload.action === "reject"
+      ? { accepted: false, rejection: { code: "precondition_failed", safeMessage: "No.", diagnostic: "blocked", retryable: false }, events: [], warnings: [] }
+      : {
+          accepted: true,
+          result: child.payload.action,
+          events: [{ kind: "player_spoke", playerId: snapshot.player.id, roomId: snapshot.player.roomId, message: child.payload.action }],
+          warnings: [],
+        }, context);
+
+    expect(result.accepted).toBe(true);
+    if (!result.accepted) return;
+    expect(result.settlements.map((settlement) => settlement.accepted)).toEqual([true, false, true]);
+    expect(result.allAccepted).toBe(false);
+    expect(result.revisionBefore).toBe(3);
+    expect(result.revisionAfter).toBe(5);
+    expect(live.revision).toBe(5);
+  });
+
+  test("rejects a stale batch before deciding any child", () => {
+    const live = state();
+    let decisions = 0;
+    const result = settleBatch(live, {
+      batchId: "batch-stale",
+      correlationId: "correlation-stale",
+      source: { kind: "dm", id: "dm" },
+      expectedRevision: 2,
+      observedTurn: 7,
+      proposals: [{ proposalId: "stale-child", payload: { action: "never" } }],
+    }, (() => { decisions += 1; throw new Error("unreachable"); }) as Decider<{ action: string }, string>, context);
+
+    expect(result.accepted).toBe(false);
+    expect(decisions).toBe(0);
+    expect(live.revision).toBe(3);
   });
 
   test("accepted and rejected decisions preserve their result semantics", () => {

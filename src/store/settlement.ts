@@ -1,5 +1,10 @@
 import type { Decider, DecisionContext } from "../engine/decide.ts";
-import type { ProposalEnvelope, SettlementRejection, SettlementWarning } from "../types/proposals.ts";
+import type {
+  ProposalBatchEnvelope,
+  ProposalEnvelope,
+  SettlementRejection,
+  SettlementWarning,
+} from "../types/proposals.ts";
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
 import { EventInvariantError, evolve } from "./evolve.ts";
@@ -29,7 +34,29 @@ export type Settlement<TResult = unknown> =
       warnings: readonly [];
     };
 
+export type BatchSettlement<TResult = unknown> =
+  | {
+      accepted: true;
+      batchId: string;
+      correlationId: string;
+      revisionBefore: number;
+      revisionAfter: number;
+      settlements: Settlement<TResult>[];
+      allAccepted: boolean;
+    }
+  | {
+      accepted: false;
+      batchId: string;
+      correlationId: string;
+      revisionBefore: number;
+      revisionAfter: number;
+      settlements: readonly [];
+      rejection: SettlementRejection;
+    };
+
 let nextTransactionSequence = 0;
+const committedByState = new WeakMap<WorldState, Map<string, Settlement<unknown>>>();
+const activeBatchStates = new WeakSet<WorldState>();
 
 function transactionId(): string {
   nextTransactionSequence += 1;
@@ -148,5 +175,88 @@ export function settle<TProposal, TResult>(
   decider: Decider<TProposal, TResult>,
   context: Readonly<DecisionContext>,
 ): Settlement<TResult> {
-  return commitPreparedSettlement(state, prepareSettlement(state, proposal, decider, context));
+  const prior = committedByState.get(state)?.get(proposal.proposalId);
+  if (prior) return prior as Settlement<TResult>;
+
+  const settlement = commitPreparedSettlement(state, prepareSettlement(state, proposal, decider, context));
+  if (settlement.accepted) {
+    let committed = committedByState.get(state);
+    if (!committed) {
+      committed = new Map();
+      committedByState.set(state, committed);
+    }
+    committed.set(proposal.proposalId, settlement);
+  }
+  return settlement;
+}
+
+export function settleBatch<TProposal, TResult>(
+  state: WorldState,
+  batch: ProposalBatchEnvelope<TProposal>,
+  decider: Decider<TProposal, TResult>,
+  context: Readonly<DecisionContext>,
+): BatchSettlement<TResult> {
+  const revisionBefore = currentRevision(state);
+  if (batch.expectedRevision !== revisionBefore) {
+    return {
+      accepted: false,
+      batchId: batch.batchId,
+      correlationId: batch.correlationId,
+      revisionBefore,
+      revisionAfter: revisionBefore,
+      settlements: [],
+      rejection: {
+        code: "stale_revision",
+        safeMessage: "The world changed before those actions could be completed.",
+        diagnostic: `Expected batch revision ${batch.expectedRevision}, current revision is ${revisionBefore}.`,
+        details: { expectedRevision: batch.expectedRevision, currentRevision: revisionBefore },
+        retryable: true,
+      },
+    };
+  }
+  if (activeBatchStates.has(state)) {
+    return {
+      accepted: false,
+      batchId: batch.batchId,
+      correlationId: batch.correlationId,
+      revisionBefore,
+      revisionAfter: revisionBefore,
+      settlements: [],
+      rejection: {
+        code: "commit_failed",
+        safeMessage: "Those actions could not be settled at the same time.",
+        diagnostic: "A proposal batch is already active for this WorldState.",
+        retryable: true,
+      },
+    };
+  }
+
+  activeBatchStates.add(state);
+  const settlements: Settlement<TResult>[] = [];
+  try {
+    for (const child of batch.proposals) {
+      const proposal: ProposalEnvelope<TProposal> = {
+        proposalId: child.proposalId,
+        correlationId: batch.correlationId,
+        causationId: child.causationId,
+        source: batch.source,
+        expectedRevision: currentRevision(state),
+        observedTurn: batch.observedTurn,
+        payload: child.payload,
+      };
+      settlements.push(settle(state, proposal, decider, context));
+    }
+  } finally {
+    activeBatchStates.delete(state);
+  }
+
+  return {
+    accepted: true,
+    batchId: batch.batchId,
+    correlationId: batch.correlationId,
+    revisionBefore,
+    revisionAfter: currentRevision(state),
+    settlements,
+    allAccepted: settlements.every((settlement) => settlement.accepted),
+  };
 }
