@@ -16,7 +16,6 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/npc_moved":         return `NPC ${m.npcId} 移动到了 ${m.toRoomId}`;
     case "engine/npc_stat_changed":  return null; // covered by combatContext
     case "engine/npc_killed":        return null; // covered by combatContext
-    case "engine/npc_surrendered":   return `NPC ${m.npcId} 已投降`;
     case "engine/combat_started":    return null;
     case "engine/item_picked_up":    return `玩家拾取了 ${m.itemId}`;
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
@@ -40,7 +39,6 @@ function describeGameEvent(event: GameEvent): string {
     case "player_incapacitated": return `玩家在 ${event.roomId} 失去行动能力`;
     case "critical_npc_died": return `关键 NPC ${event.npcId} 死亡；策略=${event.deathPolicy}${event.notes ? `；说明=${event.notes}` : ""}`;
     case "npc_moved": return `NPC ${event.npcId} 从 ${event.fromRoomId} 移动到 ${event.toRoomId}`;
-    case "npc_surrendered": return `NPC ${event.npcId} 在 ${event.roomId} 投降`;
   }
 }
 
@@ -49,9 +47,6 @@ function formatNpcAction(action: NpcPublicAction): string {
   switch (action.verb) {
     case "say": return `${action.npcName}说：“${action.content}”`;
     case "move": return `${action.npcName}向${action.direction}移动到${action.toRoomId}`;
-    case "flee": return `${action.npcName}向${action.direction}逃到${action.toRoomId}`;
-    case "attack": return `${action.npcName}攻击${action.targetId}，造成${action.damage}点损耗`;
-    case "surrender": return `${action.npcName}投降`;
     case "wait": return `${action.npcName}保持沉默`;
   }
 }
@@ -183,7 +178,7 @@ export function buildDmPrompt(
       const statStr = poolKey
         ? ` (${poolDef!.label}: ${n.stats[poolKey] ?? 0}/${n.maxStats[`${poolKey}Max`] ?? poolDef!.max})`
         : "";
-      return `  ${n.name}${statStr}${n.combatState === "surrendered" ? " [已投降]" : ""}`;
+      return `  ${n.name}${statStr}`;
     });
     const npcBlock = npcsHere.length > 0 ? `\n在场:\n${npcLines.join("\n")}` : "";
     const itemsHere = Object.values(state.items).filter(
@@ -222,16 +217,16 @@ export function buildDmPrompt(
 
   // ── Combat context ──
   if (combatContext) {
-    const { npcName, playerDealt, npcDealt, npcKilled, attackStat, npcStatAfter, npcStatMax, playerStatAfter, playerStatMax } = combatContext;
-    const statDef = state.schema.defs.find((d) => d.key === attackStat);
-    const statLabel = statDef?.label ?? attackStat;
-    const npcStatus = npcKilled
-      ? `${npcName} 已被击败`
-      : `${npcName} 剩余 ${statLabel}: ${npcStatAfter}/${npcStatMax}`;
-    const counterLine = npcDealt > 0
-      ? `\n${npcName} 反击，玩家 ${statLabel} ${playerStatAfter}/${playerStatMax}`
-      : "";
-    parts.push(`[战斗结果]\n玩家对 ${npcName} 造成 ${playerDealt} 点${statLabel}损耗${counterLine}\n${npcStatus}`);
+    const statDef = state.schema.defs.find((def) => def.key === combatContext.poolKey);
+    const statLabel = statDef?.label ?? combatContext.poolKey;
+    parts.push(
+      `[自动战斗模拟结果]\n` +
+      `胜者：${combatContext.winner === "player" ? state.player.name : combatContext.npc.name}\n` +
+      `${state.player.name}：${statLabel} ${combatContext.player.poolBefore} → ${combatContext.player.poolAfter}/${combatContext.player.poolMax}，速度 ${combatContext.player.speed}\n` +
+      `${combatContext.npc.name}：${statLabel} ${combatContext.npc.poolBefore} → ${combatContext.npc.poolAfter}/${combatContext.npc.poolMax}，速度 ${combatContext.npc.speed}\n` +
+      `模拟 tick：${combatContext.ticks}；出手次数：${combatContext.actions.length}；风险：${combatContext.risk}\n` +
+      `战斗已经一次性结算。只需叙述结果和代价，不要再追加攻击、反击、逃跑或其他战斗状态修改。前端会根据结构化帧渲染进度条和出手动画。`
+    );
   }
 
   // ── Other engine events ──
@@ -246,7 +241,7 @@ export function buildDmPrompt(
   if (npcActions.length > 0) {
     const lines = npcActions.map((action) => `- ${formatNpcAction(action)}`);
     parts.push(
-      `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 的独立规则脑或持久 Pi Session，并已由 Engine 校验。你只能叙述其公开结果，不得改写或替它决定其他行动。`
+      `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 的持久 Pi Session，并已由 Engine 校验。你只能叙述其公开结果，不得改写或替它决定其他行动。`
     );
   }
 

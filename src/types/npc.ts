@@ -11,9 +11,6 @@ export interface NpcDecisionContext {
 export type NpcIntent =
   | { verb: "say"; content: string }
   | { verb: "move"; direction: string }
-  | { verb: "attack"; targetId: string }
-  | { verb: "flee"; direction: string }
-  | { verb: "surrender" }
   | { verb: "wait" };
 
 export interface NpcDecision {
@@ -25,13 +22,11 @@ export interface NpcDecision {
 export interface NpcPublicAction {
   npcId: string;
   npcName: string;
-  verb: "say" | "move" | "attack" | "flee" | "surrender" | "wait";
+  verb: "say" | "move" | "wait";
   content?: string;
   direction?: string;
   fromRoomId?: string;
   toRoomId?: string;
-  targetId?: string;
-  damage?: number;
   succeeded: boolean;
   reason?: string;
 }

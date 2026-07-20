@@ -176,20 +176,6 @@ describe("deriveGameEvents", () => {
     ]);
   });
 
-  test("derives an authoritative NPC surrender event", async () => {
-    const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
-    const after = structuredClone(before);
-    const mutations: AnyMutation[] = [{ kind: "engine/npc_surrendered", npcId: "ticket_clerk" }];
-    applyMutations(after, mutations);
-
-    expect(deriveGameEvents(before, mutations, after)).toEqual([{
-      kind: "npc_surrendered",
-      turn: 1,
-      npcId: "ticket_clerk",
-      roomId: "StationHall",
-    }]);
-  });
-
   test("derives attack and defeat events", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

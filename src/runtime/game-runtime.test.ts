@@ -85,11 +85,11 @@ describe("GameRuntime", () => {
     expect(state.player.roomId).toBe("Platform");
   });
 
-  test("settles rule NPC retaliation as an independent action after the player attack", async () => {
+  test("returns one structured auto-combat result without waking NPC sessions", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.roomId = "Compartment3";
-    const hpBefore = state.player.stats.hp!;
     let capturedPrompt = "";
+    let npcWakeups = 0;
     const runtime = new GameRuntime({
       state,
       storyOutcomes: [],
@@ -100,15 +100,20 @@ describe("GameRuntime", () => {
           return `<NARRATION>阴影在你的攻击后反扑。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>`;
         },
       },
-      npcSessions: { respondToPlayerSay: async () => [], respondToEvents: async () => [] },
+      npcSessions: {
+        respondToPlayerSay: async () => [],
+        respondToEvents: async () => { npcWakeups += 1; return []; },
+      },
       persist: false,
     });
 
-    await runtime.processInput("攻击阴影");
+    const turn = await runtime.processInput("攻击阴影");
 
-    expect(state.player.stats.hp).toBeLessThan(hpBefore);
-    expect(capturedPrompt).toContain("车厢阴影攻击player1");
-    expect(capturedPrompt).toContain("player1 的 hp 受到");
+    expect(state.npcs.shadow?.alive).toBe(false);
+    expect(turn.outputs.some((output) => output.kind === "combat_result")).toBe(true);
+    expect(npcWakeups).toBe(0);
+    expect(capturedPrompt).toContain("[自动战斗模拟结果]");
+    expect(capturedPrompt).toContain("战斗已经一次性结算");
   });
 
   test("exposes a detached snapshot for adapters", async () => {

@@ -154,6 +154,18 @@ export class MudTuiComponent implements Component, Focusable {
         if (room) this.log.push(BOLD(YELLOW(`[${room.title}]`)));
         break;
       }
+      case "combat_warning":
+        this.log.push(RED(`⚠ ${output.text}`));
+        break;
+      case "combat_result": {
+        const result = output.result;
+        this.log.push(BOLD(
+          `战斗模拟：${result.player.name} ${result.player.poolBefore}→${result.player.poolAfter} ｜ ` +
+          `${result.npc.name} ${result.npc.poolBefore}→${result.npc.poolAfter} ｜ ` +
+          `胜者：${result.winner === "player" ? result.player.name : result.npc.name}`
+        ));
+        break;
+      }
     }
   }
 
@@ -215,7 +227,7 @@ export class MudTuiComponent implements Component, Focusable {
     return [
       BOLD(room?.title ?? state.player.roomId),
       `出口: ${room ? Object.keys(room.exits).join(" ") || "无" : "无"}`,
-      `NPC: ${npcs.map((npc) => `${npc.name}${npc.combatState === "surrendered" ? "(投降)" : ""}`).join("、") || "无"}`,
+      `NPC: ${npcs.map((npc) => npc.name).join("、") || "无"}`,
       `物品: ${items.map((item) => item.name).join("、") || "无"}`,
       "",
       BOLD("地图"),

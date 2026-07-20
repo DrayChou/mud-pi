@@ -111,7 +111,7 @@ bun start --telnet --host 0.0.0.0 --port 4001 --save <存档ID>
 
 TUI 在宽终端中显示玩家/目标、叙事、房间/地图三个面板；窄终端自动切换为纵向布局。按 Enter 发送指令，Esc 或 Ctrl+C 保存并退出。传统逐行 CLI 仍是默认 adapter。
 
-Telnet adapter 第一版默认只监听本机并允许一个控制客户端连接；如需远程连接可显式传入 `--host 0.0.0.0`，并自行配置防火墙。支持 ANSI 文本及 GMCP：`Char.Vitals`、`Room.Info`、`MudPi.Inventory`、`MudPi.Objectives`、`MudPi.Map`、`MudPi.Outcome`。可使用 Mudlet、TinTin++ 或普通 telnet 客户端连接；服务端按 Ctrl+C 保存并停止。
+Telnet adapter 第一版默认只监听本机并允许一个控制客户端连接；如需远程连接可显式传入 `--host 0.0.0.0`，并自行配置防火墙。支持 ANSI 文本及 GMCP：`Char.Vitals`、`Room.Info`、`MudPi.Inventory`、`MudPi.Objectives`、`MudPi.Map`、`MudPi.Combat`、`MudPi.Outcome`。可使用 Mudlet、TinTin++ 或普通 telnet 客户端连接；服务端按 Ctrl+C 保存并停止。
 
 新游戏启动后会先进入剧本选择流程；选择剧本后再进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。玩家姓名限制为 1-16 个字符；背景、作品参考和人物描述请写到“角色描述”里。非交互环境会自动使用 `.env` 中的 `WORLD_PACK`。
 
@@ -155,7 +155,7 @@ say <内容>    说话（DM 会让 NPC 响应）
 get <物品>    拾取
 drop <物品>   丢弃
 equip <物品>  装备
-attack <目标> 攻击（玩家行动先结算，敌人由独立规则/Session 决定反击、逃跑或投降）
+attack <目标> 自动模拟整场战斗（速度行动条；一次性结算并输出可渲染帧）
 inv           查看背包
 status        查看状态
 help          显示帮助

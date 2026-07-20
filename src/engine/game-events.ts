@@ -141,18 +141,6 @@ export function deriveGameEvents(
         break;
       }
 
-      case "engine/npc_surrendered": {
-        const npc = after.npcs[mutation.npcId];
-        if (!npc || npc.combatState !== "surrendered" || before.npcs[mutation.npcId]?.combatState === "surrendered") break;
-        events.push({
-          kind: "npc_surrendered",
-          turn,
-          npcId: mutation.npcId,
-          roomId: npc.roomId,
-        });
-        break;
-      }
-
       case "engine/npc_killed":
       case "dm/npc_killed": {
         const npc = before.npcs[mutation.npcId] ?? after.npcs[mutation.npcId];

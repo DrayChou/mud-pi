@@ -117,18 +117,18 @@
 - 售票员能对玩家带回车票/线索等客观事件作出持续响应。
 - 不在现场的 NPC 不知道未传播的私有事件。
 
-### P2 — Combat Turn Refactor
+### P2 — Deterministic Auto Combat
 
-目标：消除玩家攻击后同步自动反击的双重行动问题。
+目标：不实现逐回合战斗操作；根据双方数据一次性模拟完整战斗，前端只负责渲染进度条和结果。
 
-工作项（已完成第一阶段）：
+工作项（已完成）：
 
-- 玩家 `attack` 只结算玩家攻击，不再在 `cmdAttack()` 中同步自动反击。
-- NPC 可通过规则脑或持久 Session 提出 `attack/flee/surrender/wait`；移动和说话意图继续兼容。
-- Engine 校验回合、房间、可见角色、攻击目标、玩家生命周期和出口后再结算 NPC 战斗意图。
-- 规则控制的敌人收到已结算攻击事件后才提出反击；`station-dream` 的阴影和迷失旅客已切换为规则控制。
-- 投降写入权威 `combatState` 并产生 `npc_surrendered` 事件；逃跑使用受控移动 Mutation。
-- NPC 攻击通过独立 `engine/player_stat_changed` 更新生命周期，玩家死亡/失能继续由 Stats Schema 确定。
+- `attack` 启动一次确定性模拟，直接计算双方最终生命、胜者和风险，不再唤醒 NPC Session 处理逐次攻击。
+- 双方按 `speed` 向 100 点行动条累积；行动条满的角色出手，伤害仍由攻击与防御计算。
+- 模拟返回每次出手的 tick、行动者、目标、伤害和目标剩余生命，作为纯展示帧；权威状态只在模拟结束后一次性应用。
+- 预测失败时输出 `combat_warning`，随后输出结构化 `combat_result`；不会要求玩家管理逐回合技能或反击。
+- 玩家死亡/失能继续由 Stats Schema 的 `onDeplete` 确定；NPC 生命耗尽仍产生击败和关键 NPC 死亡事件。
+- DM 只叙述模拟结果和代价，不得在结果后追加额外攻击或战斗 Mutation。
 
 ### P2 — Deterministic Procedural World
 

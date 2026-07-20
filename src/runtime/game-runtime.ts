@@ -3,7 +3,7 @@ import { buildDmPrompt } from "../ai/dm-prompt.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
 import { deriveGameEvents } from "../engine/game-events.ts";
-import { buildRuleNpcDecisions, executeNpcDecision } from "../engine/npc-intents.ts";
+import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { applyMutation, applyMutations } from "../store/apply.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
@@ -106,7 +106,9 @@ export class GameRuntime {
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: initialSpeechTarget } }
         : undefined
     );
-    const sessionDecisions = this.npcSessions.respondToEvents
+    const sessionDecisions = result.combatContext
+      ? []
+      : this.npcSessions.respondToEvents
       ? await this.npcSessions.respondToEvents(this.state, engineEvents, 2)
       : parsed.verb === "say"
         ? await this.npcSessions.respondToPlayerSay(
@@ -115,10 +117,7 @@ export class GameRuntime {
             parsed.args.target
           )
         : [];
-    const npcDecisions = [
-      ...buildRuleNpcDecisions(this.state, engineEvents),
-      ...sessionDecisions,
-    ];
+    const npcDecisions = sessionDecisions;
     const npcActions: NpcPublicAction[] = [];
     const npcMutations: EngineMutation[] = [];
     for (const decision of npcDecisions) {
@@ -209,7 +208,22 @@ export class GameRuntime {
       });
     }
 
-    const outputs: GameOutput[] = [{ kind: "narration", text: dmResponse.narration }];
+    const outputs: GameOutput[] = [];
+    if (result.combatContext?.risk === "likely_failure") {
+      outputs.push({
+        kind: "combat_warning",
+        risk: "likely_failure",
+        text: `数据模拟显示你很可能败给${result.combatContext.npc.name}。`,
+      });
+    } else if (result.combatContext?.risk === "dangerous") {
+      outputs.push({
+        kind: "combat_warning",
+        risk: "dangerous",
+        text: `这场战斗风险很高，即使获胜也可能付出很大代价。`,
+      });
+    }
+    if (result.combatContext) outputs.push({ kind: "combat_result", result: result.combatContext });
+    outputs.push({ kind: "narration", text: dmResponse.narration });
     for (const mutation of progressMutations) {
       if (mutation.kind !== "engine/objective_completed") continue;
       const objective = this.state.objectives[mutation.objectiveId];

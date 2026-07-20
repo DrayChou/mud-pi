@@ -6,22 +6,10 @@
 import type { WorldState } from "../types/world.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
-import { calculateDamage, resolveCombatSchema } from "./combat.ts";
+import { simulateCombat, type CombatSimulationResult } from "./combat.ts";
 import { buildMapSnapshot, formatTextMap } from "./map.ts";
 
-export interface CombatContext {
-  npcId: string;
-  npcName: string;
-  playerDealt: number;
-  npcDealt: number;
-  npcKilled: boolean;
-  // stat snapshots for DM narration — schema-driven
-  attackStat: string;   // which stat was used (e.g. "hp", "san")
-  npcStatAfter: number;
-  npcStatMax: number;
-  playerStatAfter: number;
-  playerStatMax: number;
-}
+export type CombatContext = CombatSimulationResult;
 
 export interface CommandResult {
   mutations: EngineMutation[];
@@ -154,37 +142,19 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
   );
   if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
 
-  const combat = resolveCombatSchema(state.schema);
-  const playerDealt = calculateDamage(state.player.stats, npc.stats, combat, 5);
-  const npcPoolCur = npc.stats[combat.poolKey] ?? 0;
-  const npcPoolAfter = Math.max(0, npcPoolCur - playerDealt);
-  const npcKilled = npcPoolAfter <= 0;
+  const combat = simulateCombat(state.schema, state.player, npc);
+  const mutations: EngineMutation[] = [{ kind: "engine/combat_started", npcId: npc.id }];
+  const npcDelta = combat.npc.poolAfter - combat.npc.poolBefore;
+  const playerDelta = combat.player.poolAfter - combat.player.poolBefore;
+  if (npcDelta !== 0) {
+    mutations.push({ kind: "engine/npc_stat_changed", npcId: npc.id, stat: combat.poolKey, delta: npcDelta });
+  }
+  if (playerDelta !== 0) {
+    mutations.push({ kind: "engine/player_stat_changed", stat: combat.poolKey, delta: playerDelta });
+  }
+  if (combat.npc.poolAfter <= 0) mutations.push({ kind: "engine/npc_killed", npcId: npc.id });
 
-  const mutations: EngineMutation[] = [
-    { kind: "engine/combat_started", npcId: npc.id },
-    { kind: "engine/npc_stat_changed", npcId: npc.id, stat: combat.poolKey, delta: -playerDealt },
-  ];
-  if (npcKilled) mutations.push({ kind: "engine/npc_killed", npcId: npc.id });
-
-  // NPC retaliation is a separate rule/session decision later in the turn.
-  const playerPoolMax = state.player.maxStats[`${combat.poolKey}Max`] ?? combat.defaultPoolMax;
-  const playerPoolAfter = state.player.stats[combat.poolKey] ?? 0;
-
-  return {
-    mutations,
-    combatContext: {
-      npcId: npc.id,
-      npcName: npc.name,
-      playerDealt,
-      npcDealt: 0,
-      npcKilled,
-      attackStat: combat.poolKey,
-      npcStatAfter: npcPoolAfter,
-      npcStatMax: npc.maxStats[`${combat.poolKey}Max`] ?? combat.defaultPoolMax,
-      playerStatAfter: playerPoolAfter,
-      playerStatMax: playerPoolMax,
-    },
-  };
+  return { mutations, combatContext: combat };
 }
 
 // ── Info commands ──────────────────────────────────────────────────────────

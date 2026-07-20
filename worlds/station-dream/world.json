@@ -68,13 +68,24 @@
         "display": "number",
         "onDeplete": "narrative",
         "role": "defense"
+      },
+      {
+        "key": "speed",
+        "label": "速度",
+        "min": 1,
+        "max": 50,
+        "default": 10,
+        "display": "number",
+        "onDeplete": "narrative",
+        "role": "speed"
       }
     ]
   },
   "playerStats": {
     "hp": 100,
     "attack": 8,
-    "defense": 2
+    "defense": 2,
+    "speed": 10
   },
   "defaultProtagonistId": "lost_commuter",
   "protagonists": [
@@ -87,7 +98,8 @@
       "initialStats": {
         "hp": 100,
         "attack": 6,
-        "defense": 3
+        "defense": 3,
+        "speed": 9
       },
       "initialInventory": [
         "ticket"
@@ -103,7 +115,8 @@
       "initialStats": {
         "hp": 100,
         "attack": 9,
-        "defense": 2
+        "defense": 2,
+        "speed": 12
       },
       "initialInventory": [],
       "openingHook": "售票员看见你时，第一次从窗口后抬起了头。"
@@ -199,12 +212,12 @@
       "name": "车厢阴影",
       "roomId": "Compartment3",
       "personality": "黑暗中扭曲的人形轮廓，沉默而充满敌意，是某种迷失意志的化身",
-      "controller": "rule",
       "hostile": true,
       "stats": {
         "hp": 30,
         "attack": 8,
-        "defense": 2
+        "defense": 2,
+        "speed": 8
       }
     },
     {
@@ -212,12 +225,12 @@
       "name": "迷失旅客",
       "roomId": "Compartment2",
       "personality": "茫然徘徊的灵魂，眼中只剩空洞，有时会攻击靠近的人",
-      "controller": "rule",
       "hostile": true,
       "stats": {
         "hp": 20,
         "attack": 5,
-        "defense": 0
+        "defense": 0,
+        "speed": 6
       }
     }
   ],

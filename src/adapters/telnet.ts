@@ -156,6 +156,20 @@ function sendGameOutput(
       }
       break;
     }
+    case "combat_warning":
+      sendText(socket, `\x1b[1;31m⚠ ${output.text}\x1b[0m`);
+      break;
+    case "combat_result": {
+      const result = output.result;
+      if (socket.data.gmcpEnabled) sendGmcp(socket, "MudPi.Combat", result);
+      sendText(socket,
+        `\x1b[1m战斗模拟结果\x1b[0m\r\n` +
+        `${result.player.name}: ${result.player.poolBefore} → ${result.player.poolAfter}\r\n` +
+        `${result.npc.name}: ${result.npc.poolBefore} → ${result.npc.poolAfter}\r\n` +
+        `胜者: ${result.winner === "player" ? result.player.name : result.npc.name}`
+      );
+      break;
+    }
   }
 }
 

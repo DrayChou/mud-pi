@@ -35,7 +35,7 @@ export interface StatDef {
   // For combat: which stat the entity uses to deal/receive damage
   // "attack" stat contributes to outgoing damage
   // "defense" stat reduces incoming damage
-  role?: "pool" | "attack" | "defense";
+  role?: "pool" | "attack" | "defense" | "speed";
 }
 
 export interface StatsSchema {
@@ -105,7 +105,6 @@ export interface NpcDef {
   stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
   maxStats: Stats;    // e.g. { hpMax: 30 }
   hostile: boolean;
-  combatState?: "active" | "surrendered";
 }
 
 export type ItemLocation =

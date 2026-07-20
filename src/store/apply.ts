@@ -98,7 +98,6 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       const npc = state.npcs[mut.npcId];
       if (npc) {
         npc.alive = false;
-        npc.combatState = "active";
         // Zero out all pool stats
         for (const def of state.schema.defs) {
           if (def.role === "pool") npc.stats[def.key] = 0;
@@ -107,17 +106,7 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
-    case "engine/npc_surrendered": {
-      const npc = state.npcs[mut.npcId];
-      if (npc?.alive) npc.combatState = "surrendered";
-      break;
-    }
-
-    case "engine/combat_started": {
-      const npc = state.npcs[mut.npcId];
-      if (npc?.alive) npc.combatState = "active";
-      break;
-    }
+    case "engine/combat_started": break; // simulation boundary marker
 
     case "engine/item_picked_up": {
       const item = state.items[mut.itemId];

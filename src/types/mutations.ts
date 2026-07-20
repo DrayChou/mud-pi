@@ -13,7 +13,6 @@ export type EngineMutation =
   | { kind: "engine/npc_moved"; npcId: string; toRoomId: string }
   | { kind: "engine/npc_stat_changed"; npcId: string; stat: string; delta: number }
   | { kind: "engine/npc_killed"; npcId: string }
-  | { kind: "engine/npc_surrendered"; npcId: string }
   | { kind: "engine/combat_started"; npcId: string }
   | { kind: "engine/item_picked_up"; itemId: string }
   | { kind: "engine/item_dropped"; itemId: string; roomId: string }
@@ -58,13 +57,11 @@ export interface TurnRecord {
   npcActions?: Array<{
     npcId: string;
     npcName: string;
-    verb: "say" | "move" | "attack" | "flee" | "surrender" | "wait";
+    verb: "say" | "move" | "wait";
     content?: string;
     direction?: string;
     fromRoomId?: string;
     toRoomId?: string;
-    targetId?: string;
-    damage?: number;
     succeeded: boolean;
     reason?: string;
   }>;
