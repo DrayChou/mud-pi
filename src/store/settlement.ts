@@ -169,23 +169,48 @@ export function commitPreparedSettlement<TResult>(
   return settlement;
 }
 
+function rememberSettlement(state: WorldState, proposalId: string, settlement: Settlement<unknown>): void {
+  let priorSettlements = settlementsByState.get(state);
+  if (!priorSettlements) {
+    priorSettlements = new Map();
+    settlementsByState.set(state, priorSettlements);
+  }
+  priorSettlements.set(proposalId, settlement);
+}
+
+function settleInternal<TProposal, TResult>(
+  state: WorldState,
+  proposal: ProposalEnvelope<TProposal>,
+  decider: Decider<TProposal, TResult>,
+  context: Readonly<DecisionContext>,
+  allowDuringBatch: boolean,
+): Settlement<TResult> {
+  const prior = settlementsByState.get(state)?.get(proposal.proposalId);
+  if (prior) return prior as Settlement<TResult>;
+
+  if (activeBatchStates.has(state) && !allowDuringBatch) {
+    const blocked = rejected<TResult>(transactionId(), state, proposal, {
+      code: "commit_failed",
+      safeMessage: "That action could not be settled at the same time.",
+      diagnostic: "An unrelated proposal attempted to interleave with an active batch.",
+      retryable: true,
+    });
+    rememberSettlement(state, proposal.proposalId, blocked);
+    return blocked;
+  }
+
+  const settlement = commitPreparedSettlement(state, prepareSettlement(state, proposal, decider, context));
+  rememberSettlement(state, proposal.proposalId, settlement);
+  return settlement;
+}
+
 export function settle<TProposal, TResult>(
   state: WorldState,
   proposal: ProposalEnvelope<TProposal>,
   decider: Decider<TProposal, TResult>,
   context: Readonly<DecisionContext>,
 ): Settlement<TResult> {
-  const prior = settlementsByState.get(state)?.get(proposal.proposalId);
-  if (prior) return prior as Settlement<TResult>;
-
-  const settlement = commitPreparedSettlement(state, prepareSettlement(state, proposal, decider, context));
-  let priorSettlements = settlementsByState.get(state);
-  if (!priorSettlements) {
-    priorSettlements = new Map();
-    settlementsByState.set(state, priorSettlements);
-  }
-  priorSettlements.set(proposal.proposalId, settlement);
-  return settlement;
+  return settleInternal(state, proposal, decider, context, false);
 }
 
 export function settleBatch<TProposal, TResult>(
@@ -242,7 +267,7 @@ export function settleBatch<TProposal, TResult>(
         observedTurn: batch.observedTurn,
         payload: child.payload,
       };
-      settlements.push(settle(state, proposal, decider, context));
+      settlements.push(settleInternal(state, proposal, decider, context, true));
     }
   } finally {
     activeBatchStates.delete(state);

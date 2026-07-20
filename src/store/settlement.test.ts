@@ -152,6 +152,38 @@ describe("settlement", () => {
     expect(live.revision).toBe(5);
   });
 
+  test("prevents an unrelated settlement from interleaving with an active batch", () => {
+    const live = state();
+    let externalAccepted: boolean | undefined;
+    const result = settleBatch(live, {
+      batchId: "batch-locked",
+      correlationId: "correlation-locked",
+      source: { kind: "dm", id: "dm" },
+      expectedRevision: 3,
+      observedTurn: 7,
+      proposals: [{ proposalId: "locked-child", payload: { action: "inside" } }],
+    }, (snapshot, child) => {
+      const external = settle(
+        live,
+        { ...proposal(3), proposalId: "external-during-batch" },
+        accepted([{ kind: "player_spoke", playerId: "player", roomId: "a", message: "external" }]),
+        context,
+      );
+      externalAccepted = external.accepted;
+      return {
+        accepted: true,
+        result: child.payload.action,
+        events: [{ kind: "player_spoke", playerId: snapshot.player.id, roomId: snapshot.player.roomId, message: child.payload.action }],
+        warnings: [],
+      };
+    }, context);
+
+    expect(result.accepted).toBe(true);
+    expect(externalAccepted).toBe(false);
+    expect(live.revision).toBe(4);
+    if (result.accepted) expect(result.settlements[0]?.accepted).toBe(true);
+  });
+
   test("rejects a stale batch before deciding any child", () => {
     const live = state();
     let decisions = 0;
