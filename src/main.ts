@@ -8,13 +8,11 @@ import { createInterface as createPromptInterface } from "node:readline/promises
 import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
 import { listWorldPacks, loadStoryOutcomes, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
-import { loadState, loadTurns, saveState, appendTurn, initSave } from "./store/persist.ts";
+import { loadState, loadTurns, saveState, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
-import { applyMutations, applyMutation } from "./store/apply.ts";
-import { executeCommand } from "./engine/commands.ts";
-import { executeNpcDecision } from "./engine/npc-intents.ts";
-import { deriveGameEvents } from "./engine/game-events.ts";
-import { evaluateProgress } from "./engine/progress.ts";
+import { applyMutations } from "./store/apply.ts";
+import { GameRuntime } from "./runtime/game-runtime.ts";
+import type { GameOutput } from "./runtime/game-output.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
@@ -22,9 +20,7 @@ import { buildDmPrompt, buildDmRecoveryPrompt } from "./ai/dm-prompt.ts";
 import { parseDmResponse } from "./ai/dm-parser.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
 import { backendLabel } from "./ai/backend.ts";
-import type { NpcPublicAction } from "./types/npc.ts";
-import type { ProtagonistProfile, StoryOutcomeDef, WorldState } from "./types/world.ts";
-import type { EngineMutation } from "./types/mutations.ts";
+import type { ProtagonistProfile, WorldState } from "./types/world.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
 
@@ -370,6 +366,15 @@ async function main() {
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);
   }
 
+  const runtime = new GameRuntime({
+    state,
+    storyOutcomes,
+    interpreter,
+    dm,
+    npcSessions,
+    dmModelLabel: backendLabel(config, "dm"),
+  });
+
   // ── Input loop ─────────────────────────────────────────────
   const rl = createLineInterface({
     input: process.stdin,
@@ -385,7 +390,7 @@ async function main() {
     if (!input) { rl.resume(); rl.prompt(); return; }
 
     try {
-      await processInput(state, input, dm, interpreter, npcSessions, storyOutcomes);
+      await processInput(runtime, state, input);
     } catch (e: any) {
       print(`\x1b[31m[错误] ${e.message}\x1b[0m`);
     }
@@ -407,174 +412,48 @@ async function main() {
 // ── Process one player input ───────────────────────────────────────────────
 
 async function processInput(
+  runtime: GameRuntime,
   state: WorldState,
-  input: string,
-  dm: DmSession,
-  interpreter: Interpreter,
-  npcSessions: NpcSessionRegistry,
-  storyOutcomes: StoryOutcomeDef[]
+  input: string
 ): Promise<void> {
-  // 1. Parse input
-  const parsed = await interpreter.parse(input);
-
-  // 2. Execute engine command
-  const result = executeCommand(state, parsed);
-
-  // 3. Direct replies bypass DM (errors, inv, status, help)
-  if (result.directReply !== undefined) {
-    if (result.directReply === "__QUIT__") {
-      print("存档已保存，再见。");
-      await saveState(state);
-      dm.dispose();
-      npcSessions.dispose();
-      process.exit(0);
-    }
-    print(result.directReply);
-    return;
-  }
-
-  // 4. Apply engine mutations (before DM sees the world)
-  const stateBeforeTurn = structuredClone(state);
-  const engineMuts = result.mutations as EngineMutation[];
-  applyMutations(state, engineMuts);
-
-  // 5. Let an addressed important NPC respond through its own persistent session.
-  const npcDecisions = parsed.verb === "say"
-    ? await npcSessions.respondToPlayerSay(
-        state,
-        parsed.args.message ?? input,
-        parsed.args.target
-      )
-    : [];
-  const npcActions: NpcPublicAction[] = [];
-  const npcMutations: EngineMutation[] = [];
-  for (const decision of npcDecisions) {
-    const npcResult = executeNpcDecision(state, decision);
-    applyMutations(state, npcResult.mutations);
-    npcMutations.push(...npcResult.mutations);
-    npcActions.push(npcResult.action);
-  }
-
-  // 6. Settle Engine/NPC events and objectives before the DM judges the turn.
-  const speechTarget = parsed.verb === "say"
-    ? parsed.args.target
-      ? Object.values(stateBeforeTurn.npcs).find(
-          (npc) =>
-            npc.roomId === stateBeforeTurn.player.roomId &&
-            (npc.id.includes(parsed.args.target!) || npc.name.includes(parsed.args.target!))
-        )?.id
-      : npcDecisions[0]?.npcId
-    : undefined;
-  const preDmEvents = deriveGameEvents(
-    stateBeforeTurn,
-    [...engineMuts, ...npcMutations],
-    state,
-    parsed.verb === "say"
-      ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
-      : undefined
-  );
-  const preDmProgressMutations = evaluateProgress(state, preDmEvents);
-  applyMutations(state, preDmProgressMutations);
-
-  // 7. Ask DM with this turn's authoritative events and newly completed objectives.
-  const stateBeforeDm = structuredClone(state);
   process.stdout.write("\x1b[2m");
-  const dmPrompt = buildDmPrompt(
-    state,
-    input,
-    [...engineMuts, ...preDmProgressMutations],
-    result.combatContext,
-    npcActions,
-    storyOutcomes,
-    preDmEvents
-  );
-  const dmRaw = await dm.ask(dmPrompt);
+  const result = await runtime.processInput(input);
   process.stdout.write("\x1b[0m");
 
-  // 8. Parse DM response. Story outcome proposals are applied only after post-DM settlement.
-  const dmResponse = parseDmResponse(
-    dmRaw,
-    state.schema,
-    state.player.roomId,
-    storyOutcomes,
-    state.turn
-  );
-  const outcomeMutations = dmResponse.mutations.filter(
-    (mutation) => mutation.kind === "dm/outcome_reached"
-  );
-  const worldDmMutations = dmResponse.mutations.filter(
-    (mutation) => mutation.kind !== "dm/outcome_reached"
-  );
-  applyMutations(state, worldDmMutations);
-
-  // A DM may register a concrete object introduced by earlier narration only when
-  // the player first tries to take it. Retry the validated pickup after registration.
-  const postDmEngineMuts: EngineMutation[] = [];
-  if (parsed.verb === "get" && !engineMuts.some((m) => m.kind === "engine/item_picked_up")) {
-    const retry = executeCommand(state, parsed);
-    if (retry.directReply === undefined) {
-      postDmEngineMuts.push(...retry.mutations);
-      applyMutations(state, retry.mutations);
-    }
+  if (result.quit) {
+    print("存档已保存，再见。");
+    process.exit(0);
   }
 
-  const postDmEvents = deriveGameEvents(
-    stateBeforeDm,
-    [...worldDmMutations, ...postDmEngineMuts],
-    state
-  );
-  const postDmProgressMutations = evaluateProgress(state, postDmEvents);
-  applyMutations(state, postDmProgressMutations);
-  applyMutations(state, outcomeMutations);
+  for (const output of result.outputs) renderGameOutput(output, state);
+  if (!result.turnAdvanced) return;
 
-  const gameEvents = [...preDmEvents, ...postDmEvents];
-  const progressMutations = [...preDmProgressMutations, ...postDmProgressMutations];
-
-  // 9. Advance turn
-  applyMutation(state, { kind: "engine/turn_advanced" });
-
-  // 10. Persist
-  await saveState(state);
-  await appendTurn(state.worldId, {
-    turn: state.turn,
-    ts: Date.now(),
-    playerInput: input,
-    parsed: {
-      verb: parsed.verb,
-      args: parsed.args,
-      confidence: parsed.confidence,
-    },
-    engineMutations: [...engineMuts, ...postDmEngineMuts, ...progressMutations],
-    dmMutations: dmResponse.mutations,
-    gameEvents,
-    npcActions,
-    narration: dmResponse.narration,
-    dmModel: "dm",
-  });
-
-  // 11. Display narration
-  print(`\n\x1b[32m${dmResponse.narration}\x1b[0m`);
-  for (const mutation of progressMutations) {
-    if (mutation.kind === "engine/objective_completed") {
-      const objective = state.objectives[mutation.objectiveId];
-      if (objective) print(`\x1b[33m✓ 目标完成：${objective.title}\x1b[0m`);
-    }
-  }
-  if (!stateBeforeTurn.outcome && state.outcome) {
-    print(`\n\x1b[1;35m故事结果：${state.outcome.title}\x1b[0m`);
-    print(state.outcome.summary);
-  }
-
-  // Show room header after movement
-  const moved = engineMuts.some((m) => m.kind === "engine/player_moved");
-  if (moved) printRoom(state);
-
-  // Build a short stat summary using schema
   const statSummary = state.schema.defs
-    .filter((d) => d.role === 'pool' && d.display !== 'hidden')
-    .map((d) => `${d.label}: ${state.player.stats[d.key] ?? d.default}/${state.player.maxStats[d.key + 'Max'] ?? d.max}`)
-    .join(' | ');
-  print(`\x1b[2m[${statSummary} | 第 ${state.turn} 轮]\x1b[0m`);
+    .filter((def) => def.role === "pool" && def.display !== "hidden")
+    .map((def) => `${def.label}: ${state.player.stats[def.key] ?? def.default}/${state.player.maxStats[`${def.key}Max`] ?? def.max}`)
+    .join(" | ");
+  print(`\x1b[2m[${statSummary} | ${state.player.lifecycle} | 第 ${state.turn} 轮]\x1b[0m`);
+}
+
+function renderGameOutput(output: GameOutput, state: WorldState): void {
+  switch (output.kind) {
+    case "direct_reply":
+      print(output.text);
+      break;
+    case "narration":
+      print(`\n\x1b[32m${output.text}\x1b[0m`);
+      break;
+    case "objective_completed":
+      print(`\x1b[33m✓ 目标完成：${output.title}\x1b[0m`);
+      break;
+    case "story_outcome":
+      print(`\n\x1b[1;35m故事结果：${output.outcome.title}\x1b[0m`);
+      print(output.outcome.summary);
+      break;
+    case "room_changed":
+      printRoom(state);
+      break;
+  }
 }
 
 main().catch((e) => {
