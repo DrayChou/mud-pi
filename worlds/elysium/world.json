@@ -263,5 +263,6 @@
       "defense": "physique",
       "luck": "psyche"
     }
-  }
+  },
+  "conflictScript": "./conflict.ts"
 }

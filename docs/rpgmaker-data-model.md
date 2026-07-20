@@ -87,10 +87,18 @@ Effect 是使用物品时提交给世界规则脚本的声明，不应由 DM 直
 - 冲突参数绑定保存在每个世界包的 `conflictRules.parameters`，Engine 不再按属性名称或 role 猜测；
 - UI、Prompt 和状态命令展示全部世界包可见参数，不再只找所谓 pool。
 
+世界包冲突脚本阶段也已完成：
+
+- 每个内置世界都有自己的 `worlds/{pack}/conflict.ts`；
+- `world.json` 通过 `conflictScript: "./conflict.ts"` 指定脚本；
+- 未声明时使用本地 `defaultConflictResolver`；
+- 脚本只收到结构化克隆的 Schema、actor、target、规则、options 和 seed；
+- Engine 校验脚本返回的实体 ID、有限数值、非负结果和展示帧上限，再生成 Mutation；
+- 脚本路径必须是世界目录内的 `./` 相对路径，不能使用 `../` 或远程 URL。
+
 下一阶段：
 
-1. 将冲突计算移入世界包 `conflict.ts`；
-2. 增加世界包脚本加载器和只读上下文；
-3. 增加 `use` 命令，由世界脚本解释 ItemEffect；
-4. 将角色、职业、状态、装备的 traits 聚合为统一查询接口；
-5. 用通用 `conflict_result` 替换目前偏战斗语义的输出类型。
+1. 增加 `use` 命令，由世界脚本解释 ItemEffect；
+2. 将角色、职业、状态、装备的 traits 聚合为统一查询接口；
+3. 用通用 `conflict_result` 替换目前偏战斗语义的输出类型；
+4. 将共享的 gauge helper 降级为可选规则库，由各世界自由替换为 d20、2d6 或完全自定义结果。

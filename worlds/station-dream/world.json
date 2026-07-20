@@ -421,5 +421,6 @@
       "criteria": "玩家的权威生命阶段已经变为 dead，且当前剧情中没有已经建立的复活、梦境重启或他人救援机制。",
       "terminal": true
     }
-  ]
+  ],
+  "conflictScript": "./conflict.ts"
 }

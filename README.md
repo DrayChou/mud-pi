@@ -276,7 +276,7 @@ codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval nev
 
 ## 剧本化冲突规则
 
-每个世界包可通过 `conflictRules` 选择当前冲突规则；后续将迁移为世界包脚本。风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。冲突调研见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。参数、装备、traits 和道具 effects 的 RPG Maker 式数据分层见 [`docs/rpgmaker-data-model.md`](docs/rpgmaker-data-model.md)。
+每个世界包通过 `conflictScript: "./conflict.ts"` 指定自己的冲突计算脚本，`conflictRules` 只作为脚本数据；未声明脚本时使用本地默认 resolver。风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。冲突调研见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。参数、装备、traits 和道具 effects 的 RPG Maker 式数据分层见 [`docs/rpgmaker-data-model.md`](docs/rpgmaker-data-model.md)。
 
 ## 开发命令
 

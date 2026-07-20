@@ -48,6 +48,8 @@ export interface WorldPackForValidation {
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
   conflictRules?: ConflictRules;
+  conflictScript?: string;
+  conflictOptions?: Record<string, unknown>;
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -83,6 +85,9 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     errors.push(`bornPoint references missing room: ${pack.bornPoint}`);
   }
 
+  if (pack.conflictScript && (!pack.conflictScript.startsWith("./") || pack.conflictScript.includes(".."))) {
+    errors.push("conflictScript must be a safe ./ path inside the world pack");
+  }
   if (pack.conflictRules) validateConflictRules(pack.conflictRules, statKeys, errors);
 
   if (pack.proceduralMap) {

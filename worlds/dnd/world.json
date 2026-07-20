@@ -240,5 +240,6 @@
       "attack": "str",
       "defense": "ac"
     }
-  }
+  },
+  "conflictScript": "./conflict.ts"
 }

@@ -281,7 +281,9 @@ export interface WorldState {
   worldPack: string;
   turn: number;
   schema: StatsSchema; // loaded from world.json, stays constant
-  conflictRules?: ConflictRules; // world-pack-owned conflict semantics; old saves default to auto combat
+  conflictRules?: ConflictRules; // data consumed by the selected world conflict script
+  conflictScript?: string;
+  conflictOptions?: Record<string, unknown>;
   player: PlayerState;
   rooms: Record<string, RoomDef>;
   npcs: Record<string, NpcDef>;

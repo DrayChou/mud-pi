@@ -67,6 +67,8 @@ interface WorldPackJson {
   outcomes?: StoryOutcomeDef[];
   proceduralMap?: ProceduralMapConfig;
   conflictRules?: ConflictRules;
+  conflictScript?: string;
+  conflictOptions?: Record<string, unknown>;
 }
 
 export interface WorldPackSummary {
@@ -234,6 +236,8 @@ export async function loadWorldPack(
       mode: "auto_combat",
       algorithm: "gauge-random-v1",
     }),
+    conflictScript: pack.conflictScript,
+    conflictOptions: structuredClone(pack.conflictOptions ?? {}),
     player: {
       id: "player1",
       name: playerName,

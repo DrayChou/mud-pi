@@ -219,5 +219,6 @@
       "attack": "brawl",
       "luck": "luck"
     }
-  }
+  },
+  "conflictScript": "./conflict.ts"
 }

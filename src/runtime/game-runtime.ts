@@ -3,6 +3,7 @@ import { formatConflictWarning } from "../content/default-conflict-copy.ts";
 import { buildDmPrompt } from "../ai/dm-prompt.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
+import { defaultConflictResolver, type ConflictResolver } from "../engine/conflict-script.ts";
 import { deriveGameEvents } from "../engine/game-events.ts";
 import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
@@ -44,6 +45,7 @@ export interface GameRuntimeOptions {
   npcSessions: RuntimeNpcSessions;
   dmModelLabel?: string;
   persist?: boolean;
+  conflictResolver?: ConflictResolver;
 }
 
 /** Transport-agnostic orchestration for one loaded game save. */
@@ -55,6 +57,7 @@ export class GameRuntime {
   private readonly npcSessions: RuntimeNpcSessions;
   private readonly dmModelLabel: string;
   private readonly persist: boolean;
+  private readonly conflictResolver: ConflictResolver;
 
   constructor(options: GameRuntimeOptions) {
     this.state = options.state;
@@ -64,6 +67,7 @@ export class GameRuntime {
     this.npcSessions = options.npcSessions;
     this.dmModelLabel = options.dmModelLabel ?? "dm";
     this.persist = options.persist ?? true;
+    this.conflictResolver = options.conflictResolver ?? defaultConflictResolver;
   }
 
   getSnapshot(): WorldState {
@@ -80,7 +84,7 @@ export class GameRuntime {
 
   async processInput(input: string): Promise<GameTurnResult> {
     const parsed = await this.interpreter.parse(input);
-    const result = executeCommand(this.state, parsed);
+    const result = executeCommand(this.state, parsed, this.conflictResolver);
 
     if (result.directReply !== undefined) {
       if (result.directReply === "__QUIT__") {
@@ -169,7 +173,7 @@ export class GameRuntime {
 
     const postDmEngineMuts: EngineMutation[] = [];
     if (parsed.verb === "get" && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up")) {
-      const retry = executeCommand(this.state, parsed);
+      const retry = executeCommand(this.state, parsed, this.conflictResolver);
       if (retry.directReply === undefined) {
         postDmEngineMuts.push(...retry.mutations);
         applyMutations(this.state, retry.mutations);

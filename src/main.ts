@@ -10,6 +10,7 @@ import type { Config } from "./config.ts";
 import { listWorldPacks, loadStoryOutcomes, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, loadTurns, saveState, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
+import { loadWorldConflictResolver } from "./engine/conflict-script.ts";
 import { effectivePlayerStats } from "./engine/parameters.ts";
 import { applyMutations } from "./store/apply.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
@@ -387,6 +388,7 @@ async function main() {
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);
   }
 
+  const conflictResolver = await loadWorldConflictResolver(state.worldPack, state.conflictScript);
   const runtime = new GameRuntime({
     state,
     storyOutcomes,
@@ -394,6 +396,7 @@ async function main() {
     dm,
     npcSessions,
     dmModelLabel: backendLabel(config, "dm"),
+    conflictResolver,
   });
 
   if (args.telnet) {

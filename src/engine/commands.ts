@@ -6,7 +6,12 @@
 import type { WorldState } from "../types/world.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
-import { simulateCombat, type CombatSimulationResult } from "./combat.ts";
+import type { CombatSimulationResult } from "./combat.ts";
+import {
+  defaultConflictResolver,
+  validateCombatScriptResult,
+  type ConflictResolver,
+} from "./conflict-script.ts";
 import { buildMapSnapshot, formatTextMap } from "./map.ts";
 import { baseDeltaForEffectivePlayerChange, effectivePlayerStats } from "./parameters.ts";
 
@@ -18,7 +23,11 @@ export interface CommandResult {
   combatContext?: CombatContext;
 }
 
-export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandResult {
+export function executeCommand(
+  state: WorldState,
+  cmd: ParsedCommand,
+  conflictResolver: ConflictResolver = defaultConflictResolver
+): CommandResult {
   const informational = new Set(["look", "inv", "status", "objectives", "map", "help", "quit"]);
   if (state.outcome?.terminal && !informational.has(cmd.verb)) {
     return { mutations: [], directReply: "这个故事已经结束。你仍可以查看状态、目标或退出。" };
@@ -38,7 +47,7 @@ export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandRe
     case "get":    return cmdGet(state, cmd);
     case "drop":   return cmdDrop(state, cmd);
     case "equip":  return cmdEquip(state, cmd);
-    case "attack": return cmdAttack(state, cmd);
+    case "attack": return cmdAttack(state, cmd, conflictResolver);
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
     case "objectives": return cmdObjectives(state);
@@ -132,7 +141,7 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
 
 // ── Combat ─────────────────────────────────────────────────────────────────
 
-function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
+function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: ConflictResolver): CommandResult {
   const targetName = cmd.args.target;
   if (!targetName) return { mutations: [], directReply: "攻击什么？" };
 
@@ -145,20 +154,15 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
   if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
 
   const conflictRules = state.conflictRules ?? { mode: "auto_combat", algorithm: "gauge-random-v1" as const };
-  if (conflictRules.mode === "none") {
-    return { mutations: [], directReply: "这个剧本不使用数值战斗；请通过对话、选择或叙事行动解决冲突。" };
-  }
-  if (conflictRules.mode === "dice_check") {
-    return { mutations: [], directReply: "这个剧本使用掷骰检定而不是生命值战斗；请描述你想达成的行动。" };
-  }
   const combatSeed = `${state.worldId}:turn:${state.turn + 1}:combat:${npc.id}`;
-  const combat = simulateCombat(
-    state.schema,
-    { ...state.player, stats: effectivePlayerStats(state) },
-    npc,
-    conflictRules,
-    combatSeed
-  );
+  const combat = validateCombatScriptResult(conflictResolver.resolve({
+    schema: structuredClone(state.schema),
+    actor: structuredClone({ ...state.player, stats: effectivePlayerStats(state) }),
+    target: structuredClone(npc),
+    rules: structuredClone(conflictRules),
+    seed: combatSeed,
+    options: structuredClone(state.conflictOptions ?? {}),
+  }), state.player.id, npc.id);
   const mutations: EngineMutation[] = [{ kind: "engine/combat_started", npcId: npc.id }];
   const npcDelta = combat.npc.poolAfter - combat.npc.poolBefore;
   const effectivePlayerDelta = combat.player.poolAfter - combat.player.poolBefore;

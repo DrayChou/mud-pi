@@ -66,7 +66,11 @@ function normalizeParameterSchema(state: WorldState): void {
 async function normalizeConflictRules(state: WorldState): Promise<void> {
   const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
   const pack = await worldFile.exists()
-    ? await worldFile.json() as { conflictRules?: ConflictRules }
+    ? await worldFile.json() as {
+        conflictRules?: ConflictRules;
+        conflictScript?: string;
+        conflictOptions?: Record<string, unknown>;
+      }
     : {};
   if (!state.conflictRules) {
     state.conflictRules = structuredClone(pack.conflictRules ?? {
@@ -80,6 +84,8 @@ async function normalizeConflictRules(state: WorldState): Promise<void> {
   ) {
     state.conflictRules.parameters = structuredClone(pack.conflictRules.parameters);
   }
+  state.conflictScript ??= pack.conflictScript;
+  state.conflictOptions ??= structuredClone(pack.conflictOptions ?? {});
 }
 
 function normalizeRoomDiscovery(state: WorldState): void {
