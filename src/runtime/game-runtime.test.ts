@@ -61,6 +61,30 @@ describe("GameRuntime", () => {
     expect(state.turn).toBe(1);
   });
 
+  test("routes settled visible events to NPC sessions before DM narration", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    let perceivedKinds: string[] = [];
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("go", { direction: "east" }) },
+      dm: { ask: async () => `<NARRATION>你走向站台。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>` },
+      npcSessions: {
+        respondToPlayerSay: async () => [],
+        respondToEvents: async (_snapshot, events) => {
+          perceivedKinds = events.map((event) => event.kind);
+          return [];
+        },
+      },
+      persist: false,
+    });
+
+    await runtime.processInput("向东走");
+
+    expect(perceivedKinds).toEqual(["player_moved"]);
+    expect(state.player.roomId).toBe("Platform");
+  });
+
   test("exposes a detached snapshot for adapters", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const runtime = new GameRuntime({

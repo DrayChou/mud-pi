@@ -12,6 +12,7 @@ import {
   toAgentRelativePath,
 } from "../store/agents.ts";
 import { visibleEntityIds } from "../engine/npc-intents.ts";
+import type { GameEvent } from "../types/events.ts";
 import type { NpcDecision, NpcIntent } from "../types/npc.ts";
 import type { NpcDef, WorldState } from "../types/world.ts";
 import type { AiSession, AiSessionPersistenceOptions } from "./backend.ts";
@@ -43,17 +44,37 @@ export class NpcSessionRegistry {
   ): Promise<NpcDecision[]> {
     const npc = selectNpc(state, target);
     if (!npc) return [];
+    return this.respondToEvents(state, [{
+      kind: "player_spoke",
+      turn: state.turn,
+      actorId: state.player.id,
+      roomId: state.player.roomId,
+      message,
+      targetId: npc.id,
+    }]);
+  }
 
-    const context = {
-      requestedAtTurn: state.turn,
-      roomId: npc.roomId,
-      visibleEntityIds: visibleEntityIds(state, npc.roomId),
-    };
-    const session = await this.getOrCreate(npc);
-    const raw = await session.ask(buildNpcPerceptionPrompt(state, npc, message));
-    const intent = parseNpcResponse(raw, npc);
-    if (!intent) return [];
-    return [{ npcId: npc.id, context, intent }];
+  async respondToEvents(
+    state: WorldState,
+    events: GameEvent[],
+    maxWakeups = 2
+  ): Promise<NpcDecision[]> {
+    const npcIds = selectNpcIdsForEvents(state, events, maxWakeups);
+    const decisions = await Promise.all(npcIds.map(async (npcId) => {
+      const npc = state.npcs[npcId];
+      if (!npc) return null;
+      const perceivedEvents = events.filter((event) => npcCanPerceiveEvent(npc, event));
+      const context = {
+        requestedAtTurn: state.turn,
+        roomId: npc.roomId,
+        visibleEntityIds: visibleEntityIds(state, npc.roomId),
+      };
+      const session = await this.getOrCreate(npc);
+      const raw = await session.ask(buildNpcEventPrompt(state, npc, perceivedEvents));
+      const intent = parseNpcResponse(raw, npc);
+      return intent ? { npcId: npc.id, context, intent } : null;
+    }));
+    return decisions.filter((decision): decision is NpcDecision => decision !== null);
   }
 
   dispose(): void {
@@ -169,23 +190,109 @@ ${constraints}
 {"thought":"简短的私人想法","action":{"verb":"wait"}}`;
 }
 
-function buildNpcPerceptionPrompt(state: WorldState, npc: NpcDef, message: string): string {
+function buildNpcEventPrompt(state: WorldState, npc: NpcDef, events: GameEvent[]): string {
   const room = state.rooms[npc.roomId];
   const others = Object.values(state.npcs)
     .filter((other) => other.alive && other.roomId === npc.roomId && other.id !== npc.id)
     .map((other) => `${other.name}（NPC）`);
-  others.unshift(`${state.player.name}（玩家）`);
+  if (state.player.roomId === npc.roomId) others.unshift(`${state.player.name}（玩家）`);
+  const carriedItems = state.player.roomId === npc.roomId
+    ? state.player.inventory.map((id) => state.items[id]?.name ?? id)
+    : [];
+  const groundItems = Object.values(state.items)
+    .filter((item) => item.location.kind === "room" && item.location.roomId === npc.roomId)
+    .map((item) => item.name);
 
   return `[当前权威状态]
 回合：${state.turn}
 你的位置：${room?.title ?? npc.roomId}（${npc.roomId}）
 你的状态：${npc.alive ? "存活" : "已死亡"}
-在场角色：${others.join("、")}
+在场角色：${others.join("、") || "无"}
+玩家可见携带物：${carriedItems.join("、") || "无"}
+地面物品：${groundItems.join("、") || "无"}
 
-[刚刚感知到]
-${state.player.name}对你说：“${message}”
+[刚刚感知到的已结算事件]
+${events.map((event) => `- ${describeEvent(state, event)}`).join("\n")}
 
-根据你的长期 Pi Session 记忆、身份和当前感知，决定回应或沉默。`;
+这些事件已经由 Engine 确认，不能否认或改写。根据你的长期 Pi Session 记忆、身份和当前感知，选择一个行动或保持沉默。`;
+}
+
+export function selectNpcIdsForEvents(
+  state: WorldState,
+  events: GameEvent[],
+  maxWakeups = 2
+): string[] {
+  if (maxWakeups <= 0 || events.length === 0) return [];
+  const candidates = Object.values(state.npcs)
+    .filter((npc) => npc.alive && npc.controller === "pi_session")
+    .filter((npc) => events.some((event) => npcCanPerceiveEvent(npc, event)));
+  return candidates
+    .sort((a, b) => eventPriority(b.id, events) - eventPriority(a.id, events) || a.id.localeCompare(b.id))
+    .slice(0, maxWakeups)
+    .map((npc) => npc.id);
+}
+
+function npcCanPerceiveEvent(npc: NpcDef, event: GameEvent): boolean {
+  if (event.kind === "player_spoke" && event.targetId) return event.targetId === npc.id;
+  if (event.kind === "player_moved") {
+    return npc.roomId === event.fromRoomId || npc.roomId === event.toRoomId;
+  }
+  if (event.kind === "npc_moved") {
+    return event.npcId !== npc.id && (npc.roomId === event.fromRoomId || npc.roomId === event.toRoomId);
+  }
+  if ("npcId" in event && event.npcId === npc.id) return false;
+  return npc.roomId === event.roomId;
+}
+
+function eventPriority(npcId: string, events: GameEvent[]): number {
+  let score = 0;
+  for (const event of events) {
+    if (event.kind === "player_spoke" && event.targetId === npcId) score += 100;
+    else if (event.kind === "critical_npc_died") score += 20;
+    else if (event.kind === "entity_attacked" || event.kind === "entity_defeated") score += 10;
+    else score += 1;
+  }
+  return score;
+}
+
+function describeEvent(state: WorldState, event: GameEvent): string {
+  const playerName = state.player.name;
+  switch (event.kind) {
+    case "player_moved":
+      return `${playerName}从${roomName(state, event.fromRoomId)}移动到${roomName(state, event.toRoomId)}`;
+    case "player_spoke":
+      return `${playerName}${event.targetId ? `对${entityName(state, event.targetId)}` : ""}说：“${event.message}”`;
+    case "item_created":
+      return `${itemName(state, event.itemId)}出现在这里`;
+    case "item_picked_up":
+      return `${playerName}捡起了${itemName(state, event.itemId)}`;
+    case "item_dropped":
+      return `${playerName}放下了${itemName(state, event.itemId)}`;
+    case "entity_attacked":
+      return `${entityName(state, event.targetId)}遭到攻击，${event.stat}减少${event.amount}`;
+    case "entity_defeated":
+      return `${entityName(state, event.entityId)}被击败`;
+    case "player_died":
+      return `${playerName}已经死亡`;
+    case "player_incapacitated":
+      return `${playerName}已经失去行动能力`;
+    case "critical_npc_died":
+      return `关键人物${entityName(state, event.npcId)}已经死亡`;
+    case "npc_moved":
+      return `${entityName(state, event.npcId)}从${roomName(state, event.fromRoomId)}移动到${roomName(state, event.toRoomId)}`;
+  }
+}
+
+function entityName(state: WorldState, id: string): string {
+  return id === state.player.id ? state.player.name : state.npcs[id]?.name ?? id;
+}
+
+function itemName(state: WorldState, id: string): string {
+  return state.items[id]?.name ?? id;
+}
+
+function roomName(state: WorldState, id: string): string {
+  return state.rooms[id]?.title ?? id;
 }
 
 export function parseNpcResponse(raw: string, npc: NpcDef): NpcIntent | null {

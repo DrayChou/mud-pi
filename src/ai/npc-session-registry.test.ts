@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { loadWorldPack } from "../engine/world-loader.ts";
+import type { GameEvent } from "../types/events.ts";
 import type { NpcDef } from "../types/world.ts";
-import { parseNpcResponse } from "./npc-session-registry.ts";
+import { parseNpcResponse, selectNpcIdsForEvents } from "./npc-session-registry.ts";
 
 const npc: NpcDef = {
   id: "ticket_clerk",
@@ -42,5 +44,62 @@ describe("NPC session response parsing", () => {
       '{"action":{"verb":"teleport","content":"Platform"}}',
       npc
     )).toBeNull();
+  });
+});
+
+describe("NPC event perception routing", () => {
+  test("wakes a persistent NPC for visible events but not remote events", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const visible: GameEvent = {
+      kind: "item_picked_up",
+      turn: state.turn,
+      actorId: state.player.id,
+      itemId: "old_ticket",
+      roomId: state.npcs.ticket_clerk!.roomId,
+    };
+    const remote: GameEvent = { ...visible, roomId: "Platform" };
+
+    expect(selectNpcIdsForEvents(state, [visible])).toEqual(["ticket_clerk"]);
+    expect(selectNpcIdsForEvents(state, [remote])).toEqual([]);
+  });
+
+  test("routes directed speech only to its target and enforces the wakeup budget", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const clerk = state.npcs.ticket_clerk!;
+    state.npcs.watcher = { ...structuredClone(clerk), id: "watcher", name: "旁观者" };
+    state.npcs.guard = { ...structuredClone(clerk), id: "guard", name: "守卫" };
+    const directed: GameEvent = {
+      kind: "player_spoke",
+      turn: state.turn,
+      actorId: state.player.id,
+      roomId: clerk.roomId,
+      message: "只对你说",
+      targetId: "watcher",
+    };
+    const publicSpeech: GameEvent = { ...directed, targetId: undefined };
+
+    expect(selectNpcIdsForEvents(state, [directed], 2)).toEqual(["watcher"]);
+    expect(selectNpcIdsForEvents(state, [publicSpeech], 2)).toHaveLength(2);
+  });
+
+  test("lets NPCs in either room perceive movement while excluding the mover", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const clerk = state.npcs.ticket_clerk!;
+    state.npcs.platform_watcher = {
+      ...structuredClone(clerk),
+      id: "platform_watcher",
+      name: "站台观察者",
+      roomId: "Platform",
+    };
+    const movement: GameEvent = {
+      kind: "npc_moved",
+      turn: state.turn,
+      npcId: "ticket_clerk",
+      fromRoomId: clerk.roomId,
+      toRoomId: "Platform",
+      roomId: "Platform",
+    };
+
+    expect(selectNpcIdsForEvents(state, [movement], 3)).toEqual(["platform_watcher"]);
   });
 });

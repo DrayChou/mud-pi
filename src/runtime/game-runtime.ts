@@ -7,6 +7,7 @@ import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { applyMutation, applyMutations } from "../store/apply.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
+import type { GameEvent } from "../types/events.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
@@ -26,6 +27,11 @@ export interface RuntimeNpcSessions {
     state: WorldState,
     message: string,
     target?: string
+  ): Promise<NpcDecision[]>;
+  respondToEvents?(
+    state: WorldState,
+    events: GameEvent[],
+    maxWakeups?: number
   ): Promise<NpcDecision[]>;
 }
 
@@ -91,13 +97,24 @@ export class GameRuntime {
     const engineMuts = result.mutations as EngineMutation[];
     applyMutations(this.state, engineMuts);
 
-    const npcDecisions = parsed.verb === "say"
-      ? await this.npcSessions.respondToPlayerSay(
-          this.state,
-          parsed.args.message ?? input,
-          parsed.args.target
-        )
-      : [];
+    const initialSpeechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, []);
+    const engineEvents = deriveGameEvents(
+      stateBeforeTurn,
+      engineMuts,
+      this.state,
+      parsed.verb === "say"
+        ? { playerSpeech: { message: parsed.args.message ?? input, targetId: initialSpeechTarget } }
+        : undefined
+    );
+    const npcDecisions = this.npcSessions.respondToEvents
+      ? await this.npcSessions.respondToEvents(this.state, engineEvents, 2)
+      : parsed.verb === "say"
+        ? await this.npcSessions.respondToPlayerSay(
+            this.state,
+            parsed.args.message ?? input,
+            parsed.args.target
+          )
+        : [];
     const npcActions: NpcPublicAction[] = [];
     const npcMutations: EngineMutation[] = [];
     for (const decision of npcDecisions) {
