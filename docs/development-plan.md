@@ -463,9 +463,58 @@ Settlement 相关阶段还必须验证：
 1. Phase 0：characterization tests + Settlement Contract 批准
 2. Phase 1：Settlement Kernel + legacy adapter
 3. Phase 2：移动/物品垂直迁移 + committed event projection
-4. Phase 3：Pi 自由裁定 Proposal
-5. Phase 4：结构化 rejection/adjustment feedback
-6. Phase 5：最小通用 condition
+4. Phase 3：Pi GM 桌面操作 Proposal
+5. Phase 4：缓存候选叙述 + 结构化 rejection/adjustment feedback
+6. Phase 5：最小通用 condition 标记
 7. Phase 6：Event Journal + snapshot + outbox
 8. Phase 7：按真实剧本需求选择增强项
 ```
+
+---
+
+## 10. 当前任务 DAG
+
+```text
+T40 冻结 Settlement Contract
+  ├─ T41 补齐 Mutation characterization tests
+  ├─ T42 实现 Settlement Kernel 与 evolve
+  └─ T43 实现 committed event 公共投影
+
+T41 + T42 + T43
+  → T44 集成 legacy adapter 与 GameRuntime
+  → T45 独立 QA：原子性、replay、revision、post-commit
+  → T46 迁移移动和物品垂直切片
+  → T47 实现 Pi GM 桌面操作协议
+  → T48 缓存候选叙述并反馈拒绝/修正
+  → T49 实现最小通用 condition
+  → T50 实现 Event Journal、snapshot 与 outbox
+  → T51 最终框架 Gate 与真实游玩验证
+```
+
+T40 是当前唯一应立即启动的设计任务。T41/T42/T43 只有在 Contract 批准后才并行派发；T44 和涉及 `GameRuntime` 的修改由 Integration Agent 串行完成。
+
+---
+
+## 11. 通用框架完成定义
+
+满足以下条件后，默认停止扩张通用 Engine，开发重心转向世界包、Prompt 和真实游玩：
+
+- Pi 可以读取完整角色纸、当前房间、可见卡牌、目标、重要事实和已提交事件；
+- Pi 可以通过稳定 GM Proposal 移动棋子、调整计数器、发放/消耗卡牌、放置 condition、揭示出口、记录事实和标记目标；
+- Engine 能结构化拒绝非法操作，并让同一 Pi Session 在展示前修正；
+- 候选叙述不会先于权威提交展示；
+- committed events 可以重放 WorldState；
+- snapshot、Journal 和 post-commit outbox 可以在崩溃后恢复；
+- 重要 NPC 的主观记忆与客观世界状态保持分离；
+- `station-dream` 能通过自由调查、一次开放式障碍、任务奖励、关键冲突和多 Outcome 完成完整一局；
+- CLI/TUI/Telnet 均只依赖 `GameRuntime` 和公共投影；
+- 没有真实剧本需求时，不新增传统 MUD 子系统。
+
+框架完成后，优先投入：
+
+1. 冒险模组开场和线索质量；
+2. Pi DM Prompt 与裁定示例；
+3. 关键 NPC persona 和独立 Session 表现；
+4. 角色卡、道具卡、奖励卡和 condition 卡内容；
+5. 真实游玩记录、失败案例和 Prompt/世界包修正；
+6. 新世界包，而不是新的自动模拟子系统。
