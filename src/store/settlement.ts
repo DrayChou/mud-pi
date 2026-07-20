@@ -55,7 +55,7 @@ export type BatchSettlement<TResult = unknown> =
     };
 
 let nextTransactionSequence = 0;
-const committedByState = new WeakMap<WorldState, Map<string, Settlement<unknown>>>();
+const settlementsByState = new WeakMap<WorldState, Map<string, Settlement<unknown>>>();
 const activeBatchStates = new WeakSet<WorldState>();
 
 function transactionId(): string {
@@ -175,18 +175,16 @@ export function settle<TProposal, TResult>(
   decider: Decider<TProposal, TResult>,
   context: Readonly<DecisionContext>,
 ): Settlement<TResult> {
-  const prior = committedByState.get(state)?.get(proposal.proposalId);
+  const prior = settlementsByState.get(state)?.get(proposal.proposalId);
   if (prior) return prior as Settlement<TResult>;
 
   const settlement = commitPreparedSettlement(state, prepareSettlement(state, proposal, decider, context));
-  if (settlement.accepted) {
-    let committed = committedByState.get(state);
-    if (!committed) {
-      committed = new Map();
-      committedByState.set(state, committed);
-    }
-    committed.set(proposal.proposalId, settlement);
+  let priorSettlements = settlementsByState.get(state);
+  if (!priorSettlements) {
+    priorSettlements = new Map();
+    settlementsByState.set(state, priorSettlements);
   }
+  priorSettlements.set(proposal.proposalId, settlement);
   return settlement;
 }
 

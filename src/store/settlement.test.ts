@@ -98,6 +98,29 @@ describe("settlement", () => {
     expect(live.revision).toBe(4);
   });
 
+  test("returns the prior rejection when the same proposal id is retried after revision changes", () => {
+    const live = state();
+    const rejected = settle(live, proposal(), () => ({
+      accepted: false,
+      rejection: { code: "precondition_failed", safeMessage: "No.", diagnostic: "blocked", retryable: true },
+      events: [],
+      warnings: [],
+    }), context);
+    expect(rejected.accepted).toBe(false);
+
+    live.revision = 4;
+    let decidedAgain = false;
+    const retried = settle(
+      live,
+      { ...proposal(4), payload: { action: "now-valid" } },
+      (() => { decidedAgain = true; throw new Error("must not decide rejected proposal twice"); }) as Decider<{ action: string }, string>,
+      context,
+    );
+    expect(retried as unknown).toBe(rejected);
+    expect(decidedAgain).toBe(false);
+    expect(live.revision).toBe(4);
+  });
+
   test("settles a batch from one observed revision and continues after sibling rejection", () => {
     const live = state();
     const result = settleBatch(live, {
@@ -151,7 +174,7 @@ describe("settlement", () => {
     const rejection = settle(live, proposal(), () => ({ accepted: false, rejection: { code: "precondition_failed", safeMessage: "No.", diagnostic: "blocked", retryable: false }, events: [], warnings: [] }), context);
     expect(rejection.accepted).toBe(false);
     expect(live.revision).toBe(3);
-    const success = settle(live, proposal(), accepted([{ kind: "player_spoke", playerId: "player", roomId: "a", message: "hello" }]), context);
+    const success = settle(live, { ...proposal(), proposalId: "p2" }, accepted([{ kind: "player_spoke", playerId: "player", roomId: "a", message: "hello" }]), context);
     expect(success.accepted).toBe(true);
     if (success.accepted) expect(success.result).toBe("ok");
     expect(live.revision).toBe(4);
