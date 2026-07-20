@@ -24,6 +24,7 @@ interface RawNpcResponse {
     verb?: unknown;
     content?: unknown;
     direction?: unknown;
+    targetId?: unknown;
   } | null;
 }
 
@@ -180,12 +181,15 @@ ${constraints}
 - 你只能依据自己的 Pi Session 记忆和本轮提供的感知作出决定。
 - 你不知道其他房间发生的事情，除非亲历或被告知。
 - 你不能直接改变生命、物品、位置或世界状态。
-- 每轮只能选择一个行动：说一句话、沿当前房间出口移动、或保持不动。
+- 每轮只能选择一个行动：说话、移动、攻击同房间玩家、逃跑、投降或保持不动。
 - thought 是你的私人想法，不会展示给玩家；不要把 thought 写进台词。
 
 严格返回 JSON，不要 Markdown：
 {"thought":"简短的私人想法","action":{"verb":"say","content":"符合角色身份的一句话"}}
 {"thought":"简短的私人想法","action":{"verb":"move","direction":"east|west|north|south|up|down"}}
+{"thought":"简短的私人想法","action":{"verb":"attack","targetId":"player1"}}
+{"thought":"简短的私人想法","action":{"verb":"flee","direction":"east|west|north|south|up|down"}}
+{"thought":"简短的私人想法","action":{"verb":"surrender"}}
 或：
 {"thought":"简短的私人想法","action":{"verb":"wait"}}`;
 }
@@ -206,7 +210,7 @@ function buildNpcEventPrompt(state: WorldState, npc: NpcDef, events: GameEvent[]
   return `[当前权威状态]
 回合：${state.turn}
 你的位置：${room?.title ?? npc.roomId}（${npc.roomId}）
-你的状态：${npc.alive ? "存活" : "已死亡"}
+你的状态：${npc.alive ? "存活" : "已死亡"}；战斗姿态：${npc.combatState ?? "active"}
 在场角色：${others.join("、") || "无"}
 玩家可见携带物：${carriedItems.join("、") || "无"}
 地面物品：${groundItems.join("、") || "无"}
@@ -280,6 +284,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `关键人物${entityName(state, event.npcId)}已经死亡`;
     case "npc_moved":
       return `${entityName(state, event.npcId)}从${roomName(state, event.fromRoomId)}移动到${roomName(state, event.toRoomId)}`;
+    case "npc_surrendered":
+      return `${entityName(state, event.npcId)}已经投降`;
   }
 }
 
@@ -305,10 +311,15 @@ export function parseNpcResponse(raw: string, npc: NpcDef): NpcIntent | null {
     if (verb === "wait" || parsed.action === null) {
       return { verb: "wait" };
     }
-    if (verb === "move" && typeof parsed.action?.direction === "string") {
+    if ((verb === "move" || verb === "flee") && typeof parsed.action?.direction === "string") {
       const direction = parsed.action.direction.trim().slice(0, 20);
-      return direction ? { verb: "move", direction } : null;
+      return direction ? { verb, direction } : null;
     }
+    if (verb === "attack" && typeof parsed.action?.targetId === "string") {
+      const targetId = parsed.action.targetId.trim().slice(0, 80);
+      return targetId ? { verb: "attack", targetId } : null;
+    }
+    if (verb === "surrender") return { verb: "surrender" };
     if (verb !== "say" || typeof parsed.action?.content !== "string") return null;
 
     const content = parsed.action.content.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, 300);

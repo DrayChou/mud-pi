@@ -165,6 +165,7 @@ export async function loadWorldPack(
       storyRole: n.storyRole,
       source: "static",
       hostile: n.hostile ?? false,
+      combatState: "active",
       stats: buildDefaultStats(n.stats),
       maxStats: buildMaxStats(n.stats),
     };

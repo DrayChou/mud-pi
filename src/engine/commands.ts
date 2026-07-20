@@ -3,9 +3,10 @@
 // Pure logic, no I/O, no LLM.
 // ─────────────────────────────────────────────────────────────
 
-import type { WorldState, StatDef } from "../types/world.ts";
+import type { WorldState } from "../types/world.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
+import { calculateDamage, resolveCombatSchema } from "./combat.ts";
 import { buildMapSnapshot, formatTextMap } from "./map.ts";
 
 export interface CombatContext {
@@ -153,49 +154,21 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
   );
   if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
 
-  // Resolve which stat is the "damage pool" (role=pool + onDeplete=death/incapacitate)
-  const poolDef = state.schema.defs.find(
-    (d) => d.role === "pool" && d.onDeplete !== "narrative"
-  );
-  const attackDef = state.schema.defs.find((d) => d.role === "attack");
-  const defenseDef = state.schema.defs.find((d) => d.role === "defense");
-
-  const poolKey = poolDef?.key ?? "hp";
-  const attackKey = attackDef?.key ?? poolKey;
-  const defenseKey = defenseDef?.key ?? "";
-
-  // Player hits NPC
-  const playerAttack = state.player.stats[attackKey] ?? 5;
-  const npcDefense = defenseKey ? (npc.stats[defenseKey] ?? 0) : 0;
-  const playerDealt = Math.max(1, playerAttack - npcDefense);
-
-  const npcPoolCur = npc.stats[poolKey] ?? 0;
+  const combat = resolveCombatSchema(state.schema);
+  const playerDealt = calculateDamage(state.player.stats, npc.stats, combat, 5);
+  const npcPoolCur = npc.stats[combat.poolKey] ?? 0;
   const npcPoolAfter = Math.max(0, npcPoolCur - playerDealt);
   const npcKilled = npcPoolAfter <= 0;
 
   const mutations: EngineMutation[] = [
-    { kind: "engine/npc_stat_changed", npcId: npc.id, stat: poolKey, delta: -playerDealt },
+    { kind: "engine/combat_started", npcId: npc.id },
+    { kind: "engine/npc_stat_changed", npcId: npc.id, stat: combat.poolKey, delta: -playerDealt },
   ];
   if (npcKilled) mutations.push({ kind: "engine/npc_killed", npcId: npc.id });
 
-  // NPC counter-attacks if still alive
-  let npcDealt = 0;
-  if (!npcKilled) {
-    const npcAttack = npc.stats[attackKey] ?? 3;
-    const playerDefense = defenseKey ? (state.player.stats[defenseKey] ?? 0) : 0;
-    npcDealt = Math.max(1, npcAttack - playerDefense);
-    mutations.push({
-      kind: "engine/player_stat_changed",
-      stat: poolKey,
-      delta: -npcDealt,
-    });
-  }
-
-  const playerPoolMax = state.player.maxStats[`${poolKey}Max`] ?? poolDef?.max ?? 100;
-  const playerPoolAfter = Math.max(
-    0,
-    (state.player.stats[poolKey] ?? 0) - npcDealt
-  );
+  // NPC retaliation is a separate rule/session decision later in the turn.
+  const playerPoolMax = state.player.maxStats[`${combat.poolKey}Max`] ?? combat.defaultPoolMax;
+  const playerPoolAfter = state.player.stats[combat.poolKey] ?? 0;
 
   return {
     mutations,
@@ -203,11 +176,11 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand): CommandResult {
       npcId: npc.id,
       npcName: npc.name,
       playerDealt,
-      npcDealt,
+      npcDealt: 0,
       npcKilled,
-      attackStat: poolKey,
+      attackStat: combat.poolKey,
       npcStatAfter: npcPoolAfter,
-      npcStatMax: npc.maxStats[`${poolKey}Max`] ?? poolDef?.max ?? 20,
+      npcStatMax: npc.maxStats[`${combat.poolKey}Max`] ?? combat.defaultPoolMax,
       playerStatAfter: playerPoolAfter,
       playerStatMax: playerPoolMax,
     },

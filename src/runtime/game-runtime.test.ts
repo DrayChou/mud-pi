@@ -85,6 +85,32 @@ describe("GameRuntime", () => {
     expect(state.player.roomId).toBe("Platform");
   });
 
+  test("settles rule NPC retaliation as an independent action after the player attack", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.player.roomId = "Compartment3";
+    const hpBefore = state.player.stats.hp!;
+    let capturedPrompt = "";
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("attack", { target: "阴影" }) },
+      dm: {
+        ask: async (prompt) => {
+          capturedPrompt = prompt;
+          return `<NARRATION>阴影在你的攻击后反扑。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>`;
+        },
+      },
+      npcSessions: { respondToPlayerSay: async () => [], respondToEvents: async () => [] },
+      persist: false,
+    });
+
+    await runtime.processInput("攻击阴影");
+
+    expect(state.player.stats.hp).toBeLessThan(hpBefore);
+    expect(capturedPrompt).toContain("车厢阴影攻击player1");
+    expect(capturedPrompt).toContain("player1 的 hp 受到");
+  });
+
   test("exposes a detached snapshot for adapters", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const runtime = new GameRuntime({

@@ -3,7 +3,7 @@ import { buildDmPrompt } from "../ai/dm-prompt.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
 import { deriveGameEvents } from "../engine/game-events.ts";
-import { executeNpcDecision } from "../engine/npc-intents.ts";
+import { buildRuleNpcDecisions, executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { applyMutation, applyMutations } from "../store/apply.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
@@ -106,7 +106,7 @@ export class GameRuntime {
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: initialSpeechTarget } }
         : undefined
     );
-    const npcDecisions = this.npcSessions.respondToEvents
+    const sessionDecisions = this.npcSessions.respondToEvents
       ? await this.npcSessions.respondToEvents(this.state, engineEvents, 2)
       : parsed.verb === "say"
         ? await this.npcSessions.respondToPlayerSay(
@@ -115,6 +115,10 @@ export class GameRuntime {
             parsed.args.target
           )
         : [];
+    const npcDecisions = [
+      ...buildRuleNpcDecisions(this.state, engineEvents),
+      ...sessionDecisions,
+    ];
     const npcActions: NpcPublicAction[] = [];
     const npcMutations: EngineMutation[] = [];
     for (const decision of npcDecisions) {

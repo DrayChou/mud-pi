@@ -67,6 +67,12 @@ export type GameEvent =
       roomId: string;
     }
   | {
+      kind: "npc_surrendered";
+      turn: number;
+      npcId: string;
+      roomId: string;
+    }
+  | {
       kind: "npc_moved";
       turn: number;
       npcId: string;

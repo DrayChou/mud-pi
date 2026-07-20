@@ -121,12 +121,14 @@
 
 目标：消除玩家攻击后同步自动反击的双重行动问题。
 
-工作项：
+工作项（已完成第一阶段）：
 
-- 玩家攻击只结算玩家行动并产生攻击事件。
-- NPC 通过规则脑或 Session 提出 `attack/flee/surrender/wait`。
-- Engine 独立校验并结算 NPC 战斗意图。
-- 增加玩家死亡/失能结果和可恢复流程。
+- 玩家 `attack` 只结算玩家攻击，不再在 `cmdAttack()` 中同步自动反击。
+- NPC 可通过规则脑或持久 Session 提出 `attack/flee/surrender/wait`；移动和说话意图继续兼容。
+- Engine 校验回合、房间、可见角色、攻击目标、玩家生命周期和出口后再结算 NPC 战斗意图。
+- 规则控制的敌人收到已结算攻击事件后才提出反击；`station-dream` 的阴影和迷失旅客已切换为规则控制。
+- 投降写入权威 `combatState` 并产生 `npc_surrendered` 事件；逃跑使用受控移动 Mutation。
+- NPC 攻击通过独立 `engine/player_stat_changed` 更新生命周期，玩家死亡/失能继续由 Stats Schema 确定。
 
 ### P2 — Deterministic Procedural World
 

@@ -199,6 +199,7 @@
       "name": "车厢阴影",
       "roomId": "Compartment3",
       "personality": "黑暗中扭曲的人形轮廓，沉默而充满敌意，是某种迷失意志的化身",
+      "controller": "rule",
       "hostile": true,
       "stats": {
         "hp": 30,
@@ -211,6 +212,7 @@
       "name": "迷失旅客",
       "roomId": "Compartment2",
       "personality": "茫然徘徊的灵魂，眼中只剩空洞，有时会攻击靠近的人",
+      "controller": "rule",
       "hostile": true,
       "stats": {
         "hp": 20,

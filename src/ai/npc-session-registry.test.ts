@@ -39,6 +39,21 @@ describe("NPC session response parsing", () => {
     )).toEqual({ verb: "move", direction: "east" });
   });
 
+  test("accepts controlled combat actions", () => {
+    expect(parseNpcResponse(
+      '{"action":{"verb":"attack","targetId":"player1"}}',
+      npc
+    )).toEqual({ verb: "attack", targetId: "player1" });
+    expect(parseNpcResponse(
+      '{"action":{"verb":"flee","direction":"west"}}',
+      npc
+    )).toEqual({ verb: "flee", direction: "west" });
+    expect(parseNpcResponse(
+      '{"action":{"verb":"surrender"}}',
+      npc
+    )).toEqual({ verb: "surrender" });
+  });
+
   test("rejects unsupported NPC actions", () => {
     expect(parseNpcResponse(
       '{"action":{"verb":"teleport","content":"Platform"}}',

@@ -98,6 +98,7 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       const npc = state.npcs[mut.npcId];
       if (npc) {
         npc.alive = false;
+        npc.combatState = "active";
         // Zero out all pool stats
         for (const def of state.schema.defs) {
           if (def.role === "pool") npc.stats[def.key] = 0;
@@ -106,7 +107,17 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
-    case "engine/combat_started": break; // informational only
+    case "engine/npc_surrendered": {
+      const npc = state.npcs[mut.npcId];
+      if (npc?.alive) npc.combatState = "surrendered";
+      break;
+    }
+
+    case "engine/combat_started": {
+      const npc = state.npcs[mut.npcId];
+      if (npc?.alive) npc.combatState = "active";
+      break;
+    }
 
     case "engine/item_picked_up": {
       const item = state.items[mut.itemId];
@@ -244,7 +255,7 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/npc_moved": {
       const npc = state.npcs[mut.npcId];
-      if (npc?.controller === "pi_session") {
+      if (npc?.controller && npc.controller !== "dm") {
         console.warn(`[apply] DM cannot move independently controlled NPC: ${mut.npcId}`);
         return;
       }
@@ -254,7 +265,7 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/npc_killed": {
       const npc = state.npcs[mut.npcId];
-      if (npc?.controller === "pi_session") {
+      if (npc?.controller && npc.controller !== "dm") {
         console.warn(`[apply] DM cannot kill independently controlled NPC: ${mut.npcId}`);
         return;
       }
@@ -269,7 +280,7 @@ function applyDm(state: WorldState, mut: DmMutation): void {
 
     case "dm/npc_stat_changed": {
       const npc = state.npcs[mut.npcId];
-      if (npc?.controller === "pi_session") {
+      if (npc?.controller && npc.controller !== "dm") {
         console.warn(`[apply] DM cannot change independently controlled NPC stats: ${mut.npcId}`);
         return;
       }

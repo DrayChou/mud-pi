@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import type { GameEvent } from "../types/events.ts";
 import type { NpcDecision } from "../types/npc.ts";
 import type { WorldState } from "../types/world.ts";
-import { executeNpcDecision, visibleEntityIds } from "./npc-intents.ts";
+import { applyMutations } from "../store/apply.ts";
+import { buildRuleNpcDecisions, executeNpcDecision, visibleEntityIds } from "./npc-intents.ts";
 
 function state(): WorldState {
   return {
@@ -70,6 +72,57 @@ describe("executeNpcDecision", () => {
     const result = executeNpcDecision(s, pending);
     expect(result.action.succeeded).toBe(false);
     expect(result.action.reason).toBe("房间内角色已经变化");
+  });
+
+  test("settles an NPC attack as a separately validated player damage mutation", () => {
+    const s = state();
+    s.schema.defs = [
+      { key: "hp", label: "HP", min: 0, max: 20, default: 20, display: "bar", onDeplete: "death", role: "pool" },
+      { key: "attack", label: "Attack", min: 0, max: 20, default: 3, display: "number", onDeplete: "narrative", role: "attack" },
+      { key: "defense", label: "Defense", min: 0, max: 20, default: 0, display: "number", onDeplete: "narrative", role: "defense" },
+    ];
+    s.player.stats = { hp: 20, defense: 1 };
+    s.player.maxStats = { hpMax: 20 };
+    s.npcs.clerk!.stats = { hp: 10, attack: 6 };
+
+    const result = executeNpcDecision(s, decision(s, { verb: "attack", targetId: "player1" }));
+    applyMutations(s, result.mutations);
+
+    expect(result.mutations).toEqual([{ kind: "engine/player_stat_changed", stat: "hp", delta: -5 }]);
+    expect(result.action).toMatchObject({ verb: "attack", targetId: "player1", damage: 5, succeeded: true });
+    expect(s.player.stats.hp).toBe(15);
+  });
+
+  test("applies flee movement and surrender as authoritative engine mutations", () => {
+    const fleeing = state();
+    const fleeResult = executeNpcDecision(fleeing, decision(fleeing, { verb: "flee", direction: "east" }));
+    applyMutations(fleeing, fleeResult.mutations);
+    expect(fleeResult.action.verb).toBe("flee");
+    expect(fleeing.npcs.clerk?.roomId).toBe("platform");
+
+    const surrendering = state();
+    const surrenderResult = executeNpcDecision(surrendering, decision(surrendering, { verb: "surrender" }));
+    applyMutations(surrendering, surrenderResult.mutations);
+    expect(surrenderResult.mutations).toEqual([{ kind: "engine/npc_surrendered", npcId: "clerk" }]);
+    expect(surrendering.npcs.clerk?.combatState).toBe("surrendered");
+  });
+
+  test("rule-controlled NPC retaliates only after receiving a settled attack event", () => {
+    const s = state();
+    s.npcs.clerk!.controller = "rule";
+    const event: GameEvent = {
+      kind: "entity_attacked",
+      turn: s.turn + 1,
+      targetId: "clerk",
+      roomId: "hall",
+      stat: "hp",
+      amount: 3,
+    };
+
+    expect(buildRuleNpcDecisions(s, [])).toEqual([]);
+    expect(buildRuleNpcDecisions(s, [event])).toEqual([
+      expect.objectContaining({ npcId: "clerk", intent: { verb: "attack", targetId: "player1" } }),
+    ]);
   });
 
   test("rejects a response from an earlier turn", () => {

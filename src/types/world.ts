@@ -105,6 +105,7 @@ export interface NpcDef {
   stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
   maxStats: Stats;    // e.g. { hpMax: 30 }
   hostile: boolean;
+  combatState?: "active" | "surrendered";
 }
 
 export type ItemLocation =

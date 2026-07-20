@@ -57,6 +57,22 @@ describe("lifecycle command guards", () => {
   });
 });
 
+describe("combat commands", () => {
+  test("player attack does not synchronously apply an NPC counterattack", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.player.roomId = "Compartment3";
+    const hpBefore = state.player.stats.hp;
+
+    const result = executeCommand(state, command("attack", { target: "阴影" }));
+    applyMutations(state, result.mutations);
+
+    expect(result.mutations.some((mutation) => mutation.kind === "engine/player_stat_changed")).toBe(false);
+    expect(state.player.stats.hp).toBe(hpBefore);
+    expect(state.npcs.shadow?.stats.hp).toBeLessThan(30);
+    expect(result.combatContext?.npcDealt).toBe(0);
+  });
+});
+
 describe("item commands", () => {
   test("cannot pick up an item from another room", async () => {
     const state = await loadWorldPack("station-dream", {

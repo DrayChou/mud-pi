@@ -16,6 +16,7 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/npc_moved":         return `NPC ${m.npcId} 移动到了 ${m.toRoomId}`;
     case "engine/npc_stat_changed":  return null; // covered by combatContext
     case "engine/npc_killed":        return null; // covered by combatContext
+    case "engine/npc_surrendered":   return `NPC ${m.npcId} 已投降`;
     case "engine/combat_started":    return null;
     case "engine/item_picked_up":    return `玩家拾取了 ${m.itemId}`;
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
@@ -39,6 +40,19 @@ function describeGameEvent(event: GameEvent): string {
     case "player_incapacitated": return `玩家在 ${event.roomId} 失去行动能力`;
     case "critical_npc_died": return `关键 NPC ${event.npcId} 死亡；策略=${event.deathPolicy}${event.notes ? `；说明=${event.notes}` : ""}`;
     case "npc_moved": return `NPC ${event.npcId} 从 ${event.fromRoomId} 移动到 ${event.toRoomId}`;
+    case "npc_surrendered": return `NPC ${event.npcId} 在 ${event.roomId} 投降`;
+  }
+}
+
+function formatNpcAction(action: NpcPublicAction): string {
+  if (!action.succeeded) return `${action.npcName}尝试${action.verb}，但失败：${action.reason}`;
+  switch (action.verb) {
+    case "say": return `${action.npcName}说：“${action.content}”`;
+    case "move": return `${action.npcName}向${action.direction}移动到${action.toRoomId}`;
+    case "flee": return `${action.npcName}向${action.direction}逃到${action.toRoomId}`;
+    case "attack": return `${action.npcName}攻击${action.targetId}，造成${action.damage}点损耗`;
+    case "surrender": return `${action.npcName}投降`;
+    case "wait": return `${action.npcName}保持沉默`;
   }
 }
 
@@ -65,15 +79,7 @@ export function buildDmRecoveryPrompt(
     .join("\n") || "（无）";
   const history = recentTurns
     .map((t) => {
-      const npcLines = t.npcActions?.map((a) =>
-        a.verb === "say"
-          ? `${a.npcName}说：“${a.content}”`
-          : a.verb === "move"
-            ? a.succeeded
-              ? `${a.npcName}向${a.direction}移动到${a.toRoomId}`
-              : `${a.npcName}移动失败：${a.reason}`
-            : `${a.npcName}保持沉默`
-      ).join("；");
+      const npcLines = t.npcActions?.map((action) => formatNpcAction(action)).join("；");
       return `第 ${t.turn} 轮｜玩家：${t.playerInput}${npcLines ? `\nNPC：${npcLines}` : ""}\n叙事：${t.narration}`;
     })
     .join("\n\n") || "（没有可用的历史轮次）";
@@ -177,7 +183,7 @@ export function buildDmPrompt(
       const statStr = poolKey
         ? ` (${poolDef!.label}: ${n.stats[poolKey] ?? 0}/${n.maxStats[`${poolKey}Max`] ?? poolDef!.max})`
         : "";
-      return `  ${n.name}${statStr}`;
+      return `  ${n.name}${statStr}${n.combatState === "surrendered" ? " [已投降]" : ""}`;
     });
     const npcBlock = npcsHere.length > 0 ? `\n在场:\n${npcLines.join("\n")}` : "";
     const itemsHere = Object.values(state.items).filter(
@@ -238,17 +244,9 @@ export function buildDmPrompt(
 
   // ── Independent NPC actions ──
   if (npcActions.length > 0) {
-    const lines = npcActions.map((action) =>
-      action.verb === "say"
-        ? `- ${action.npcName}说：“${action.content}”`
-        : action.verb === "move"
-          ? action.succeeded
-            ? `- ${action.npcName}从 ${action.fromRoomId} 向 ${action.direction} 移动到 ${action.toRoomId}`
-            : `- ${action.npcName}尝试向 ${action.direction} 移动，但失败：${action.reason}`
-          : `- ${action.npcName}保持沉默`
-    );
+    const lines = npcActions.map((action) => `- ${formatNpcAction(action)}`);
     parts.push(
-      `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 自己的长期 Pi Session。你只能叙述其公开结果，不得改写台词或替它决定其他行动。`
+      `[独立 NPC 的已确定行动]\n${lines.join("\n")}\n这些行动来自 NPC 的独立规则脑或持久 Pi Session，并已由 Engine 校验。你只能叙述其公开结果，不得改写或替它决定其他行动。`
     );
   }
 

@@ -82,7 +82,7 @@ function printRoom(state: WorldState) {
     (n) => n.roomId === state.player.roomId && n.alive
   );
   if (npcsHere.length > 0) {
-    console.log(`在场：${npcsHere.map((n) => n.name).join("，")}`);
+    console.log(`在场：${npcsHere.map((n) => `${n.name}${n.combatState === "surrendered" ? "（已投降）" : ""}`).join("，")}`);
   }
   console.log();
 }

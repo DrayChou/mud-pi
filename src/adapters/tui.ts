@@ -215,7 +215,7 @@ export class MudTuiComponent implements Component, Focusable {
     return [
       BOLD(room?.title ?? state.player.roomId),
       `出口: ${room ? Object.keys(room.exits).join(" ") || "无" : "无"}`,
-      `NPC: ${npcs.map((npc) => npc.name).join("、") || "无"}`,
+      `NPC: ${npcs.map((npc) => `${npc.name}${npc.combatState === "surrendered" ? "(投降)" : ""}`).join("、") || "无"}`,
       `物品: ${items.map((item) => item.name).join("、") || "无"}`,
       "",
       BOLD("地图"),

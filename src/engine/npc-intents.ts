@@ -2,9 +2,11 @@
 // npc-intents.ts — validate independent NPC decisions against authority state
 // ─────────────────────────────────────────────────────────────
 
+import type { GameEvent } from "../types/events.ts";
 import type { EngineMutation } from "../types/mutations.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { WorldState } from "../types/world.ts";
+import { calculateDamage, resolveCombatSchema } from "./combat.ts";
 
 export interface NpcIntentResult {
   mutations: EngineMutation[];
@@ -61,7 +63,8 @@ export function executeNpcDecision(
         },
       };
 
-    case "move": {
+    case "move":
+    case "flee": {
       const direction = normalizeDirection(decision.intent.direction);
       if (!direction) return failed(decision, name, "方向无效");
 
@@ -76,7 +79,7 @@ export function executeNpcDecision(
         action: {
           npcId: npc.id,
           npcName: name,
-          verb: "move",
+          verb: decision.intent.verb,
           direction,
           fromRoomId: npc.roomId,
           toRoomId,
@@ -84,7 +87,67 @@ export function executeNpcDecision(
         },
       };
     }
+
+    case "attack": {
+      if (decision.intent.targetId !== state.player.id) {
+        return failed(decision, name, "第一版 NPC 战斗只能攻击同房间玩家");
+      }
+      if (npc.combatState === "surrendered") return failed(decision, name, "NPC 已经投降");
+      if (state.player.roomId !== npc.roomId || state.player.lifecycle !== "active") {
+        return failed(decision, name, "玩家不在可攻击状态或不在同一房间");
+      }
+      const combat = resolveCombatSchema(state.schema);
+      const damage = calculateDamage(npc.stats, state.player.stats, combat, 3);
+      return {
+        mutations: [{ kind: "engine/player_stat_changed", stat: combat.poolKey, delta: -damage }],
+        action: {
+          npcId: npc.id,
+          npcName: name,
+          verb: "attack",
+          targetId: state.player.id,
+          damage,
+          succeeded: true,
+        },
+      };
+    }
+
+    case "surrender":
+      if (npc.combatState === "surrendered") return failed(decision, name, "NPC 已经投降");
+      return {
+        mutations: [{ kind: "engine/npc_surrendered", npcId: npc.id }],
+        action: {
+          npcId: npc.id,
+          npcName: name,
+          verb: "surrender",
+          succeeded: true,
+        },
+      };
   }
+}
+
+export function buildRuleNpcDecisions(state: WorldState, events: GameEvent[]): NpcDecision[] {
+  const decisions: NpcDecision[] = [];
+  const selected = new Set<string>();
+  for (const event of events) {
+    if (event.kind !== "entity_attacked") continue;
+    const npc = state.npcs[event.targetId];
+    if (
+      !npc || selected.has(npc.id) || !npc.alive || npc.controller !== "rule" ||
+      npc.combatState === "surrendered" || npc.roomId !== state.player.roomId ||
+      state.player.lifecycle !== "active"
+    ) continue;
+    selected.add(npc.id);
+    decisions.push({
+      npcId: npc.id,
+      context: {
+        requestedAtTurn: state.turn,
+        roomId: npc.roomId,
+        visibleEntityIds: visibleEntityIds(state, npc.roomId),
+      },
+      intent: { verb: "attack", targetId: state.player.id },
+    });
+  }
+  return decisions;
 }
 
 export function visibleEntityIds(state: WorldState, roomId: string): string[] {
@@ -108,7 +171,10 @@ function failed(
       npcName,
       verb: decision.intent.verb,
       content: decision.intent.verb === "say" ? decision.intent.content : undefined,
-      direction: decision.intent.verb === "move" ? direction ?? decision.intent.direction : undefined,
+      direction: decision.intent.verb === "move" || decision.intent.verb === "flee"
+        ? direction ?? decision.intent.direction
+        : undefined,
+      targetId: decision.intent.verb === "attack" ? decision.intent.targetId : undefined,
       succeeded: false,
       reason,
     },
