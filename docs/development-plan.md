@@ -60,11 +60,12 @@
 
 工作项：
 
-- 定义数据驱动的 Objective 和世界包 EndingRule。
+- 定义数据驱动的 Objective 和世界包 StoryOutcome。
 - Objective 由 GameEvent/WorldState 确定性更新。
 - 增加 `objectives` 或同等查看命令。
-- 每个结局的标题、摘要与自然语言 `criteria` 完全由世界包定义；DM 依据当前权威状态、本轮结果和 Pi Session 判断是否满足，并提出 `endingReached`。
-- Engine 不硬编码任何剧本结束方式，只校验 DM 提出的 ending id 确实存在于当前世界包、且一局只能首次达成一个结局。
+- StoryOutcome 配置只存在于世界包，支持 success/failure/death/transformation/abandonment/softlock/custom 与 terminal。
+- 每个故事结果的标题、摘要与自然语言 `criteria` 完全由世界包定义；DM 依据当前权威状态、本轮结果和 Pi Session 判断是否满足，并提出 `outcomeReached`。
+- Engine 不硬编码任何剧本结束方式；解析层只接受当前世界包声明的 outcome id，存档仅保存已达成的结果快照。
 - 为 `station-dream` 制作 4–6 个目标和至少 2 个结局。
 
 建议的 `station-dream` 闭环：

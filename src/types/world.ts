@@ -72,6 +72,12 @@ export interface NpcPersona {
   constraints?: string[];
 }
 
+export interface NpcStoryRole {
+  importance: "ambient" | "supporting" | "critical";
+  deathPolicy?: "continue" | "ai_evaluate" | "immediate_outcome";
+  notes?: string;
+}
+
 export interface NpcDef {
   id: string;
   name: string;
@@ -80,6 +86,7 @@ export interface NpcDef {
   personality: string;
   controller?: NpcController; // old saves default to "dm"
   persona?: NpcPersona;
+  storyRole?: NpcStoryRole;
   source: RoomSource;
   stats: Stats;       // e.g. { hp: 30, attack: 8, defense: 2 }
   maxStats: Stats;    // e.g. { hpMax: 30 }
@@ -141,17 +148,30 @@ export interface ObjectiveState extends ObjectiveDef {
   completedTurn?: number;
 }
 
-export interface EndingRule {
+export type StoryOutcomeType =
+  | "success"
+  | "failure"
+  | "death"
+  | "transformation"
+  | "abandonment"
+  | "softlock"
+  | "custom";
+
+export interface StoryOutcomeDef {
   id: string;
+  type: StoryOutcomeType;
   title: string;
   summary: string;
   criteria: string; // world-pack guidance evaluated by the DM, never hardcoded in Engine
+  terminal: boolean;
 }
 
-export interface EndingState {
+export interface ReachedOutcome {
   id: string;
+  type: StoryOutcomeType;
   title: string;
   summary: string;
+  terminal: boolean;
   reachedTurn: number;
   reason?: string;
 }
@@ -167,10 +187,13 @@ export interface ProtagonistProfile {
   openingHook?: string;
 }
 
+export type PlayerLifecycle = "active" | "incapacitated" | "dead";
+
 export interface PlayerState {
   id: string;
   name: string;
   roomId: string;
+  lifecycle: PlayerLifecycle;
   stats: Stats;       // e.g. { hp: 85, mp: 40, san: 60 }
   maxStats: Stats;    // e.g. { hpMax: 100, mpMax: 50, sanMax: 100 }
   profile?: ProtagonistProfile; // snapshot from world pack at save creation
@@ -190,6 +213,5 @@ export interface WorldState {
   plotThreads: Record<string, PlotThread>;
   worldFacts: WorldFact[];
   objectives: Record<string, ObjectiveState>;
-  endingRules: EndingRule[];
-  ending?: EndingState;
+  outcome?: ReachedOutcome;
 }

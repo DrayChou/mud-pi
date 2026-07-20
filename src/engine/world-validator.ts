@@ -3,12 +3,13 @@
 // ─────────────────────────────────────────────────────────────
 
 import type {
-  EndingRule,
   NpcController,
   NpcPersona,
+  NpcStoryRole,
   ObjectiveDef,
   ProtagonistProfile,
   StatsSchema,
+  StoryOutcomeDef,
 } from "../types/world.ts";
 
 export interface WorldPackForValidation {
@@ -24,11 +25,12 @@ export interface WorldPackForValidation {
     roomId: string;
     controller?: NpcController;
     persona?: NpcPersona;
+    storyRole?: NpcStoryRole;
     stats?: Record<string, number>;
   }>;
   items: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
   objectives?: ObjectiveDef[];
-  endings?: EndingRule[];
+  outcomes?: StoryOutcomeDef[];
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -90,6 +92,14 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     if (npc.controller === "pi_session" && !npc.persona) {
       errors.push(`npc ${npc.id} uses pi_session but has no persona`);
     }
+    if (npc.storyRole) {
+      if (!["ambient", "supporting", "critical"].includes(npc.storyRole.importance)) {
+        errors.push(`npc ${npc.id} has invalid story importance: ${npc.storyRole.importance}`);
+      }
+      if (npc.storyRole.deathPolicy && !["continue", "ai_evaluate", "immediate_outcome"].includes(npc.storyRole.deathPolicy)) {
+        errors.push(`npc ${npc.id} has invalid deathPolicy: ${npc.storyRole.deathPolicy}`);
+      }
+    }
     validateStats(`npc ${npc.id} stats`, npc.stats, pack.schema, statKeys, errors);
   }
 
@@ -147,12 +157,15 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
     }
   }
 
-  const endingIds = new Set<string>();
-  for (const ending of pack.endings ?? []) {
-    if (!ending.id) errors.push("endings contains an ending with empty id");
-    if (endingIds.has(ending.id)) errors.push(`duplicate ending id: ${ending.id}`);
-    endingIds.add(ending.id);
-    if (!ending.criteria?.trim()) errors.push(`ending ${ending.id} has empty criteria`);
+  const outcomeIds = new Set<string>();
+  const outcomeTypes = new Set(["success", "failure", "death", "transformation", "abandonment", "softlock", "custom"]);
+  for (const outcome of pack.outcomes ?? []) {
+    if (!outcome.id) errors.push("outcomes contains an outcome with empty id");
+    if (outcomeIds.has(outcome.id)) errors.push(`duplicate outcome id: ${outcome.id}`);
+    outcomeIds.add(outcome.id);
+    if (!outcomeTypes.has(outcome.type)) errors.push(`outcome ${outcome.id} has invalid type: ${outcome.type}`);
+    if (!outcome.criteria?.trim()) errors.push(`outcome ${outcome.id} has empty criteria`);
+    if (typeof outcome.terminal !== "boolean") errors.push(`outcome ${outcome.id} terminal must be boolean`);
   }
 
   if (errors.length > 0) {

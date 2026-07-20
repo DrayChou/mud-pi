@@ -122,6 +122,60 @@ describe("deriveGameEvents", () => {
     expect(deriveGameEvents(before, mutations, after)).toEqual([]);
   });
 
+  test("derives player death from a depleted death pool", async () => {
+    const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    before.player.stats.hp = 5;
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      { kind: "engine/player_stat_changed", stat: "hp", delta: -5 },
+    ];
+    applyMutations(after, mutations);
+
+    expect(after.player.lifecycle).toBe("dead");
+    expect(deriveGameEvents(before, mutations, after)).toEqual([
+      {
+        kind: "entity_attacked",
+        turn: 1,
+        targetId: "player1",
+        roomId: "StationHall",
+        stat: "hp",
+        amount: 5,
+      },
+      {
+        kind: "player_died",
+        turn: 1,
+        actorId: "player1",
+        roomId: "StationHall",
+      },
+    ]);
+  });
+
+  test("flags the death of a critical NPC for story evaluation", async () => {
+    const before = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      { kind: "engine/npc_killed", npcId: "ticket_clerk" },
+    ];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([
+      {
+        kind: "entity_defeated",
+        turn: 1,
+        entityId: "ticket_clerk",
+        roomId: "StationHall",
+      },
+      {
+        kind: "critical_npc_died",
+        turn: 1,
+        npcId: "ticket_clerk",
+        roomId: "StationHall",
+        deathPolicy: "ai_evaluate",
+        notes: before.npcs.ticket_clerk?.storyRole?.notes,
+      },
+    ]);
+  });
+
   test("derives attack and defeat events", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

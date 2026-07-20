@@ -9,13 +9,15 @@ function command(verb: string, args: Record<string, string>): ParsedCommand {
 }
 
 describe("progress commands", () => {
-  test("shows visible objectives and a reached ending", async () => {
+  test("shows visible objectives and a reached story outcome", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.objectives.ask_ticket_clerk!.status = "completed";
-    state.ending = {
+    state.outcome = {
       id: "return_with_ticket",
+      type: "success",
       title: "有票者的归途",
       summary: "列车终于启动。",
+      terminal: true,
       reachedTurn: 4,
     };
 
@@ -23,7 +25,35 @@ describe("progress commands", () => {
 
     expect(result.directReply).toContain("✓ 询问归途");
     expect(result.directReply).toContain("○ 登上列车");
-    expect(result.directReply).toContain("结局：有票者的归途");
+    expect(result.directReply).toContain("故事结果：有票者的归途");
+  });
+});
+
+describe("lifecycle command guards", () => {
+  test("blocks physical actions after player death", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.player.lifecycle = "dead";
+
+    const blocked = executeCommand(state, command("go", { direction: "east" }));
+    const status = executeCommand(state, command("status", {}));
+
+    expect(blocked.directReply).toContain("已经死亡");
+    expect(status.directReply).toContain(state.player.name);
+  });
+
+  test("blocks further story actions after a terminal outcome", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.outcome = {
+      id: "done",
+      type: "failure",
+      title: "结束",
+      summary: "故事结束。",
+      terminal: true,
+      reachedTurn: 1,
+    };
+
+    const result = executeCommand(state, command("say", { message: "继续" }));
+    expect(result.directReply).toContain("故事已经结束");
   });
 });
 

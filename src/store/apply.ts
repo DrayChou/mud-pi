@@ -64,6 +64,16 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       const cur = p.stats[mut.stat] ?? 0;
       p.stats[mut.stat] = clampStat(state, mut.stat, cur + mut.delta);
       checkDepletion(state, p.stats, "player");
+      const depletedPools = state.schema.defs.filter(
+        (def) => def.role === "pool" && (p.stats[def.key] ?? def.default) <= def.min
+      );
+      if (depletedPools.some((def) => def.onDeplete === "death")) {
+        p.lifecycle = "dead";
+      } else if (depletedPools.some((def) => def.onDeplete === "incapacitate")) {
+        if (p.lifecycle !== "dead") p.lifecycle = "incapacitated";
+      } else if (p.lifecycle === "incapacitated") {
+        p.lifecycle = "active";
+      }
       break;
     }
 
@@ -175,20 +185,9 @@ function applyDm(state: WorldState, mut: DmMutation): void {
       break;
     }
 
-    case "dm/ending_reached": {
-      if (state.ending) return;
-      const ending = state.endingRules.find((rule) => rule.id === mut.endingId);
-      if (!ending) {
-        console.warn(`[apply] DM proposed unknown ending: ${mut.endingId}`);
-        return;
-      }
-      state.ending = {
-        id: ending.id,
-        title: ending.title,
-        summary: ending.summary,
-        reachedTurn: state.turn + 1,
-        reason: mut.reason,
-      };
+    case "dm/outcome_reached": {
+      if (state.outcome) return;
+      state.outcome = { ...mut.outcome, reachedTurn: state.turn + 1 };
       break;
     }
 

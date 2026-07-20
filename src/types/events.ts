@@ -47,6 +47,20 @@ export type GameEvent =
       amount: number;
     }
   | {
+      kind: "player_died" | "player_incapacitated";
+      turn: number;
+      actorId: string;
+      roomId: string;
+    }
+  | {
+      kind: "critical_npc_died";
+      turn: number;
+      npcId: string;
+      roomId: string;
+      deathPolicy: "continue" | "ai_evaluate" | "immediate_outcome";
+      notes?: string;
+    }
+  | {
       kind: "entity_defeated";
       turn: number;
       entityId: string;

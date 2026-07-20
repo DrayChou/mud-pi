@@ -5,17 +5,18 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
-  EndingRule,
   ItemDef,
   NpcController,
   NpcDef,
   NpcPersona,
+  NpcStoryRole,
   ObjectiveDef,
   ObjectiveState,
   ProtagonistProfile,
   RoomDef,
   Stats,
   StatsSchema,
+  StoryOutcomeDef,
   WorldState,
 } from "../types/world.ts";
 import { validateWorldPack } from "./world-validator.ts";
@@ -28,6 +29,7 @@ interface WorldPackNpc {
   hostile?: boolean;
   controller?: NpcController;
   persona?: NpcPersona;
+  storyRole?: NpcStoryRole;
   stats?: Record<string, number>;
 }
 
@@ -42,7 +44,7 @@ interface WorldPackJson {
   npcs: WorldPackNpc[];
   items: Array<{ id: string; name: string; desc: string; inRoom?: string; inInventory?: boolean }>;
   objectives?: ObjectiveDef[];
-  endings?: EndingRule[];
+  outcomes?: StoryOutcomeDef[];
 }
 
 export interface WorldPackSummary {
@@ -82,6 +84,11 @@ export async function listWorldPacks(): Promise<WorldPackSummary[]> {
   }
 
   return summaries.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export async function loadStoryOutcomes(packName: string): Promise<StoryOutcomeDef[]> {
+  const pack = await readWorldPack(packName);
+  return structuredClone(pack.outcomes ?? []);
 }
 
 export async function loadWorldPackSummary(packName: string): Promise<WorldPackSummary> {
@@ -133,6 +140,7 @@ export async function loadWorldPack(
       personality: n.personality,
       controller: n.controller ?? "dm",
       persona: n.persona,
+      storyRole: n.storyRole,
       source: "static",
       hostile: n.hostile ?? false,
       stats: buildDefaultStats(n.stats),
@@ -182,6 +190,7 @@ export async function loadWorldPack(
       id: "player1",
       name: playerName,
       roomId: pack.bornPoint,
+      lifecycle: "active",
       stats: buildDefaultStats(pack.playerStats, protagonist?.initialStats),
       maxStats: buildMaxStats(pack.playerStats, protagonist?.initialStats),
       profile: protagonist ? structuredClone(protagonist) : undefined,
@@ -194,7 +203,6 @@ export async function loadWorldPack(
     plotThreads: {},
     worldFacts: [],
     objectives,
-    endingRules: structuredClone(pack.endings ?? []),
   };
 }
 

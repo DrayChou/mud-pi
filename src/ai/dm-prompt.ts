@@ -2,7 +2,7 @@
 // dm-prompt.ts — build the per-turn prompt injected into Pi DM
 // ─────────────────────────────────────────────────────────────
 
-import type { WorldState } from "../types/world.ts";
+import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
 import type { EngineMutation, TurnRecord } from "../types/mutations.ts";
 import type { CombatContext } from "../engine/commands.ts";
 import type { NpcPublicAction } from "../types/npc.ts";
@@ -89,7 +89,8 @@ export function buildDmPrompt(
   playerInput: string,
   engineMutations: EngineMutation[],
   combatContext?: CombatContext,
-  npcActions: NpcPublicAction[] = []
+  npcActions: NpcPublicAction[] = [],
+  outcomes: StoryOutcomeDef[] = []
 ): string {
   const room = state.rooms[state.player.roomId];
   const parts: string[] = [];
@@ -102,7 +103,7 @@ export function buildDmPrompt(
     parts.push("[世界事实]\n" + visibleFacts.map((f) => `• ${f.text}`).join("\n"));
   }
 
-  // ── Objectives and ending ──
+  // ── Objectives and story outcomes ──
   const visibleObjectives = Object.values(state.objectives).filter(
     (objective) => !objective.hidden || objective.status === "completed"
   );
@@ -114,15 +115,15 @@ export function buildDmPrompt(
       ).join("\n")
     );
   }
-  if (state.ending) {
-    parts.push(`[已达成结局]\n${state.ending.title}：${state.ending.summary}`);
-  } else if (state.endingRules.length > 0) {
+  if (state.outcome) {
+    parts.push(`[已达成故事结果]\n${state.outcome.title}：${state.outcome.summary}`);
+  } else if (outcomes.length > 0) {
     parts.push(
-      `[剧本可用结局]\n` +
-      state.endingRules.map((ending) =>
-        `• ${ending.title}（id: ${ending.id}）\n  判定标准：${ending.criteria}\n  结局摘要：${ending.summary}`
+      `[剧本可用故事结果]\n` +
+      outcomes.map((outcome) =>
+        `• ${outcome.title}（id: ${outcome.id}，类型: ${outcome.type}，终止游戏: ${outcome.terminal ? "是" : "否"}）\n  判定标准：${outcome.criteria}\n  结果摘要：${outcome.summary}`
       ).join("\n") +
-      `\n结局判定由你依据上述剧本标准完成。只有标准已经明确满足时才返回 endingReached；不满足时必须返回 null。`
+      `\n结果判定由你依据上述剧本标准完成。只有标准已经明确满足时才返回 outcomeReached；不满足时必须返回 null。若本轮触发结果，NARRATION 必须作为与该结果一致的收束叙事。`
     );
   }
 
@@ -130,6 +131,20 @@ export function buildDmPrompt(
   const activePlots = Object.values(state.plotThreads).filter((p) => p.status === "active");
   if (activePlots.length > 0) {
     parts.push("[活跃剧情线]\n" + activePlots.map((p) => `• 🔴 ${p.title}：${p.summary}`).join("\n"));
+  }
+
+  // ── Critical NPC state ──
+  const criticalNpcs = Object.values(state.npcs).filter(
+    (npc) => npc.storyRole?.importance === "critical"
+  );
+  if (criticalNpcs.length > 0) {
+    parts.push(
+      `[关键 NPC 状态]\n` +
+      criticalNpcs.map((npc) =>
+        `• ${npc.name}（${npc.id}）：${npc.alive ? "存活" : "已死亡"}；死亡策略=${npc.storyRole?.deathPolicy ?? "ai_evaluate"}${npc.storyRole?.notes ? `；剧本说明=${npc.storyRole.notes}` : ""}`
+      ).join("\n") +
+      `\n关键 NPC 死亡不一定自动结束故事。依据剧本说明判断是继续原路线、转入替代路线，还是提出某个 StoryOutcome。`
+    );
   }
 
   // ── Current room ──
@@ -172,7 +187,7 @@ export function buildDmPrompt(
   // ── Player state ──
   const inventoryItems = state.player.inventory.map((id) => state.items[id]).filter((item) => item !== undefined);
   const inv = inventoryItems.map((item) => item.name).join("，");
-  parts.push(`[玩家状态]\n姓名：${state.player.name}\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
+  parts.push(`[玩家状态]\n姓名：${state.player.name}\n生命阶段：${state.player.lifecycle}\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
   if (inventoryItems.length > 0) {
     parts.push(`[背包物品详情]\n${inventoryItems.map((item) => `• ${item.name}（${item.id}）：${item.desc}`).join("\n")}`);
   }
@@ -239,7 +254,7 @@ itemsAdded 格式：{"id":"稳定的英文或拼音ID","name":"显示名","desc"
   "npcsAdded": [],
   "npcsMoved": [],
   "npcsKilled": [],
-  "endingReached": null
+  "outcomeReached": null
 }
 </WORLD_UPDATE>`
   );

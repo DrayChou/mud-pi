@@ -50,6 +50,6 @@ describe("state compatibility", () => {
       roomId: "Compartment1",
     });
     expect(loaded?.objectives.ask_ticket_clerk?.status).toBe("active");
-    expect(loaded?.endingRules).toHaveLength(2);
+    expect(loaded).not.toHaveProperty("endingRules");
   });
 });

@@ -21,6 +21,7 @@ export function deriveGameEvents(
 ): GameEvent[] {
   const events: GameEvent[] = [];
   const createdItemRooms = new Map<string, string>();
+  let lifecycleEventPublished = false;
   const turn = before.turn + 1;
 
   if (context.playerSpeech?.message.trim()) {
@@ -126,6 +127,17 @@ export function deriveGameEvents(
           stat: mutation.stat,
           amount: -mutation.delta,
         });
+        if (!lifecycleEventPublished && before.player.lifecycle !== after.player.lifecycle) {
+          if (after.player.lifecycle === "dead" || after.player.lifecycle === "incapacitated") {
+            events.push({
+              kind: after.player.lifecycle === "dead" ? "player_died" : "player_incapacitated",
+              turn,
+              actorId: before.player.id,
+              roomId: after.player.roomId,
+            });
+            lifecycleEventPublished = true;
+          }
+        }
         break;
       }
 
@@ -139,6 +151,16 @@ export function deriveGameEvents(
           entityId: mutation.npcId,
           roomId: npc.roomId,
         });
+        if (npc.storyRole?.importance === "critical") {
+          events.push({
+            kind: "critical_npc_died",
+            turn,
+            npcId: mutation.npcId,
+            roomId: npc.roomId,
+            deathPolicy: npc.storyRole.deathPolicy ?? "ai_evaluate",
+            notes: npc.storyRole.notes,
+          });
+        }
         break;
       }
 

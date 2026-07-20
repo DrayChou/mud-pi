@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
-import type { EndingRule, ItemLocation, ObjectiveDef, WorldState } from "../types/world.ts";
+import type { ItemLocation, ObjectiveDef, ReachedOutcome, WorldState } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
 
 function savesDir(worldId: string): string {
@@ -28,6 +28,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   if (!(await f.exists())) return null;
   try {
     const state = await f.json() as WorldState;
+    normalizePlayerLifecycle(state);
     await normalizeItemLocations(state);
     await normalizeProgressState(state);
     return state;
@@ -35,6 +36,10 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
     console.error(`[persist] corrupt state.json for ${worldId}`);
     return null;
   }
+}
+
+function normalizePlayerLifecycle(state: WorldState): void {
+  if (!state.player.lifecycle) state.player.lifecycle = "active";
 }
 
 async function normalizeItemLocations(state: WorldState): Promise<void> {
@@ -67,18 +72,31 @@ async function normalizeItemLocations(state: WorldState): Promise<void> {
 }
 
 async function normalizeProgressState(state: WorldState): Promise<void> {
-  if (state.objectives && state.endingRules) return;
+  const legacy = state as WorldState & {
+    ending?: Omit<ReachedOutcome, "type" | "terminal">;
+    endingRules?: unknown;
+  };
+  if (!state.outcome && legacy.ending) {
+    state.outcome = {
+      ...legacy.ending,
+      type: "custom",
+      terminal: true,
+    };
+  }
+  delete legacy.ending;
+  delete legacy.endingRules;
+
+  if (state.objectives) return;
   const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
   const pack = await worldFile.exists()
-    ? await worldFile.json() as { objectives?: ObjectiveDef[]; endings?: EndingRule[] }
+    ? await worldFile.json() as { objectives?: ObjectiveDef[] }
     : {};
-  state.objectives ??= Object.fromEntries(
+  state.objectives = Object.fromEntries(
     (pack.objectives ?? []).map((objective) => [
       objective.id,
       { ...structuredClone(objective), status: "active" as const },
     ])
   );
-  state.endingRules ??= structuredClone(pack.endings ?? []);
 }
 
 function isItemLocation(value: unknown): value is ItemLocation {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseDmResponse } from "./dm-parser.ts";
-import { loadWorldPack } from "../engine/world-loader.ts";
+import { loadStoryOutcomes, loadWorldPack } from "../engine/world-loader.ts";
 import { applyMutations } from "../store/apply.ts";
 import { executeCommand } from "../engine/commands.ts";
 import type { ParsedCommand } from "./interpreter.ts";
@@ -49,33 +49,39 @@ describe("DM-created interactive items", () => {
     });
   });
 
-  test("accepts a configured ending proposed by the DM", async () => {
+  test("accepts a configured story outcome proposed by the DM", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const outcomes = await loadStoryOutcomes("station-dream");
     const response = parseDmResponse(
-      `<NARRATION>车票上浮现出归途。</NARRATION><WORLD_UPDATE>{"endingReached":{"id":"return_with_ticket","reason":"玩家承认了真正的归处。"}}</WORLD_UPDATE>`,
+      `<NARRATION>车票上浮现出归途。</NARRATION><WORLD_UPDATE>{"outcomeReached":{"id":"return_with_ticket","reason":"玩家承认了真正的归处。"}}</WORLD_UPDATE>`,
       state.schema,
-      state.player.roomId
+      state.player.roomId,
+      outcomes
     );
 
     applyMutations(state, response.mutations);
 
-    expect(state.ending).toMatchObject({
+    expect(state.outcome).toMatchObject({
       id: "return_with_ticket",
+      type: "success",
+      terminal: true,
       reason: "玩家承认了真正的归处。",
     });
   });
 
-  test("rejects an ending id not declared by the world pack", async () => {
+  test("rejects an outcome id not declared by the world pack", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const outcomes = await loadStoryOutcomes("station-dream");
     const response = parseDmResponse(
-      `<NARRATION>结束。</NARRATION><WORLD_UPDATE>{"endingReached":{"id":"invented_ending"}}</WORLD_UPDATE>`,
+      `<NARRATION>结束。</NARRATION><WORLD_UPDATE>{"outcomeReached":{"id":"invented_outcome"}}</WORLD_UPDATE>`,
       state.schema,
-      state.player.roomId
+      state.player.roomId,
+      outcomes
     );
 
     applyMutations(state, response.mutations);
 
-    expect(state.ending).toBeUndefined();
+    expect(state.outcome).toBeUndefined();
   });
 
   test("rejects a DM item placed in a nonexistent room", async () => {

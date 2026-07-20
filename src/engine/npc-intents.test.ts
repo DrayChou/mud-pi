@@ -10,7 +10,7 @@ function state(): WorldState {
     turn: 4,
     schema: { defs: [] },
     player: {
-      id: "player1", name: "旅客", roomId: "hall",
+      id: "player1", name: "旅客", roomId: "hall", lifecycle: "active",
       stats: {}, maxStats: {}, inventory: [], equipment: {},
     },
     rooms: {
@@ -24,7 +24,7 @@ function state(): WorldState {
         stats: {}, maxStats: {}, hostile: false,
       },
     },
-    items: {}, plotThreads: {}, worldFacts: [], objectives: {}, endingRules: [],
+    items: {}, plotThreads: {}, worldFacts: [], objectives: {},
   };
 }
 

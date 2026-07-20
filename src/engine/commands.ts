@@ -28,6 +28,19 @@ export interface CommandResult {
 }
 
 export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandResult {
+  const informational = new Set(["look", "inv", "status", "objectives", "help", "quit"]);
+  if (state.outcome?.terminal && !informational.has(cmd.verb)) {
+    return { mutations: [], directReply: "这个故事已经结束。你仍可以查看状态、目标或退出。" };
+  }
+  if (state.player.lifecycle !== "active" && !informational.has(cmd.verb) && cmd.verb !== "say") {
+    return {
+      mutations: [],
+      directReply: state.player.lifecycle === "dead"
+        ? "你已经死亡，无法进行这个行动。"
+        : "你目前失去行动能力。",
+    };
+  }
+
   switch (cmd.verb) {
     case "look":   return { mutations: [] };
     case "go":     return cmdGo(state, cmd);
@@ -245,12 +258,12 @@ function cmdObjectives(state: WorldState): CommandResult {
   const lines = visible.map((objective) =>
     `${objective.status === "completed" ? "✓" : "○"} ${objective.title}\n  ${objective.description}`
   );
-  const ending = state.ending
-    ? `\n\n结局：${state.ending.title}\n${state.ending.summary}`
+  const outcome = state.outcome
+    ? `\n\n故事结果：${state.outcome.title}\n${state.outcome.summary}`
     : "";
   return {
     mutations: [],
-    directReply: (lines.length > 0 ? `当前目标：\n${lines.join("\n")}` : "当前没有明确目标。") + ending,
+    directReply: (lines.length > 0 ? `当前目标：\n${lines.join("\n")}` : "当前没有明确目标。") + outcome,
   };
 }
 

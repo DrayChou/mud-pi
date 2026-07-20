@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadWorldPack } from "./world-loader.ts";
+import { loadStoryOutcomes, loadWorldPack } from "./world-loader.ts";
 import type { ProtagonistProfile } from "../types/world.ts";
 
 describe("loadWorldPack protagonists", () => {
@@ -17,8 +17,10 @@ describe("loadWorldPack protagonists", () => {
     expect(state.player.stats.defense).toBe(3);
     expect(state.npcs.ticket_clerk?.controller).toBe("pi_session");
     expect(state.npcs.ticket_clerk?.persona?.goals).toHaveLength(2);
+    expect(state.npcs.ticket_clerk?.storyRole?.importance).toBe("critical");
     expect(state.objectives.ask_ticket_clerk?.status).toBe("active");
-    expect(state.endingRules).toHaveLength(2);
+    expect(state).not.toHaveProperty("endingRules");
+    expect(await loadStoryOutcomes("station-dream")).toHaveLength(5);
   });
 
   test("lets the player name override the protagonist default name", async () => {

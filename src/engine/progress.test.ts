@@ -4,7 +4,7 @@ import { evaluateProgress } from "./progress.ts";
 import { applyMutations } from "../store/apply.ts";
 import type { GameEvent } from "../types/events.ts";
 
-describe("objective and ending progress", () => {
+describe("objective progress", () => {
   test("completes objectives in dependency order", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const speech: GameEvent[] = [{
@@ -32,7 +32,7 @@ describe("objective and ending progress", () => {
     expect(second).toEqual([{ kind: "engine/objective_completed", objectiveId: "board_train" }]);
   });
 
-  test("does not decide endings in deterministic objective code", async () => {
+  test("does not decide story outcomes in deterministic objective code", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.objectives.ask_ticket_clerk!.status = "completed";
     state.objectives.board_train!.status = "completed";
@@ -48,6 +48,6 @@ describe("objective and ending progress", () => {
     expect(mutations).toEqual([
       { kind: "engine/objective_completed", objectiveId: "face_shadow" },
     ]);
-    expect(state.ending).toBeUndefined();
+    expect(state.outcome).toBeUndefined();
   });
 });

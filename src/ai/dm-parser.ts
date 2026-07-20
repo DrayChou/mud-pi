@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { DmMutation } from "../types/mutations.ts";
-import type { ItemDef, RoomDef, NpcDef, PlotStatus, StatsSchema } from "../types/world.ts";
+import type { ItemDef, RoomDef, NpcDef, PlotStatus, StatsSchema, StoryOutcomeDef } from "../types/world.ts";
 
 export interface DmResponse {
   narration: string;
@@ -28,17 +28,22 @@ interface RawWorldUpdate {
   npcsAdded?: Array<{ id: string; name: string; roomId: string; personality: string; stats?: Record<string, number>; hostile?: boolean }>;
   npcsMoved?: Array<{ id: string; toRoomId: string }>;
   npcsKilled?: string[];
-  endingReached?: { id: string; reason?: string } | null;
+  outcomeReached?: { id: string; reason?: string } | null;
 }
 
-export function parseDmResponse(raw: string, schema: StatsSchema, currentRoomId?: string): DmResponse {
+export function parseDmResponse(
+  raw: string,
+  schema: StatsSchema,
+  currentRoomId?: string,
+  outcomes: StoryOutcomeDef[] = []
+): DmResponse {
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
   const mutations: DmMutation[] = [];
 
   if (updateStr) {
     try {
-      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId);
+      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId, outcomes);
     } catch (e) {
       console.warn("[dm-parser] failed to parse WORLD_UPDATE:", e);
     }
@@ -61,7 +66,8 @@ function buildMutations(
   u: RawWorldUpdate,
   out: DmMutation[],
   schema: StatsSchema,
-  currentRoomId?: string
+  currentRoomId?: string,
+  outcomes: StoryOutcomeDef[] = []
 ): void {
   for (const f of u.worldFacts ?? []) {
     if (typeof f.text === "string" && f.text.trim())
@@ -129,11 +135,23 @@ function buildMutations(
     if (typeof id === "string") out.push({ kind: "dm/npc_killed", npcId: id });
   }
 
-  if (u.endingReached?.id) {
-    out.push({
-      kind: "dm/ending_reached",
-      endingId: u.endingReached.id,
-      reason: typeof u.endingReached.reason === "string" ? u.endingReached.reason : undefined,
-    });
+  if (u.outcomeReached?.id) {
+    const definition = outcomes.find((outcome) => outcome.id === u.outcomeReached!.id);
+    if (!definition) {
+      console.warn(`[dm-parser] DM proposed unknown outcome: ${u.outcomeReached.id}`);
+    } else {
+      out.push({
+        kind: "dm/outcome_reached",
+        outcome: {
+          id: definition.id,
+          type: definition.type,
+          title: definition.title,
+          summary: definition.summary,
+          terminal: definition.terminal,
+          reachedTurn: 0,
+          reason: typeof u.outcomeReached.reason === "string" ? u.outcomeReached.reason : undefined,
+        },
+      });
+    }
   }
 }

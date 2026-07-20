@@ -7,7 +7,7 @@ import { createInterface as createLineInterface } from "node:readline";
 import { createInterface as createPromptInterface } from "node:readline/promises";
 import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
-import { listWorldPacks, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
+import { listWorldPacks, loadStoryOutcomes, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
 import { loadState, loadTurns, saveState, appendTurn, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
 import { applyMutations, applyMutation } from "./store/apply.ts";
@@ -23,7 +23,7 @@ import { parseDmResponse } from "./ai/dm-parser.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
 import { backendLabel } from "./ai/backend.ts";
 import type { NpcPublicAction } from "./types/npc.ts";
-import type { ProtagonistProfile, WorldState } from "./types/world.ts";
+import type { ProtagonistProfile, StoryOutcomeDef, WorldState } from "./types/world.ts";
 import type { EngineMutation } from "./types/mutations.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
@@ -328,6 +328,8 @@ async function main() {
     print(`存档ID：${state.worldId}`);
   }
 
+  const storyOutcomes = await loadStoryOutcomes(state.worldPack);
+
   // Init AI
   print("\n初始化 AI 会话（使用 Pi 配置）...");
   const dm = new DmSession();
@@ -360,9 +362,9 @@ async function main() {
   // Only a new game gets an opening turn. A resumed Pi session continues as-is.
   if (isNewGame) {
     print("\nDM 正在开场...\n");
-    const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", []);
+    const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", [], undefined, [], storyOutcomes);
     const openingRaw = await dm.ask(openingPrompt);
-    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId);
+    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId, storyOutcomes);
     applyMutations(state, opening.mutations);
     await saveState(state);
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);
@@ -383,7 +385,7 @@ async function main() {
     if (!input) { rl.resume(); rl.prompt(); return; }
 
     try {
-      await processInput(state, input, dm, interpreter, npcSessions);
+      await processInput(state, input, dm, interpreter, npcSessions, storyOutcomes);
     } catch (e: any) {
       print(`\x1b[31m[错误] ${e.message}\x1b[0m`);
     }
@@ -409,7 +411,8 @@ async function processInput(
   input: string,
   dm: DmSession,
   interpreter: Interpreter,
-  npcSessions: NpcSessionRegistry
+  npcSessions: NpcSessionRegistry,
+  storyOutcomes: StoryOutcomeDef[]
 ): Promise<void> {
   // 1. Parse input
   const parsed = await interpreter.parse(input);
@@ -459,13 +462,14 @@ async function processInput(
     input,
     engineMuts,
     result.combatContext,
-    npcActions
+    npcActions,
+    storyOutcomes
   );
   const dmRaw = await dm.ask(dmPrompt);
   process.stdout.write("\x1b[0m");
 
   // 7. Parse DM response → DmMutations
-  const dmResponse = parseDmResponse(dmRaw, state.schema, state.player.roomId);
+  const dmResponse = parseDmResponse(dmRaw, state.schema, state.player.roomId, storyOutcomes);
 
   // 8. Apply DM mutations
   applyMutations(state, dmResponse.mutations);
@@ -532,9 +536,9 @@ async function processInput(
       if (objective) print(`\x1b[33m✓ 目标完成：${objective.title}\x1b[0m`);
     }
   }
-  if (!stateBeforeTurn.ending && state.ending) {
-    print(`\n\x1b[1;35m结局：${state.ending.title}\x1b[0m`);
-    print(state.ending.summary);
+  if (!stateBeforeTurn.outcome && state.outcome) {
+    print(`\n\x1b[1;35m故事结果：${state.outcome.title}\x1b[0m`);
+    print(state.outcome.summary);
   }
 
   // Show room header after movement
