@@ -162,6 +162,16 @@ export function projectPublicEvents(
         roomId: event.toRoomId,
       }];
 
+    case "perceptible_signal_emitted":
+      return [{
+        kind: "perceptible_signal",
+        turn,
+        signalId: event.signalId,
+        roomId: event.roomId,
+        message: event.message,
+        targetId: event.targetId,
+      }];
+
     case "objective_completed": {
       if (!context.playerId || !context.playerRoomId) return [];
       return [{

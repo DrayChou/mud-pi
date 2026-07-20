@@ -61,6 +61,7 @@ export function evolve(state: WorldState, event: WorldEvent): void {
       return;
     case "player_spoke":
     case "conflict_started":
+    case "perceptible_signal_emitted":
       return;
     case "room_created":
       invariant(!state.rooms[event.room.id], `room already exists: ${event.room.id}`, event);

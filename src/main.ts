@@ -397,7 +397,7 @@ async function main() {
         proposalId: nextLegacyProposalId("opening-dm"),
         correlationId: openingCorrelationId,
         sourceId: "dm",
-      });
+      }, storyOutcomes);
     }
     await saveState(state);
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);

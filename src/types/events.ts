@@ -53,6 +53,14 @@ export type GameEvent =
       roomId: string;
     }
   | {
+      kind: "perceptible_signal";
+      turn: number;
+      signalId: string;
+      roomId: string;
+      message: string;
+      targetId?: string;
+    }
+  | {
       kind: "objective_completed";
       turn: number;
       objectiveId: string;

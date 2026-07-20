@@ -95,6 +95,16 @@ describe("NPC event perception routing", () => {
 
     expect(selectNpcIdsForEvents(state, [directed], 2)).toEqual(["watcher"]);
     expect(selectNpcIdsForEvents(state, [publicSpeech], 2)).toHaveLength(2);
+
+    const directedSignal: GameEvent = {
+      kind: "perceptible_signal",
+      turn: state.turn,
+      signalId: "private-knock",
+      roomId: clerk.roomId,
+      message: "三短一长的敲击声",
+      targetId: "guard",
+    };
+    expect(selectNpcIdsForEvents(state, [directedSignal], 2)).toEqual(["guard"]);
   });
 
   test("lets NPCs in either room perceive movement while excluding the mover", async () => {

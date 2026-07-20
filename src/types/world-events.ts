@@ -26,6 +26,7 @@ export interface WorldFactAdded { kind: "world_fact_added"; fact: WorldFact }
 export interface WorldFactRemoved { kind: "world_fact_removed"; fact: WorldFact }
 export interface PlotThreadChanged { kind: "plot_thread_changed"; plotId: string; before?: PlotThread; after: PlotThread }
 export interface ConflictStarted { kind: "conflict_started"; actorId: string; targetId: string; roomId: string }
+export interface PerceptibleSignalEmitted { kind: "perceptible_signal_emitted"; signalId: string; roomId: string; message: string; targetId?: string }
 export interface ObjectiveCompleted { kind: "objective_completed"; objectiveId: string; completedTurn: number; reason?: string }
 export interface StoryOutcomeReached { kind: "story_outcome_reached"; outcome: ReachedOutcome }
 export interface TurnAdvanced { kind: "turn_advanced"; before: number; after: number }
@@ -34,8 +35,8 @@ export type WorldEvent =
   | PlayerMoved | PlayerSpoke | RoomCreated | RoomExitSet | RoomDescriptionChanged
   | RoomExplorationRecorded | ItemCreated | ItemTransferred | ParameterChanged
   | LifecycleChanged | NpcCreated | NpcMoved | NpcDefeated | WorldFactAdded
-  | WorldFactRemoved | PlotThreadChanged | ConflictStarted | ObjectiveCompleted
-  | StoryOutcomeReached | TurnAdvanced;
+  | WorldFactRemoved | PlotThreadChanged | ConflictStarted | PerceptibleSignalEmitted
+  | ObjectiveCompleted | StoryOutcomeReached | TurnAdvanced;
 
 export interface CommittedWorldEvent<TEvent extends WorldEvent = WorldEvent> {
   eventId: string;

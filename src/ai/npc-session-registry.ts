@@ -260,7 +260,7 @@ export function selectNpcIdsForEvents(
 }
 
 function npcCanPerceiveEvent(npc: NpcDef, event: GameEvent): boolean {
-  if (event.kind === "player_spoke" && event.targetId) return event.targetId === npc.id;
+  if ((event.kind === "player_spoke" || event.kind === "perceptible_signal") && event.targetId) return event.targetId === npc.id;
   if (event.kind === "player_moved") {
     return npc.roomId === event.fromRoomId || npc.roomId === event.toRoomId;
   }
@@ -274,7 +274,7 @@ function npcCanPerceiveEvent(npc: NpcDef, event: GameEvent): boolean {
 function eventPriority(npcId: string, events: GameEvent[]): number {
   let score = 0;
   for (const event of events) {
-    if (event.kind === "player_spoke" && event.targetId === npcId) score += 100;
+    if ((event.kind === "player_spoke" || event.kind === "perceptible_signal") && event.targetId === npcId) score += 100;
     else if (event.kind === "critical_npc_died") score += 20;
     else if (event.kind === "entity_attacked" || event.kind === "entity_defeated") score += 10;
     else score += 1;
@@ -299,6 +299,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `${playerName}使用并消耗了${itemName(state, event.itemId)}`;
     case "item_dropped":
       return `${playerName}放下了${itemName(state, event.itemId)}`;
+    case "perceptible_signal":
+      return event.message;
     case "objective_completed":
       return `${playerName}完成了目标“${state.objectives[event.objectiveId]?.title ?? event.objectiveId}”`;
     case "entity_attacked":

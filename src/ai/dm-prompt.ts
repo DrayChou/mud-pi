@@ -38,6 +38,7 @@ function describeGameEvent(event: GameEvent): string {
     case "item_picked_up": return `玩家在 ${event.roomId} 拾取了 ${event.itemId}`;
     case "item_consumed": return `玩家在 ${event.roomId} 使用并消耗了 ${event.itemId}`;
     case "item_dropped": return `玩家在 ${event.roomId} 丢下了 ${event.itemId}`;
+    case "perceptible_signal": return `在 ${event.roomId} 可感知到：${event.message}`;
     case "objective_completed": return `玩家在 ${event.roomId} 完成了目标 ${event.objectiveId}`;
     case "entity_attacked": return `${event.targetId} 的 ${event.stat} 受到 ${event.amount} 点损耗`;
     case "entity_defeated": return `${event.entityId} 在 ${event.roomId} 被击败`;

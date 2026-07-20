@@ -99,7 +99,7 @@ export class GameRuntime {
         proposalId: nextLegacyProposalId(sourceId),
         correlationId,
         sourceId,
-      });
+      }, this.storyOutcomes);
       if (!settlement.accepted) continue;
       accepted.push(mutation as never);
       committedEvents.push(...settlement.committedEvents);

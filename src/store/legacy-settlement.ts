@@ -24,6 +24,15 @@ const migratedTableMutationKinds = new Set<AnyMutation["kind"]>([
   "engine/item_dropped",
   "engine/item_equipped",
   "engine/item_consumed",
+  "dm/room_exit_added",
+  "dm/npc_moved",
+  "engine/player_stat_changed",
+  "engine/npc_stat_changed",
+  "dm/npc_stat_changed",
+  "dm/fact_added",
+  "dm/fact_removed",
+  "engine/objective_completed",
+  "dm/outcome_reached",
 ]);
 
 export function nextLegacyProposalId(prefix = "legacy"): string {

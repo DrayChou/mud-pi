@@ -8,13 +8,13 @@ function metadata(id: string) {
 
 test("legacy settlement commits a non-migrated mutation as exact events", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
-  const before = state.player.stats.hp!;
-  const result = settleLegacyMutation(state, { kind: "engine/player_stat_changed", stat: "hp", delta: -2 }, metadata("stat"));
+  const before = state.turn;
+  const result = settleLegacyMutation(state, { kind: "engine/turn_advanced" }, metadata("turn"));
 
   expect(result.accepted).toBe(true);
-  expect(state.player.stats.hp).toBe(before - 2);
+  expect(state.turn).toBe(before + 1);
   expect(state.revision).toBe(1);
-  if (result.accepted) expect(result.committedEvents.map(({ event }) => event.kind)).toEqual(["parameter_changed"]);
+  if (result.accepted) expect(result.committedEvents.map(({ event }) => event.kind)).toEqual(["turn_advanced"]);
 });
 
 test("legacy settlement rejects invalid mutations without changing authoritative state", async () => {
