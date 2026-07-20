@@ -12,7 +12,8 @@ import { loadState, loadTurns, saveState, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
 import { loadWorldConflictResolver } from "./engine/conflict-script.ts";
 import { effectivePlayerStats } from "./engine/parameters.ts";
-import { nextLegacyProposalId, settleLegacyMutation } from "./store/legacy-settlement.ts";
+import { settleRuntimeMutation } from "./store/domain-settlement.ts";
+import { nextLegacyProposalId } from "./store/legacy-settlement.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
 import type { GameOutput } from "./runtime/game-output.ts";
 import { runMudTui } from "./adapters/tui.ts";
@@ -392,7 +393,7 @@ async function main() {
   );
     const openingCorrelationId = nextLegacyProposalId("opening");
     for (const mutation of opening.mutations) {
-      settleLegacyMutation(state, mutation, {
+      settleRuntimeMutation(state, mutation, {
         proposalId: nextLegacyProposalId("opening-dm"),
         correlationId: openingCorrelationId,
         sourceId: "dm",

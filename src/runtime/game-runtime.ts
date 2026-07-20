@@ -4,13 +4,15 @@ import { buildDmPrompt } from "../ai/dm-prompt.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
 import { defaultConflictResolver, type ConflictResolver } from "../engine/conflict-script.ts";
-import { deriveGameEvents } from "../engine/game-events.ts";
+import { deriveGameEvents, type GameEventContext } from "../engine/game-events.ts";
+import { projectPublicEvents } from "../engine/public-events.ts";
 import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
-import { nextLegacyProposalId, settleLegacyMutation } from "../store/legacy-settlement.ts";
+import { isMigratedTableMutation, settleRuntimeMutation } from "../store/domain-settlement.ts";
+import { nextLegacyProposalId } from "../store/legacy-settlement.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
 import type { GameEvent } from "../types/events.ts";
-import type { EngineMutation } from "../types/mutations.ts";
+import type { AnyMutation, EngineMutation } from "../types/mutations.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
@@ -84,14 +86,14 @@ export class GameRuntime {
   }
 
   private settleLegacyMutations(
-    mutations: EngineMutation[] | ReturnType<typeof parseDmResponse>["mutations"],
+    mutations: AnyMutation[],
     correlationId: string,
     sourceId: string,
   ): { mutations: typeof mutations; committedEvents: CommittedWorldEvent[] } {
     const accepted: typeof mutations = [];
     const committedEvents: CommittedWorldEvent[] = [];
     for (const mutation of mutations) {
-      const settlement = settleLegacyMutation(this.state, mutation, {
+      const settlement = settleRuntimeMutation(this.state, mutation, {
         proposalId: nextLegacyProposalId(sourceId),
         correlationId,
         sourceId,
@@ -125,9 +127,10 @@ export class GameRuntime {
     const engineMuts = engineSettlement.mutations as EngineMutation[];
 
     const initialSpeechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, []);
-    const engineEvents = deriveGameEvents(
+    const engineEvents = deriveSettledGameEvents(
       stateBeforeTurn,
       engineMuts,
+      engineSettlement.committedEvents,
       this.state,
       parsed.verb === "say"
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: initialSpeechTarget } }
@@ -137,15 +140,17 @@ export class GameRuntime {
     // so an NPC can perceive a just-completed task and choose a world-valid reward.
     const stateBeforePlayerProgress = structuredClone(this.state);
     const proposedPlayerProgressMutations = evaluateProgress(this.state, engineEvents);
-    const playerProgressMutations = this.settleLegacyMutations(
+    const playerProgressSettlement = this.settleLegacyMutations(
       proposedPlayerProgressMutations,
       correlationId,
       "objective_engine",
-    ).mutations as EngineMutation[];
-    const playerProgressEvents = deriveGameEvents(
+    );
+    const playerProgressMutations = playerProgressSettlement.mutations as EngineMutation[];
+    const playerProgressEvents = deriveSettledGameEvents(
       stateBeforePlayerProgress,
       playerProgressMutations,
-      this.state
+      playerProgressSettlement.committedEvents,
+      this.state,
     );
     const npcPerceptionEvents = [...engineEvents, ...playerProgressEvents];
 
@@ -163,6 +168,7 @@ export class GameRuntime {
     const npcDecisions = sessionDecisions;
     const npcActions: NpcPublicAction[] = [];
     const npcMutations: EngineMutation[] = [];
+    const npcCommittedEvents: CommittedWorldEvent[] = [];
     for (const decision of npcDecisions) {
       const npcResult = executeNpcDecision(this.state, decision);
       const npcSettlement = this.settleLegacyMutations(
@@ -179,14 +185,16 @@ export class GameRuntime {
         npcActions.push({ ...npcResult.action, succeeded: false, reason: "动作在最终权威结算中被拒绝" });
       } else {
         npcMutations.push(...npcSettlement.mutations as EngineMutation[]);
+        npcCommittedEvents.push(...npcSettlement.committedEvents);
         npcActions.push(npcResult.action);
       }
     }
 
     const speechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, npcDecisions);
-    const preDmBaseEvents = deriveGameEvents(
+    const preDmBaseEvents = deriveSettledGameEvents(
       stateBeforeTurn,
       [...engineMuts, ...playerProgressMutations, ...npcMutations],
+      [...engineSettlement.committedEvents, ...playerProgressSettlement.committedEvents, ...npcCommittedEvents],
       this.state,
       parsed.verb === "say"
         ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
@@ -194,15 +202,17 @@ export class GameRuntime {
     );
     const stateBeforeNpcProgress = structuredClone(this.state);
     const proposedNpcProgressMutations = evaluateProgress(this.state, preDmBaseEvents);
-    const npcProgressMutations = this.settleLegacyMutations(
+    const npcProgressSettlement = this.settleLegacyMutations(
       proposedNpcProgressMutations,
       correlationId,
       "objective_engine",
-    ).mutations as EngineMutation[];
-    const npcProgressEvents = deriveGameEvents(
+    );
+    const npcProgressMutations = npcProgressSettlement.mutations as EngineMutation[];
+    const npcProgressEvents = deriveSettledGameEvents(
       stateBeforeNpcProgress,
       npcProgressMutations,
-      this.state
+      npcProgressSettlement.committedEvents,
+      this.state,
     );
     const preDmEvents = [...preDmBaseEvents, ...npcProgressEvents];
     const preDmProgressMutations = [...playerProgressMutations, ...npcProgressMutations];
@@ -233,36 +243,41 @@ export class GameRuntime {
     const worldDmMutations = dmResponse.mutations.filter(
       (mutation) => mutation.kind !== "dm/outcome_reached"
     );
-    const settledWorldDmMutations = this.settleLegacyMutations(
+    const worldDmSettlement = this.settleLegacyMutations(
       worldDmMutations,
       correlationId,
       "dm",
-    ).mutations as typeof worldDmMutations;
+    );
+    const settledWorldDmMutations = worldDmSettlement.mutations as typeof worldDmMutations;
 
     const postDmEngineMuts: EngineMutation[] = [];
+    const postDmEngineEvents: CommittedWorldEvent[] = [];
     if (parsed.verb === "get" && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up")) {
       const retry = executeCommand(this.state, parsed, this.conflictResolver);
       if (retry.directReply === undefined) {
-        const settledRetryMutations = this.settleLegacyMutations(
+        const retrySettlement = this.settleLegacyMutations(
           retry.mutations,
           correlationId,
           "player_engine_retry",
-        ).mutations as EngineMutation[];
-        postDmEngineMuts.push(...settledRetryMutations);
+        );
+        postDmEngineMuts.push(...retrySettlement.mutations as EngineMutation[]);
+        postDmEngineEvents.push(...retrySettlement.committedEvents);
       }
     }
 
-    const postDmEvents = deriveGameEvents(
+    const postDmEvents = deriveSettledGameEvents(
       stateBeforeDm,
       [...settledWorldDmMutations, ...postDmEngineMuts],
-      this.state
+      [...worldDmSettlement.committedEvents, ...postDmEngineEvents],
+      this.state,
     );
     const proposedPostDmProgressMutations = evaluateProgress(this.state, postDmEvents);
-    const postDmProgressMutations = this.settleLegacyMutations(
+    const postDmProgressSettlement = this.settleLegacyMutations(
       proposedPostDmProgressMutations,
       correlationId,
       "objective_engine",
-    ).mutations as EngineMutation[];
+    );
+    const postDmProgressMutations = postDmProgressSettlement.mutations as EngineMutation[];
     const settledOutcomeMutations = this.settleLegacyMutations(
       outcomeMutations,
       correlationId,
@@ -329,6 +344,39 @@ export class GameRuntime {
 
     return { outputs, quit: false, turnAdvanced: true };
   }
+}
+
+function deriveSettledGameEvents(
+  before: WorldState,
+  mutations: AnyMutation[],
+  committedEvents: CommittedWorldEvent[],
+  after: WorldState,
+  context: GameEventContext = {},
+): GameEvent[] {
+  const legacyEvents = deriveGameEvents(
+    before,
+    mutations.filter((mutation) => !isMigratedTableMutation(mutation)),
+    after,
+    context,
+  );
+  const projectionContext = {
+    playerId: after.player.id,
+    playerRoomId: after.player.roomId,
+    entityRoomIds: Object.fromEntries([
+      [after.player.id, after.player.roomId],
+      ...Object.values(after.npcs).map((npc) => [npc.id, npc.roomId] as const),
+    ]),
+    criticalNpcs: Object.fromEntries(
+      Object.values(after.npcs)
+        .filter((npc) => npc.storyRole?.importance === "critical")
+        .map((npc) => [npc.id, {
+          deathPolicy: npc.storyRole?.deathPolicy,
+          notes: npc.storyRole?.notes,
+        }] as const),
+    ),
+  };
+  const migratedEvents = committedEvents.flatMap((event) => projectPublicEvents(event, projectionContext));
+  return [...legacyEvents, ...migratedEvents];
 }
 
 function resolveSpeechTarget(

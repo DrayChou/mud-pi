@@ -6,42 +6,33 @@ function metadata(id: string) {
   return { proposalId: id, correlationId: "turn-1" };
 }
 
-test("legacy settlement commits accepted mutations as exact events", async () => {
+test("legacy settlement commits a non-migrated mutation as exact events", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
-  const destination = Object.values(state.rooms[state.player.roomId]!.exits)[0]!;
-  const result = settleLegacyMutation(state, { kind: "engine/player_moved", toRoomId: destination }, metadata("move"));
+  const before = state.player.stats.hp!;
+  const result = settleLegacyMutation(state, { kind: "engine/player_stat_changed", stat: "hp", delta: -2 }, metadata("stat"));
 
   expect(result.accepted).toBe(true);
-  expect(state.player.roomId).toBe(destination);
+  expect(state.player.stats.hp).toBe(before - 2);
   expect(state.revision).toBe(1);
-  if (result.accepted) {
-    expect(result.committedEvents.map(({ event }) => event.kind)).toEqual(["player_moved", "room_exploration_recorded"]);
-  }
+  if (result.accepted) expect(result.committedEvents.map(({ event }) => event.kind)).toEqual(["parameter_changed"]);
 });
 
 test("legacy settlement rejects invalid mutations without changing authoritative state", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const before = structuredClone(state);
-  const result = settleLegacyMutation(state, { kind: "engine/player_moved", toRoomId: "missing" }, metadata("bad-move"));
+  const result = settleLegacyMutation(state, { kind: "engine/npc_moved", npcId: "missing", toRoomId: state.player.roomId }, metadata("bad-npc"));
 
   expect(result.accepted).toBe(false);
   expect(state).toEqual(before);
 });
 
-test("legacy settlement commits equipment replacement atomically", async () => {
-  const state = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
-  const first = Object.values(state.items).find((item) => item.equipSlot)!;
-  const second = { ...structuredClone(first), id: "replacement-equipment", name: "Replacement Equipment" };
-  state.items[second.id] = second;
-  first.location = { kind: "inventory", ownerId: state.player.id };
-  second.location = { kind: "inventory", ownerId: state.player.id };
-  state.player.inventory = [first.id, second.id];
+test("legacy settlement refuses domains that have typed proposal deciders", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const destination = Object.values(state.rooms[state.player.roomId]!.exits)[0]!;
+  const before = structuredClone(state);
+  const result = settleLegacyMutation(state, { kind: "engine/player_moved", toRoomId: destination }, metadata("legacy-move"));
 
-  const firstResult = settleLegacyMutation(state, { kind: "engine/item_equipped", itemId: first!.id, slot: first!.equipSlot! }, metadata("equip-1"));
-  const secondResult = settleLegacyMutation(state, { kind: "engine/item_equipped", itemId: second!.id, slot: first!.equipSlot! }, metadata("equip-2"));
-
-  expect(firstResult.accepted).toBe(true);
-  expect(secondResult.accepted).toBe(true);
-  expect(state.items[first!.id]!.location).toEqual({ kind: "inventory", ownerId: state.player.id });
-  expect(state.items[second!.id]!.location).toEqual({ kind: "equipped", ownerId: state.player.id, slot: first!.equipSlot! });
+  expect(result.accepted).toBe(false);
+  if (!result.accepted) expect(result.rejection.code).toBe("unsupported_operation");
+  expect(state).toEqual(before);
 });

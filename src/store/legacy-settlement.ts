@@ -15,6 +15,17 @@ export interface LegacyProposalMetadata {
 
 let nextLegacyProposal = 0;
 
+const migratedTableMutationKinds = new Set<AnyMutation["kind"]>([
+  "engine/player_moved",
+  "dm/item_added",
+  "engine/item_reward_granted",
+  "dm/item_reward_granted",
+  "engine/item_picked_up",
+  "engine/item_dropped",
+  "engine/item_equipped",
+  "engine/item_consumed",
+]);
+
 export function nextLegacyProposalId(prefix = "legacy"): string {
   nextLegacyProposal += 1;
   return `${prefix}-${nextLegacyProposal}`;
@@ -210,6 +221,19 @@ export function settleLegacyMutation(
       payload: mutation,
     },
     (snapshot, proposal) => {
+      if (migratedTableMutationKinds.has(proposal.payload.kind)) {
+        return {
+          accepted: false,
+          rejection: {
+            code: "unsupported_operation",
+            safeMessage: "That operation requires its typed table proposal.",
+            diagnostic: `Legacy snapshot inference is disabled for migrated mutation ${proposal.payload.kind}.`,
+            retryable: false,
+          },
+          events: [],
+          warnings: [],
+        };
+      }
       const candidate = structuredClone(snapshot);
       applyMutation(candidate, proposal.payload);
       const events = deriveExactEvents(snapshot, candidate, proposal.payload);
