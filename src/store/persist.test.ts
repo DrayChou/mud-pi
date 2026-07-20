@@ -26,9 +26,13 @@ describe("state compatibility", () => {
     const legacyState = structuredClone(state) as unknown as {
       items: Record<string, { location?: unknown }>;
       player: { inventory: string[]; equipment: Record<string, string> };
+      objectives?: unknown;
+      endingRules?: unknown;
     };
     delete legacyState.items.ticket?.location;
     delete legacyState.items.rusty_knife?.location;
+    delete legacyState.objectives;
+    delete legacyState.endingRules;
     legacyState.player.inventory.push("ticket");
 
     const dir = join(import.meta.dir, "../../saves", state.worldId);
@@ -45,5 +49,7 @@ describe("state compatibility", () => {
       kind: "room",
       roomId: "Compartment1",
     });
+    expect(loaded?.objectives.ask_ticket_clerk?.status).toBe("active");
+    expect(loaded?.endingRules).toHaveLength(2);
   });
 });

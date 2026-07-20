@@ -191,5 +191,76 @@
       "desc": "一把锈迹斑斑的小刀，刀刃还算锋利。",
       "inRoom": "Compartment1"
     }
+  ],
+  "objectives": [
+    {
+      "id": "ask_ticket_clerk",
+      "title": "询问归途",
+      "description": "与售票员交谈，弄清这张空白车票意味着什么。",
+      "completion": {
+        "kind": "talk_to_npc",
+        "npcId": "ticket_clerk"
+      }
+    },
+    {
+      "id": "board_train",
+      "title": "登上列车",
+      "description": "穿过站台，进入停在黑暗中的列车。",
+      "requires": [
+        "ask_ticket_clerk"
+      ],
+      "completion": {
+        "kind": "visit_room",
+        "roomId": "Compartment1"
+      }
+    },
+    {
+      "id": "face_shadow",
+      "title": "面对最后的阴影",
+      "description": "抵达最后一节车厢，并击败阻挡归途的车厢阴影。",
+      "requires": [
+        "board_train"
+      ],
+      "completion": {
+        "kind": "defeat_entity",
+        "entityId": "shadow"
+      }
+    }
+  ],
+  "endings": [
+    {
+      "id": "return_with_ticket",
+      "title": "有票者的归途",
+      "summary": "空白车票浮现出只属于你的目的地。列车终于启动，载着你驶向那个一直不敢承认的归处。",
+      "priority": 100,
+      "conditions": [
+        {
+          "kind": "objective_completed",
+          "objectiveId": "face_shadow"
+        },
+        {
+          "kind": "item_owned",
+          "itemId": "ticket",
+          "owned": true
+        }
+      ]
+    },
+    {
+      "id": "lost_without_ticket",
+      "title": "无票旅客",
+      "summary": "阴影散去，铁门却没有打开。没有车票证明你的归途，你只能在空白时刻表下等待下一班永远不会抵达的列车。",
+      "priority": 10,
+      "conditions": [
+        {
+          "kind": "objective_completed",
+          "objectiveId": "face_shadow"
+        },
+        {
+          "kind": "item_owned",
+          "itemId": "ticket",
+          "owned": false
+        }
+      ]
+    }
   ]
 }

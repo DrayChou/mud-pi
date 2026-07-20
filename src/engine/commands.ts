@@ -37,6 +37,7 @@ export function executeCommand(state: WorldState, cmd: ParsedCommand): CommandRe
     case "attack": return cmdAttack(state, cmd);
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
+    case "objectives": return cmdObjectives(state);
     case "help":   return cmdHelp(state);
     case "say":    return { mutations: [] };
     case "quit":   return { mutations: [], directReply: "__QUIT__" };
@@ -237,6 +238,22 @@ function cmdStatus(state: WorldState): CommandResult {
   };
 }
 
+function cmdObjectives(state: WorldState): CommandResult {
+  const visible = Object.values(state.objectives).filter(
+    (objective) => !objective.hidden || objective.status === "completed"
+  );
+  const lines = visible.map((objective) =>
+    `${objective.status === "completed" ? "✓" : "○"} ${objective.title}\n  ${objective.description}`
+  );
+  const ending = state.ending
+    ? `\n\n结局：${state.ending.title}\n${state.ending.summary}`
+    : "";
+  return {
+    mutations: [],
+    directReply: (lines.length > 0 ? `当前目标：\n${lines.join("\n")}` : "当前没有明确目标。") + ending,
+  };
+}
+
 function cmdHelp(state: WorldState): CommandResult {
   // Build stat display hint from schema
   const poolStats = state.schema.defs
@@ -256,6 +273,7 @@ function cmdHelp(state: WorldState): CommandResult {
   attack <目标>  攻击
   inv            查看背包
   status         查看状态（${poolStats}）
+  objectives     查看当前目标与结局
   help           显示帮助
   quit           保存并退出`,
   };

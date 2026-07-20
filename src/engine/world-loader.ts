@@ -5,10 +5,13 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  EndingRule,
   ItemDef,
   NpcController,
   NpcDef,
   NpcPersona,
+  ObjectiveDef,
+  ObjectiveState,
   ProtagonistProfile,
   RoomDef,
   Stats,
@@ -38,6 +41,8 @@ interface WorldPackJson {
   rooms: Array<{ id: string; title: string; desc: string; exits: Record<string, string>; tags?: string[] }>;
   npcs: WorldPackNpc[];
   items: Array<{ id: string; name: string; desc: string; inRoom?: string; inInventory?: boolean }>;
+  objectives?: ObjectiveDef[];
+  endings?: EndingRule[];
 }
 
 export interface WorldPackSummary {
@@ -163,6 +168,11 @@ export async function loadWorldPack(
     if (item) item.location = { kind: "inventory", ownerId: "player1" };
   }
 
+  const objectives: Record<string, ObjectiveState> = {};
+  for (const objective of pack.objectives ?? []) {
+    objectives[objective.id] = { ...structuredClone(objective), status: "active" };
+  }
+
   return {
     worldId: `${packName}-${Date.now()}`,
     worldPack: packName,
@@ -183,6 +193,8 @@ export async function loadWorldPack(
     items,
     plotThreads: {},
     worldFacts: [],
+    objectives,
+    endingRules: structuredClone(pack.endings ?? []),
   };
 }
 

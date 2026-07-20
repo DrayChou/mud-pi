@@ -17,6 +17,8 @@ describe("loadWorldPack protagonists", () => {
     expect(state.player.stats.defense).toBe(3);
     expect(state.npcs.ticket_clerk?.controller).toBe("pi_session");
     expect(state.npcs.ticket_clerk?.persona?.goals).toHaveLength(2);
+    expect(state.objectives.ask_ticket_clerk?.status).toBe("active");
+    expect(state.endingRules).toHaveLength(2);
   });
 
   test("lets the player name override the protagonist default name", async () => {

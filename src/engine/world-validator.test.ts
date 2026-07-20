@@ -66,6 +66,27 @@ describe("validateWorldPack", () => {
 
     expect(() => validateWorldPack(pack, "missing-persona")).toThrow(/uses pi_session but has no persona/);
   });
+
+  test("rejects objective and ending references that do not exist", () => {
+    const pack = basePack();
+    pack.objectives = [{
+      id: "find",
+      title: "Find",
+      description: "Find it",
+      requires: ["missing-objective"],
+      completion: { kind: "acquire_item", itemId: "missing-item" },
+    }];
+    pack.endings = [{
+      id: "end",
+      title: "End",
+      summary: "Done",
+      conditions: [{ kind: "objective_completed", objectiveId: "missing-objective" }],
+    }];
+
+    expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/requires missing objective/);
+    expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/references missing item/);
+    expect(() => validateWorldPack(pack, "broken-progress")).toThrow(/ending end references missing objective/);
+  });
 });
 
 function basePack(): WorldPackForValidation {

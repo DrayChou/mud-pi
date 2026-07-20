@@ -25,6 +25,7 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
   equip  — 装备，需要 item
   inv    — 查看背包
   status — 查看状态
+  objectives — 查看目标、任务或当前进度
   help   — 帮助
   quit   — 退出
 
@@ -80,6 +81,8 @@ function fastParse(
     return { verb: "look", args: {}, confidence: 1 };
   if (["status", "st", "hp", "状态"].includes(input))
     return { verb: "status", args: {}, confidence: 1 };
+  if (["objectives", "objective", "goals", "quests", "目标", "任务", "进度"].includes(input))
+    return { verb: "objectives", args: {}, confidence: 1 };
   if (["help", "h", "帮助", "?"].includes(input))
     return { verb: "help", args: {}, confidence: 1 };
   if (["quit", "exit", "bye", "退出", "离开"].includes(input))

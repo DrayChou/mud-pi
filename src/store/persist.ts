@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
-import type { ItemLocation, WorldState } from "../types/world.ts";
+import type { EndingRule, ItemLocation, ObjectiveDef, WorldState } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
 
 function savesDir(worldId: string): string {
@@ -29,6 +29,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   try {
     const state = await f.json() as WorldState;
     await normalizeItemLocations(state);
+    await normalizeProgressState(state);
     return state;
   } catch {
     console.error(`[persist] corrupt state.json for ${worldId}`);
@@ -63,6 +64,21 @@ async function normalizeItemLocations(state: WorldState): Promise<void> {
       item.location = packLocations.get(item.id) ?? { kind: "destroyed" };
     }
   }
+}
+
+async function normalizeProgressState(state: WorldState): Promise<void> {
+  if (state.objectives && state.endingRules) return;
+  const worldFile = Bun.file(join(import.meta.dir, "../../worlds", state.worldPack, "world.json"));
+  const pack = await worldFile.exists()
+    ? await worldFile.json() as { objectives?: ObjectiveDef[]; endings?: EndingRule[] }
+    : {};
+  state.objectives ??= Object.fromEntries(
+    (pack.objectives ?? []).map((objective) => [
+      objective.id,
+      { ...structuredClone(objective), status: "active" as const },
+    ])
+  );
+  state.endingRules ??= structuredClone(pack.endings ?? []);
 }
 
 function isItemLocation(value: unknown): value is ItemLocation {

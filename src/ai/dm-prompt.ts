@@ -19,6 +19,8 @@ function describeMutation(m: EngineMutation): string | null {
     case "engine/item_picked_up":    return `玩家拾取了 ${m.itemId}`;
     case "engine/item_dropped":      return `玩家丢弃了 ${m.itemId}`;
     case "engine/item_equipped":     return `玩家装备了 ${m.itemId}`;
+    case "engine/objective_completed": return `玩家完成目标 ${m.objectiveId}`;
+    case "engine/ending_reached":    return `玩家达成结局 ${m.endingId}`;
     case "engine/turn_advanced":     return null;
   }
 }
@@ -99,6 +101,22 @@ export function buildDmPrompt(
   );
   if (visibleFacts.length > 0) {
     parts.push("[世界事实]\n" + visibleFacts.map((f) => `• ${f.text}`).join("\n"));
+  }
+
+  // ── Objectives and ending ──
+  const visibleObjectives = Object.values(state.objectives).filter(
+    (objective) => !objective.hidden || objective.status === "completed"
+  );
+  if (visibleObjectives.length > 0) {
+    parts.push(
+      "[目标进度]\n" +
+      visibleObjectives.map((objective) =>
+        `• ${objective.status === "completed" ? "✓" : "○"} ${objective.title}：${objective.description}`
+      ).join("\n")
+    );
+  }
+  if (state.ending) {
+    parts.push(`[已达成结局]\n${state.ending.title}：${state.ending.summary}`);
   }
 
   // ── Active plot threads ──

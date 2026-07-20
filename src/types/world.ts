@@ -119,6 +119,47 @@ export interface WorldFact {
   createdTurn: number;
 }
 
+export type ObjectiveCompletion =
+  | { kind: "visit_room"; roomId: string }
+  | { kind: "talk_to_npc"; npcId: string }
+  | { kind: "acquire_item"; itemId: string }
+  | { kind: "defeat_entity"; entityId: string };
+
+export interface ObjectiveDef {
+  id: string;
+  title: string;
+  description: string;
+  requires?: string[];
+  hidden?: boolean;
+  completion: ObjectiveCompletion;
+}
+
+export type ObjectiveStatus = "active" | "completed";
+
+export interface ObjectiveState extends ObjectiveDef {
+  status: ObjectiveStatus;
+  completedTurn?: number;
+}
+
+export type EndingCondition =
+  | { kind: "objective_completed"; objectiveId: string }
+  | { kind: "item_owned"; itemId: string; owned?: boolean };
+
+export interface EndingRule {
+  id: string;
+  title: string;
+  summary: string;
+  priority?: number;
+  conditions: EndingCondition[];
+}
+
+export interface EndingState {
+  id: string;
+  title: string;
+  summary: string;
+  reachedTurn: number;
+}
+
 export interface ProtagonistProfile {
   id: string;
   name: string;
@@ -152,4 +193,7 @@ export interface WorldState {
   items: Record<string, ItemDef>;
   plotThreads: Record<string, PlotThread>;
   worldFacts: WorldFact[];
+  objectives: Record<string, ObjectiveState>;
+  endingRules: EndingRule[];
+  ending?: EndingState;
 }

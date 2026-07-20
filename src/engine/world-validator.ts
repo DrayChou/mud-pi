@@ -3,8 +3,10 @@
 // ─────────────────────────────────────────────────────────────
 
 import type {
+  EndingRule,
   NpcController,
   NpcPersona,
+  ObjectiveDef,
   ProtagonistProfile,
   StatsSchema,
 } from "../types/world.ts";
@@ -25,6 +27,8 @@ export interface WorldPackForValidation {
     stats?: Record<string, number>;
   }>;
   items: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
+  objectives?: ObjectiveDef[];
+  endings?: EndingRule[];
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -114,6 +118,48 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
 
   if (pack.defaultProtagonistId && !protagonistIds.has(pack.defaultProtagonistId)) {
     errors.push(`defaultProtagonistId references missing protagonist: ${pack.defaultProtagonistId}`);
+  }
+
+  const objectiveIds = new Set<string>();
+  for (const objective of pack.objectives ?? []) {
+    if (!objective.id) errors.push("objectives contains an objective with empty id");
+    if (objectiveIds.has(objective.id)) errors.push(`duplicate objective id: ${objective.id}`);
+    objectiveIds.add(objective.id);
+  }
+  for (const objective of pack.objectives ?? []) {
+    for (const requiredId of objective.requires ?? []) {
+      if (!objectiveIds.has(requiredId)) {
+        errors.push(`objective ${objective.id} requires missing objective: ${requiredId}`);
+      }
+    }
+    const completion = objective.completion;
+    if (completion.kind === "visit_room" && !roomIds.has(completion.roomId)) {
+      errors.push(`objective ${objective.id} references missing room: ${completion.roomId}`);
+    }
+    if (completion.kind === "talk_to_npc" && !npcIds.has(completion.npcId)) {
+      errors.push(`objective ${objective.id} references missing npc: ${completion.npcId}`);
+    }
+    if (completion.kind === "acquire_item" && !itemIds.has(completion.itemId)) {
+      errors.push(`objective ${objective.id} references missing item: ${completion.itemId}`);
+    }
+    if (completion.kind === "defeat_entity" && !npcIds.has(completion.entityId)) {
+      errors.push(`objective ${objective.id} references missing entity: ${completion.entityId}`);
+    }
+  }
+
+  const endingIds = new Set<string>();
+  for (const ending of pack.endings ?? []) {
+    if (!ending.id) errors.push("endings contains an ending with empty id");
+    if (endingIds.has(ending.id)) errors.push(`duplicate ending id: ${ending.id}`);
+    endingIds.add(ending.id);
+    for (const condition of ending.conditions ?? []) {
+      if (condition.kind === "objective_completed" && !objectiveIds.has(condition.objectiveId)) {
+        errors.push(`ending ${ending.id} references missing objective: ${condition.objectiveId}`);
+      }
+      if (condition.kind === "item_owned" && !itemIds.has(condition.itemId)) {
+        errors.push(`ending ${ending.id} references missing item: ${condition.itemId}`);
+      }
+    }
   }
 
   if (errors.length > 0) {

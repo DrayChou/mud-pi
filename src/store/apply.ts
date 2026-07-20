@@ -147,6 +147,27 @@ function applyEngine(state: WorldState, mut: EngineMutation): void {
       break;
     }
 
+    case "engine/objective_completed": {
+      const objective = state.objectives[mut.objectiveId];
+      if (!objective || objective.status === "completed") return;
+      objective.status = "completed";
+      objective.completedTurn = state.turn + 1;
+      break;
+    }
+
+    case "engine/ending_reached": {
+      if (state.ending) return;
+      const ending = state.endingRules.find((rule) => rule.id === mut.endingId);
+      if (!ending) return;
+      state.ending = {
+        id: ending.id,
+        title: ending.title,
+        summary: ending.summary,
+        reachedTurn: state.turn + 1,
+      };
+      break;
+    }
+
     case "engine/turn_advanced": {
       state.turn += 1;
       break;

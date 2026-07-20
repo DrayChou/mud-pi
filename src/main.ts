@@ -14,6 +14,7 @@ import { applyMutations, applyMutation } from "./store/apply.ts";
 import { executeCommand } from "./engine/commands.ts";
 import { executeNpcDecision } from "./engine/npc-intents.ts";
 import { deriveGameEvents } from "./engine/game-events.ts";
+import { evaluateProgress } from "./engine/progress.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
@@ -481,12 +482,14 @@ async function processInput(
     }
   }
 
-  const speechTarget = parsed.verb === "say" && parsed.args.target
-    ? Object.values(stateBeforeTurn.npcs).find(
-        (npc) =>
-          npc.roomId === stateBeforeTurn.player.roomId &&
-          (npc.id.includes(parsed.args.target!) || npc.name.includes(parsed.args.target!))
-      )?.id
+  const speechTarget = parsed.verb === "say"
+    ? parsed.args.target
+      ? Object.values(stateBeforeTurn.npcs).find(
+          (npc) =>
+            npc.roomId === stateBeforeTurn.player.roomId &&
+            (npc.id.includes(parsed.args.target!) || npc.name.includes(parsed.args.target!))
+        )?.id
+      : npcDecisions[0]?.npcId
     : undefined;
   const gameEvents = deriveGameEvents(
     stateBeforeTurn,
@@ -496,6 +499,8 @@ async function processInput(
       ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
       : undefined
   );
+  const progressMutations = evaluateProgress(state, gameEvents);
+  applyMutations(state, progressMutations);
 
   // 9. Advance turn
   applyMutation(state, { kind: "engine/turn_advanced" });
@@ -511,7 +516,7 @@ async function processInput(
       args: parsed.args,
       confidence: parsed.confidence,
     },
-    engineMutations: [...engineMuts, ...postDmEngineMuts],
+    engineMutations: [...engineMuts, ...postDmEngineMuts, ...progressMutations],
     dmMutations: dmResponse.mutations,
     gameEvents,
     npcActions,
@@ -521,6 +526,16 @@ async function processInput(
 
   // 11. Display narration
   print(`\n\x1b[32m${dmResponse.narration}\x1b[0m`);
+  for (const mutation of progressMutations) {
+    if (mutation.kind === "engine/objective_completed") {
+      const objective = state.objectives[mutation.objectiveId];
+      if (objective) print(`\x1b[33m✓ 目标完成：${objective.title}\x1b[0m`);
+    }
+  }
+  if (progressMutations.some((mutation) => mutation.kind === "engine/ending_reached") && state.ending) {
+    print(`\n\x1b[1;35m结局：${state.ending.title}\x1b[0m`);
+    print(state.ending.summary);
+  }
 
   // Show room header after movement
   const moved = engineMuts.some((m) => m.kind === "engine/player_moved");

@@ -8,6 +8,25 @@ function command(verb: string, args: Record<string, string>): ParsedCommand {
   return { verb, args, confidence: 1 } as ParsedCommand;
 }
 
+describe("progress commands", () => {
+  test("shows visible objectives and a reached ending", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.objectives.ask_ticket_clerk!.status = "completed";
+    state.ending = {
+      id: "return_with_ticket",
+      title: "有票者的归途",
+      summary: "列车终于启动。",
+      reachedTurn: 4,
+    };
+
+    const result = executeCommand(state, command("objectives", {}));
+
+    expect(result.directReply).toContain("✓ 询问归途");
+    expect(result.directReply).toContain("○ 登上列车");
+    expect(result.directReply).toContain("结局：有票者的归途");
+  });
+});
+
 describe("item commands", () => {
   test("cannot pick up an item from another room", async () => {
     const state = await loadWorldPack("station-dream", {

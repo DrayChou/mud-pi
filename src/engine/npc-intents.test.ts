@@ -24,7 +24,7 @@ function state(): WorldState {
         stats: {}, maxStats: {}, hostile: false,
       },
     },
-    items: {}, plotThreads: {}, worldFacts: [],
+    items: {}, plotThreads: {}, worldFacts: [], objectives: {}, endingRules: [],
   };
 }
 
