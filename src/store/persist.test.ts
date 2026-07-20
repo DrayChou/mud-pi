@@ -57,6 +57,8 @@ describe("state compatibility", () => {
     expect(loaded?.objectives.ask_ticket_clerk?.status).toBe("active");
     expect(loaded?.rooms.StationHall?.discovered).toBe(true);
     expect(Object.values(loaded?.rooms ?? {}).filter((room) => room.discovered)).toHaveLength(1);
+    expect(loaded?.generation).toEqual(state.generation);
+    expect(loaded?.generation?.generatedRoomIds.every((id) => loaded.rooms[id]?.source === "procedural")).toBe(true);
     expect(loaded).not.toHaveProperty("endingRules");
   });
 });

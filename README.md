@@ -102,6 +102,7 @@ bun run dev
 bun start --world station-dream   # 指定世界包
 bun start --save station-dream-001 # 读取存档
 bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
+bun start --world station-dream --seed night-train-42 # 复现程序化地图
 bun run tui                         # 使用本地多面板 TUI
 bun start --tui --save <存档ID>     # 用 TUI 读取指定存档
 bun run telnet                      # 在 127.0.0.1:4000 启动 Telnet/GMCP

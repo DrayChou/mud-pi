@@ -186,7 +186,11 @@ export function buildDmPrompt(
     const itemBlock = itemsHere.length > 0
       ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}（${item.id}）：${item.desc}${item.portable === false ? " [不可携带]" : ""}`).join("\n")}`
       : "";
-    parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${npcBlock}${itemBlock}`);
+    const proceduralRole = state.generation?.roomRoles[room.id];
+    const generationBlock = proceduralRole
+      ? `\n程序化语义角色：${proceduralRole}（这是 Engine 已分配的叙事功能，不代表自动生成实体）`
+      : "";
+    parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${generationBlock}${npcBlock}${itemBlock}`);
   }
 
   // ── Protagonist profile ──

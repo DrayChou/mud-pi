@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // main.ts — CLI entry point
-// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>] [--tui|--telnet] [--host 127.0.0.1] [--port 4000]
+// Usage: bun run src/main.ts [--world <pack>] [--name <player>] [--save <id>] [--seed <value>] [--tui|--telnet] [--host 127.0.0.1] [--port 4000]
 // ─────────────────────────────────────────────────────────────
 
 import { createInterface as createLineInterface } from "node:readline";
@@ -34,6 +34,7 @@ function parseArgs(): {
   telnet?: boolean;
   port?: number;
   host?: string;
+  seed?: string;
 } {
   const args = process.argv.slice(2);
   const result: ReturnType<typeof parseArgs> = {};
@@ -48,6 +49,7 @@ function parseArgs(): {
       if (Number.isInteger(port) && port > 0 && port <= 65535) result.port = port;
     }
     if (args[i] === "--host" && args[i + 1]) result.host = args[++i];
+    if (args[i] === "--seed" && args[i + 1]) result.seed = args[++i];
   }
   return result;
 }
@@ -334,6 +336,7 @@ async function main() {
       fallbackPlayerName: config.defaultPlayerName,
       playerName: character.playerName,
       protagonistProfile: character.profile,
+      seed: args.seed,
     });
     await initSave(state);
     print(`玩家：${state.player.name}`);

@@ -1,6 +1,42 @@
 {
   "name": "幻梦车站",
   "bornPoint": "StationHall",
+  "proceduralMap": {
+    "generator": "seeded-mst-v1",
+    "totalRooms": {
+      "min": 8,
+      "max": 12
+    },
+    "loopChance": 0.15,
+    "attachTo": "StationHall",
+    "templates": [
+      {
+        "title": "遗失物候车室 {n}",
+        "desc": "狭长的候车室里摆满无人认领的箱包。每当你移开视线，行李上的姓名牌就会换成另一个名字。",
+        "tags": ["station", "memory"]
+      },
+      {
+        "title": "空白时刻表廊 {n}",
+        "desc": "两侧墙壁挂满没有车次的时刻表，纸面在无风的空气里轻轻翻动，像在等待一个尚未决定的目的地。",
+        "tags": ["station", "liminal"]
+      },
+      {
+        "title": "封闭检票口 {n}",
+        "desc": "生锈的闸机横在昏暗通道中央。玻璃窗后没有工作人员，只有一枚检票钳偶尔自行开合。",
+        "tags": ["station", "checkpoint"]
+      },
+      {
+        "title": "回声行李廊 {n}",
+        "desc": "砖砌走廊向黑暗深处延伸，脚步声总比你慢半拍，仿佛另一个旅客正沿着相同路线跟随。",
+        "tags": ["station", "echo"]
+      },
+      {
+        "title": "熄灯月台 {n}",
+        "desc": "没有编号的短月台悬在浓雾中。铁轨在几步之外突然消失，远处却仍传来列车经过的震动。",
+        "tags": ["station", "platform"]
+      }
+    ]
+  },
   "schema": {
     "defs": [
       {

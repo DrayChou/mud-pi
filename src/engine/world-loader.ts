@@ -20,6 +20,10 @@ import type {
   WorldState,
 } from "../types/world.ts";
 import { validateWorldPack } from "./world-validator.ts";
+import {
+  generateProceduralMap,
+  type ProceduralMapConfig,
+} from "./procedural-map.ts";
 
 interface WorldPackNpc {
   id: string;
@@ -45,6 +49,7 @@ interface WorldPackJson {
   items: Array<{ id: string; name: string; desc: string; inRoom?: string; inInventory?: boolean }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
+  proceduralMap?: ProceduralMapConfig;
 }
 
 export interface WorldPackSummary {
@@ -60,6 +65,7 @@ export interface LoadWorldPackOptions {
   fallbackPlayerName: string;
   protagonistId?: string;
   protagonistProfile?: ProtagonistProfile;
+  seed?: string;
 }
 
 async function readWorldPack(packName: string): Promise<WorldPackJson> {
@@ -137,6 +143,15 @@ export async function loadWorldPack(
     };
   }
 
+  const generated = pack.proceduralMap
+    ? generateProceduralMap({
+        seed: options.seed?.trim() || `${packName}-${Date.now().toString(36)}`,
+        config: pack.proceduralMap,
+        staticRooms: rooms,
+      })
+    : undefined;
+  const finalRooms = generated?.rooms ?? rooms;
+
   const npcs: Record<string, NpcDef> = {};
   for (const n of pack.npcs) {
     npcs[n.id] = {
@@ -204,12 +219,13 @@ export async function loadWorldPack(
       inventory: [...startingInventory],
       equipment: {},
     },
-    rooms,
+    rooms: finalRooms,
     npcs,
     items,
     plotThreads: {},
     worldFacts: [],
     objectives,
+    generation: generated?.generation,
   };
 }
 

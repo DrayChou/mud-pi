@@ -2,6 +2,7 @@
 // world-validator.ts — validate world pack references before runtime
 // ─────────────────────────────────────────────────────────────
 
+import { PROCEDURAL_MAP_VERSION, type ProceduralMapConfig } from "./procedural-map.ts";
 import type {
   NpcController,
   NpcPersona,
@@ -31,6 +32,7 @@ export interface WorldPackForValidation {
   items: Array<{ id: string; inRoom?: string; inInventory?: boolean }>;
   objectives?: ObjectiveDef[];
   outcomes?: StoryOutcomeDef[];
+  proceduralMap?: ProceduralMapConfig;
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -58,6 +60,35 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
 
   if (!roomIds.has(pack.bornPoint)) {
     errors.push(`bornPoint references missing room: ${pack.bornPoint}`);
+  }
+
+  if (pack.proceduralMap) {
+    const config = pack.proceduralMap;
+    if (config.generator !== PROCEDURAL_MAP_VERSION) {
+      errors.push(`proceduralMap has unsupported generator: ${config.generator}`);
+    }
+    if (!roomIds.has(config.attachTo)) {
+      errors.push(`proceduralMap.attachTo references missing room: ${config.attachTo}`);
+    }
+    if (!Number.isInteger(config.totalRooms.min) || !Number.isInteger(config.totalRooms.max)) {
+      errors.push("proceduralMap.totalRooms min/max must be integers");
+    } else {
+      if (config.totalRooms.min < roomIds.size) {
+        errors.push("proceduralMap.totalRooms.min cannot be smaller than static room count");
+      }
+      if (config.totalRooms.max < config.totalRooms.min || config.totalRooms.max > 64) {
+        errors.push("proceduralMap.totalRooms.max must be between min and 64");
+      }
+    }
+    if (config.loopChance < 0 || config.loopChance > 1) {
+      errors.push("proceduralMap.loopChance must be between 0 and 1");
+    }
+    if (!config.templates?.length) errors.push("proceduralMap requires room templates");
+    for (const [index, template] of (config.templates ?? []).entries()) {
+      if (!template.title?.trim() || !template.desc?.trim()) {
+        errors.push(`proceduralMap template ${index} requires title and desc`);
+      }
+    }
   }
 
   for (const room of pack.rooms ?? []) {

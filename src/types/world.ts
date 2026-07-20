@@ -2,7 +2,19 @@
 // World State — the canonical snapshot stored in state.json
 // ─────────────────────────────────────────────────────────────
 
-export type RoomSource = "static" | "dm_generated";
+export type RoomSource = "static" | "procedural" | "dm_generated";
+
+export type ProceduralRoomRole = "entrance" | "transit" | "boss" | "treasure" | "special";
+
+export interface WorldGenerationState {
+  seed: string;
+  generatorVersion: string;
+  targetRoomCount: number;
+  generatedRoomIds: string[];
+  roomRoles: Record<string, ProceduralRoomRole>;
+  mstEdges: number;
+  loopEdges: number;
+}
 
 // ── Stats Schema (defined in world.json, drives all attribute behavior) ────
 
@@ -215,5 +227,6 @@ export interface WorldState {
   plotThreads: Record<string, PlotThread>;
   worldFacts: WorldFact[];
   objectives: Record<string, ObjectiveState>;
+  generation?: WorldGenerationState;
   outcome?: ReachedOutcome;
 }

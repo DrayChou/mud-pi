@@ -1,4 +1,4 @@
-import type { WorldState } from "../types/world.ts";
+import type { WorldGenerationState, WorldState } from "../types/world.ts";
 
 export interface MapExitSnapshot {
   direction: string;
@@ -18,6 +18,7 @@ export interface MapRoomSnapshot {
 export interface MapSnapshot {
   currentRoomId: string;
   rooms: MapRoomSnapshot[];
+  generation?: WorldGenerationState;
 }
 
 export function buildMapSnapshot(state: WorldState): MapSnapshot {
@@ -41,7 +42,11 @@ export function buildMapSnapshot(state: WorldState): MapSnapshot {
       }),
     }));
 
-  return { currentRoomId: state.player.roomId, rooms };
+  return {
+    currentRoomId: state.player.roomId,
+    rooms,
+    generation: state.generation ? structuredClone(state.generation) : undefined,
+  };
 }
 
 export function formatTextMap(snapshot: MapSnapshot): string {
@@ -55,5 +60,8 @@ export function formatTextMap(snapshot: MapSnapshot): string {
         ).join("，");
     return `${marker} ${room.title}\n  ${exits}`;
   });
-  return `已探索地图（* 为当前位置）：\n${lines.join("\n")}`;
+  const generation = snapshot.generation
+    ? `\n生成：${snapshot.generation.generatorVersion}，seed=${snapshot.generation.seed}`
+    : "";
+  return `已探索地图（* 为当前位置）：\n${lines.join("\n")}${generation}`;
 }

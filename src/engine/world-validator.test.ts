@@ -67,6 +67,22 @@ describe("validateWorldPack", () => {
     expect(() => validateWorldPack(pack, "missing-persona")).toThrow(/uses pi_session but has no persona/);
   });
 
+  test("rejects invalid procedural map configuration", () => {
+    const pack = basePack();
+    pack.proceduralMap = {
+      generator: "seeded-mst-v1",
+      totalRooms: { min: 0, max: 100 },
+      loopChance: 2,
+      attachTo: "MissingRoom",
+      templates: [],
+    };
+
+    expect(() => validateWorldPack(pack, "broken-generator")).toThrow(/attachTo references missing room/);
+    expect(() => validateWorldPack(pack, "broken-generator")).toThrow(/totalRooms.min cannot be smaller/);
+    expect(() => validateWorldPack(pack, "broken-generator")).toThrow(/loopChance must be between 0 and 1/);
+    expect(() => validateWorldPack(pack, "broken-generator")).toThrow(/requires room templates/);
+  });
+
   test("rejects objective references and outcomes without package criteria", () => {
     const pack = basePack();
     pack.objectives = [{
