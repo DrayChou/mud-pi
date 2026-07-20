@@ -15,6 +15,16 @@ test("runtime movement mutation is translated to a typed movement proposal", asy
   expect(result.proposal.payload).toEqual({ kind: "move_player", toRoomId: destination });
 });
 
+test("runtime parameter damage preserves its public harm cause", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const parameter = state.schema.defs.find((definition) => (state.player.stats[definition.key] ?? definition.min) > definition.min)!;
+  const result = settleRuntimeMutation(state, { kind: "engine/player_stat_changed", stat: parameter.key, delta: -1 }, metadata("damage"));
+
+  expect(result.accepted).toBe(true);
+  if (!result.accepted) throw new Error("damage rejected");
+  expect(result.committedEvents[0]?.event).toMatchObject({ kind: "parameter_changed", cause: "harm:engine/player_stat_changed" });
+});
+
 test("runtime item reward is materialized by the typed item decider", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   state.objectives.ask_ticket_clerk!.status = "completed";

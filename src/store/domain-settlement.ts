@@ -100,10 +100,10 @@ export function settleRuntimeMutation(
     case "dm/room_exit_added":
       return settleTypedGm(state, { kind: "set_exit", roomId: mutation.roomId, direction: mutation.direction, toRoomId: mutation.toRoomId }, metadata, storyOutcomes);
     case "engine/player_stat_changed":
-      return settleTypedGm(state, { kind: "adjust_parameter", entityId: state.player.id, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, storyOutcomes);
+      return settleTypedGm(state, { kind: "adjust_parameter", entityId: state.player.id, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.delta < 0 ? `harm:${mutation.kind}` : mutation.kind }, metadata, storyOutcomes);
     case "engine/npc_stat_changed":
     case "dm/npc_stat_changed":
-      return settleTypedGm(state, { kind: "adjust_parameter", entityId: mutation.npcId, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.kind }, metadata, storyOutcomes);
+      return settleTypedGm(state, { kind: "adjust_parameter", entityId: mutation.npcId, parameterId: mutation.stat, delta: mutation.delta, cause: mutation.delta < 0 ? `harm:${mutation.kind}` : mutation.kind }, metadata, storyOutcomes);
     case "dm/npc_moved":
       return settleTypedGm(state, { kind: "move_npc", npcId: mutation.npcId, toRoomId: mutation.toRoomId }, metadata, storyOutcomes);
     case "dm/fact_added":
