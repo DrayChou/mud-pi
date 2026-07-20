@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { DmMutation } from "../types/mutations.ts";
-import type { RoomDef, NpcDef, PlotStatus, StatsSchema } from "../types/world.ts";
+import type { ItemDef, RoomDef, NpcDef, PlotStatus, StatsSchema } from "../types/world.ts";
 
 export interface DmResponse {
   narration: string;
@@ -24,19 +24,20 @@ interface RawWorldUpdate {
   roomsAdded?: Array<{ id: string; title: string; desc: string; exits?: Record<string, string>; tags?: string[] }>;
   exitsAdded?: Array<{ roomId: string; direction: string; toRoomId: string }>;
   roomDescUpdates?: Array<{ roomId: string; descAppend: string }>;
+  itemsAdded?: Array<{ id: string; name: string; desc: string; aliases?: string[]; roomId?: string; portable?: boolean }>;
   npcsAdded?: Array<{ id: string; name: string; roomId: string; personality: string; stats?: Record<string, number>; hostile?: boolean }>;
   npcsMoved?: Array<{ id: string; toRoomId: string }>;
   npcsKilled?: string[];
 }
 
-export function parseDmResponse(raw: string, schema: StatsSchema): DmResponse {
+export function parseDmResponse(raw: string, schema: StatsSchema, currentRoomId?: string): DmResponse {
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
   const mutations: DmMutation[] = [];
 
   if (updateStr) {
     try {
-      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema);
+      buildMutations(JSON.parse(updateStr) as RawWorldUpdate, mutations, schema, currentRoomId);
     } catch (e) {
       console.warn("[dm-parser] failed to parse WORLD_UPDATE:", e);
     }
@@ -55,7 +56,12 @@ function buildDefaultStats(schema: StatsSchema, overrides?: Record<string, numbe
   return { stats, maxStats };
 }
 
-function buildMutations(u: RawWorldUpdate, out: DmMutation[], schema: StatsSchema): void {
+function buildMutations(
+  u: RawWorldUpdate,
+  out: DmMutation[],
+  schema: StatsSchema,
+  currentRoomId?: string
+): void {
   for (const f of u.worldFacts ?? []) {
     if (typeof f.text === "string" && f.text.trim())
       out.push({ kind: "dm/fact_added", text: f.text.trim(), tile: f.tile ?? null });
@@ -84,6 +90,23 @@ function buildMutations(u: RawWorldUpdate, out: DmMutation[], schema: StatsSchem
   for (const d of u.roomDescUpdates ?? []) {
     if (d.roomId && d.descAppend)
       out.push({ kind: "dm/room_desc_updated", roomId: d.roomId, descAppend: d.descAppend });
+  }
+
+  for (const i of u.itemsAdded ?? []) {
+    const roomId = i.roomId || currentRoomId;
+    if (!i.id || !i.name || !i.desc || !roomId) continue;
+    const item: ItemDef = {
+      id: i.id,
+      name: i.name,
+      desc: i.desc,
+      aliases: Array.isArray(i.aliases)
+        ? i.aliases.filter((alias): alias is string => typeof alias === "string" && alias.trim().length > 0)
+        : undefined,
+      location: { kind: "room", roomId },
+      portable: i.portable ?? true,
+      source: "dm_generated",
+    };
+    out.push({ kind: "dm/item_added", item });
   }
 
   for (const n of u.npcsAdded ?? []) {

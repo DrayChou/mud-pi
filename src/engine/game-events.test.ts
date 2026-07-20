@@ -74,6 +74,39 @@ describe("deriveGameEvents", () => {
     });
   });
 
+  test("publishes creation and pickup for a DM-created item", async () => {
+    const before = await loadWorldPack("station-dream", {
+      fallbackPlayerName: "旅行者",
+    });
+    const after = structuredClone(before);
+    const mutations: AnyMutation[] = [
+      {
+        kind: "dm/item_added",
+        item: {
+          id: "dark_scale",
+          name: "深色鳞片",
+          desc: "边缘泛着虹彩。",
+          portable: true,
+          source: "dm_generated",
+          location: { kind: "room", roomId: "StationHall" },
+        },
+      },
+      { kind: "engine/item_picked_up", itemId: "dark_scale" },
+    ];
+    applyMutations(after, mutations);
+
+    expect(deriveGameEvents(before, mutations, after)).toEqual([
+      { kind: "item_created", turn: 1, itemId: "dark_scale", roomId: "StationHall" },
+      {
+        kind: "item_picked_up",
+        turn: 1,
+        actorId: "player1",
+        itemId: "dark_scale",
+        roomId: "StationHall",
+      },
+    ]);
+  });
+
   test("does not publish a mutation rejected by the state layer", async () => {
     const before = await loadWorldPack("station-dream", {
       fallbackPlayerName: "旅行者",

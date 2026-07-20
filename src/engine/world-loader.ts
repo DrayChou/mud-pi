@@ -148,6 +148,8 @@ export async function loadWorldPack(
         : i.inInventory
           ? { kind: "inventory", ownerId: "player1" }
           : { kind: "destroyed" },
+      portable: true,
+      source: "static",
     };
   }
   if (protagonist) {

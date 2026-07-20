@@ -20,6 +20,7 @@ export function deriveGameEvents(
   context: GameEventContext = {}
 ): GameEvent[] {
   const events: GameEvent[] = [];
+  const createdItemRooms = new Map<string, string>();
   const turn = before.turn + 1;
 
   if (context.playerSpeech?.message.trim()) {
@@ -47,11 +48,25 @@ export function deriveGameEvents(
         });
         break;
 
+      case "dm/item_added": {
+        const item = after.items[mutation.item.id];
+        if (!item || item.source !== "dm_generated" || mutation.item.location.kind !== "room") break;
+        createdItemRooms.set(item.id, mutation.item.location.roomId);
+        events.push({
+          kind: "item_created",
+          turn,
+          itemId: item.id,
+          roomId: mutation.item.location.roomId,
+        });
+        break;
+      }
+
       case "engine/item_picked_up": {
         const location = before.items[mutation.itemId]?.location;
+        const createdRoomId = createdItemRooms.get(mutation.itemId);
         const afterLocation = after.items[mutation.itemId]?.location;
         if (
-          location?.kind !== "room" ||
+          (location?.kind !== "room" && !createdRoomId) ||
           (afterLocation?.kind !== "inventory" && afterLocation?.kind !== "equipped") ||
           afterLocation.ownerId !== after.player.id
         ) break;
@@ -60,7 +75,7 @@ export function deriveGameEvents(
           turn,
           actorId: before.player.id,
           itemId: mutation.itemId,
-          roomId: location.roomId,
+          roomId: location?.kind === "room" ? location.roomId : createdRoomId!,
         });
         break;
       }

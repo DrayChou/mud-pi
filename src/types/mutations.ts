@@ -2,7 +2,7 @@
 // mutations.ts — all state changes must be one of these
 // ─────────────────────────────────────────────────────────────
 
-import type { PlotStatus, RoomDef, NpcDef } from "./world.ts";
+import type { ItemDef, PlotStatus, RoomDef, NpcDef } from "./world.ts";
 import type { GameEvent } from "./events.ts";
 
 // ── Engine Mutations ───────────────────────────────────────────────────────
@@ -23,6 +23,7 @@ export type EngineMutation =
 
 export type DmMutation =
   | { kind: "dm/room_added"; room: RoomDef }
+  | { kind: "dm/item_added"; item: ItemDef }
   | { kind: "dm/room_exit_added"; roomId: string; direction: string; toRoomId: string }
   | { kind: "dm/room_desc_updated"; roomId: string; descAppend: string }
   | { kind: "dm/npc_added"; npc: NpcDef }

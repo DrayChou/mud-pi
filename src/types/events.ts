@@ -19,6 +19,12 @@ export type GameEvent =
       targetId?: string;
     }
   | {
+      kind: "item_created";
+      turn: number;
+      itemId: string;
+      roomId: string;
+    }
+  | {
       kind: "item_picked_up";
       turn: number;
       actorId: string;

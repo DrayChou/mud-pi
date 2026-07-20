@@ -126,7 +126,7 @@ export function buildDmPrompt(
       (item) => item.location.kind === "room" && item.location.roomId === room.id
     );
     const itemBlock = itemsHere.length > 0
-      ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}`).join("\n")}`
+      ? `\n地面物品:\n${itemsHere.map((item) => `  ${item.name}（${item.id}）：${item.desc}${item.portable === false ? " [不可携带]" : ""}`).join("\n")}`
       : "";
     parts.push(`[当前房间]\n位置：${room.title}（${room.id}）\n${room.desc}\n出口：${exits || "无"}${npcBlock}${itemBlock}`);
   }
@@ -145,8 +145,12 @@ export function buildDmPrompt(
   }
 
   // ── Player state ──
-  const inv = state.player.inventory.map((id) => state.items[id]?.name ?? id).join("，");
+  const inventoryItems = state.player.inventory.map((id) => state.items[id]).filter((item) => item !== undefined);
+  const inv = inventoryItems.map((item) => item.name).join("，");
   parts.push(`[玩家状态]\n姓名：${state.player.name}\n${formatPlayerStats(state)} | 背包: [${inv || "空"}]`);
+  if (inventoryItems.length > 0) {
+    parts.push(`[背包物品详情]\n${inventoryItems.map((item) => `• ${item.name}（${item.id}）：${item.desc}`).join("\n")}`);
+  }
 
   // ── Combat context ──
   if (combatContext) {
@@ -191,6 +195,8 @@ export function buildDmPrompt(
 `[你的任务]
 用第二人称为玩家描述本轮体验（2-4句，沉浸式，不超过120字）。
 如有必要，更新世界事实、剧情线、或创造新房间/NPC。
+如果叙事中新出现了玩家可以检查、拾取或使用的具体道具，必须把它写入 itemsAdded。不要只在叙事中提到而不注册。
+itemsAdded 格式：{"id":"稳定的英文或拼音ID","name":"显示名","desc":"可检查描述","aliases":["玩家可能使用的简称或同义词"],"roomId":"当前房间ID","portable":true}。
 严格按以下格式返回：
 
 <NARRATION>
@@ -204,6 +210,7 @@ export function buildDmPrompt(
   "roomsAdded": [],
   "exitsAdded": [],
   "roomDescUpdates": [],
+  "itemsAdded": [],
   "npcsAdded": [],
   "npcsMoved": [],
   "npcsKilled": []

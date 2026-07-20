@@ -361,7 +361,7 @@ async function main() {
     print("\nDM 正在开场...\n");
     const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", []);
     const openingRaw = await dm.ask(openingPrompt);
-    const opening = parseDmResponse(openingRaw, state.schema);
+    const opening = parseDmResponse(openingRaw, state.schema, state.player.roomId);
     applyMutations(state, opening.mutations);
     await saveState(state);
     print(`\x1b[32m${opening.narration}\x1b[0m\n`);
@@ -464,10 +464,22 @@ async function processInput(
   process.stdout.write("\x1b[0m");
 
   // 7. Parse DM response → DmMutations
-  const dmResponse = parseDmResponse(dmRaw, state.schema);
+  const dmResponse = parseDmResponse(dmRaw, state.schema, state.player.roomId);
 
   // 8. Apply DM mutations
   applyMutations(state, dmResponse.mutations);
+
+  // A DM may register a concrete object introduced by earlier narration only when
+  // the player first tries to take it. Retry the validated pickup after registration
+  // so narration and authoritative inventory stay in sync in the same turn.
+  const postDmEngineMuts: EngineMutation[] = [];
+  if (parsed.verb === "get" && !engineMuts.some((m) => m.kind === "engine/item_picked_up")) {
+    const retry = executeCommand(state, parsed);
+    if (retry.directReply === undefined) {
+      postDmEngineMuts.push(...retry.mutations);
+      applyMutations(state, retry.mutations);
+    }
+  }
 
   const speechTarget = parsed.verb === "say" && parsed.args.target
     ? Object.values(stateBeforeTurn.npcs).find(
@@ -478,7 +490,7 @@ async function processInput(
     : undefined;
   const gameEvents = deriveGameEvents(
     stateBeforeTurn,
-    [...engineMuts, ...npcMutations, ...dmResponse.mutations],
+    [...engineMuts, ...npcMutations, ...dmResponse.mutations, ...postDmEngineMuts],
     state,
     parsed.verb === "say"
       ? { playerSpeech: { message: parsed.args.message ?? input, targetId: speechTarget } }
@@ -499,7 +511,7 @@ async function processInput(
       args: parsed.args,
       confidence: parsed.confidence,
     },
-    engineMutations: engineMuts,
+    engineMutations: [...engineMuts, ...postDmEngineMuts],
     dmMutations: dmResponse.mutations,
     gameEvents,
     npcActions,

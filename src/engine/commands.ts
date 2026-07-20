@@ -62,13 +62,16 @@ function cmdGo(state: WorldState, cmd: ParsedCommand): CommandResult {
 
 // ── Items ──────────────────────────────────────────────────────────────────
 
+function itemMatches(item: WorldState["items"][string], query: string): boolean {
+  const terms = [item.id, item.name, ...(item.aliases ?? [])];
+  return terms.some((term) => term.includes(query) || query.includes(term));
+}
+
 function cmdGet(state: WorldState, cmd: ParsedCommand): CommandResult {
   const itemName = cmd.args.item;
   if (!itemName) return { mutations: [], directReply: "拾取什么？" };
 
-  const matchingItems = Object.values(state.items).filter(
-    (i) => i.name.includes(itemName) || i.id.includes(itemName)
-  );
+  const matchingItems = Object.values(state.items).filter((item) => itemMatches(item, itemName));
   const item = matchingItems.find(
     (i) => i.location.kind === "room" && i.location.roomId === state.player.roomId
   );
@@ -78,10 +81,12 @@ function cmdGet(state: WorldState, cmd: ParsedCommand): CommandResult {
         (i.location.kind === "inventory" || i.location.kind === "equipped") &&
         i.location.ownerId === state.player.id
     );
-    return {
-      mutations: [],
-      directReply: owned ? "你已经拿着它了。" : `这里没有"${itemName}"。`,
-    };
+    return owned
+      ? { mutations: [], directReply: "你已经拿着它了。" }
+      : { mutations: [] }; // Let the DM resolve narrative objects that are not registered yet.
+  }
+  if (item.portable === false) {
+    return { mutations: [], directReply: `${item.name}无法被拿走。` };
   }
 
   return { mutations: [{ kind: "engine/item_picked_up", itemId: item.id }] };
@@ -93,7 +98,7 @@ function cmdDrop(state: WorldState, cmd: ParsedCommand): CommandResult {
 
   const itemId = state.player.inventory.find((id) => {
     const item = state.items[id];
-    return item && (item.name.includes(itemName) || item.id.includes(itemName));
+    return item && itemMatches(item, itemName);
   });
   if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
 
@@ -108,7 +113,7 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
 
   const itemId = state.player.inventory.find((id) => {
     const item = state.items[id];
-    return item && (item.name.includes(itemName) || item.id.includes(itemName));
+    return item && itemMatches(item, itemName);
   });
   if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
   if (state.items[itemId]?.location.kind === "equipped") {

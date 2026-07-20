@@ -167,6 +167,24 @@ function applyDm(state: WorldState, mut: DmMutation): void {
       break;
     }
 
+    case "dm/item_added": {
+      if (state.items[mut.item.id]) {
+        console.warn(`[apply] dm tried to add existing item: ${mut.item.id}`);
+        return;
+      }
+      if (mut.item.location.kind !== "room" || !state.rooms[mut.item.location.roomId]) {
+        console.warn(`[apply] dm tried to add item at invalid location: ${mut.item.id}`);
+        return;
+      }
+      state.items[mut.item.id] = {
+        ...mut.item,
+        portable: mut.item.portable ?? true,
+        source: "dm_generated",
+        createdTurn: state.turn,
+      };
+      break;
+    }
+
     case "dm/room_exit_added": {
       const room = state.rooms[mut.roomId];
       if (!room) { console.warn(`[apply] room not found: ${mut.roomId}`); return; }

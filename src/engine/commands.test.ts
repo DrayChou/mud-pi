@@ -18,7 +18,7 @@ describe("item commands", () => {
     const result = executeCommand(state, command("get", { item: "锈铁刀" }));
 
     expect(result.mutations).toEqual([]);
-    expect(result.directReply).toBe('这里没有"锈铁刀"。');
+    expect(result.directReply).toBeUndefined();
     expect(state.player.inventory).not.toContain("rusty_knife");
   });
 

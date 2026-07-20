@@ -96,7 +96,11 @@ export interface ItemDef {
   id: string;
   name: string;
   desc: string;
+  aliases?: string[];
   location: ItemLocation;
+  portable?: boolean; // defaults to true; false means scenery that can be examined but not carried
+  source?: RoomSource;
+  createdTurn?: number;
 }
 
 export type PlotStatus = "active" | "resolved" | "dormant";
