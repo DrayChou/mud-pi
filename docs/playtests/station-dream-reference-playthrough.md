@@ -1,6 +1,26 @@
 # station-dream 参考完整游玩记录
 
-## 范围
+## 当前 HEAD 干净验收
+
+在修复开发期 playthrough 暴露的问题后，使用全新存档 `station-dream-1784619354954`，在同一代码版本上从头执行，并在回声检票廊后正常退出、重启和继续，没有修改代码或存档。
+
+最终权威状态：
+
+```text
+turn: 11
+revision: 47
+room: Compartment3
+outcome: return_with_ticket
+journal transactions: 47
+turn records: 11
+turn sequence: 1..11（连续且无重复）
+```
+
+全部 Objective 完成。`echo_mark` 在回声检票廊被 Pi 合理施加，并在进入最后车厢的回合边界产生 committed `condition_expired`；最终实例为空。隐藏出口通过 committed `set_exit` 揭示，保存恢复后仍存在。冲突后生命为 89，Pi 在同一响应提交 `return_with_ticket`，没有再次出现“只叙述终局、不提交 Outcome”的问题。
+
+本节是当前代码版本的干净成功路径验收证据。下方早期记录保留为开发期修复过程。
+
+## 开发期修复型范围
 
 使用真实持久 Pi DM/NPC Session，经 CLI 完成一局 `station-dream`：
 
@@ -20,7 +40,7 @@
 → 达成 return_with_ticket
 ```
 
-测试存档：`station-dream-1784616443748`。该 ID 只用于本地回归，不是固定测试夹具。
+开发期测试存档：`station-dream-1784616443748`。该存档跨越多个修复提交，只用于记录问题发现过程，不是最终干净验收夹具。
 
 ## 最终权威状态
 
@@ -73,6 +93,14 @@ turn records: 14
 - 新增 UUID 格式和唯一性回归测试。
 
 修复提交：`7b4afe8 fix: close playtest settlement gaps`。
+
+### 3. 叙述提前宣告终局但未提交 Outcome
+
+第一次干净候选中，阴影被击败后 Pi 叙述“列车终于载你归去”，但没有设置 `outcomeReached`，导致权威状态仍无 Outcome。
+
+修复：Prompt 现在明确要求，如果叙述声称玩家已经离开、列车已经载其归去、故事失败或身份转化，就必须在同一响应提交允许的 Outcome；否则只能描述尚未完成的进展。
+
+修复提交：`1f18c7b fix: require authoritative outcome narration`。
 
 ## 后续内容改进
 
