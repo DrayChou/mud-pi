@@ -94,6 +94,31 @@ describe("GameRuntime", () => {
     expect(state.player.roomId).toBe("Platform");
   });
 
+  test("settles Pi GM operations as a batch and routes post-DM signals to NPC sessions", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const perceivedBatches: string[][] = [];
+    const roomId = state.npcs.ticket_clerk!.roomId;
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("say", { message: "有人吗？" }) },
+      dm: { ask: async () => `<NARRATION>远处响起铃声。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"record_fact","text":"The bell rang."},{"kind":"emit_signal","signalId":"bell","roomId":"${roomId}","message":"A bell rings."}]}</WORLD_UPDATE>` },
+      npcSessions: {
+        respondToPlayerSay: async () => [],
+        respondToEvents: async (_snapshot, events) => {
+          perceivedBatches.push(events.map((event) => event.kind));
+          return [];
+        },
+      },
+      persist: false,
+    });
+
+    await runtime.processInput("有人吗？");
+
+    expect(state.worldFacts.some((fact) => fact.text === "The bell rang.")).toBe(true);
+    expect(perceivedBatches.some((kinds) => kinds.includes("perceptible_signal"))).toBe(true);
+  });
+
   test("accepts an AI NPC reward after authoritative objective and room checks", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     let perceivedKinds: string[] = [];

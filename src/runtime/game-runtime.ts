@@ -280,6 +280,23 @@ export class GameRuntime {
     }
 
     const postDmEvents = [...gmBatchEvents, ...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
+    const remainingNpcWakeups = Math.max(0, 2 - sessionDecisions.length);
+    if (!result.combatContext && remainingNpcWakeups > 0 && postDmEvents.length > 0 && this.npcSessions.respondToEvents) {
+      const postDmNpcDecisions = await this.npcSessions.respondToEvents(this.state, postDmEvents, remainingNpcWakeups);
+      for (const decision of postDmNpcDecisions) {
+        const npcResult = executeNpcDecision(this.state, decision);
+        const npcSettlement = this.settleLegacyMutations(npcResult.mutations, correlationId, npcResult.action.npcId);
+        const accepted = npcSettlement.mutations.length === npcResult.mutations.length;
+        if (accepted) {
+          npcMutations.push(...npcSettlement.mutations as EngineMutation[]);
+          npcGameEvents.push(...npcSettlement.gameEvents);
+          postDmEvents.push(...npcSettlement.gameEvents);
+          npcActions.push(npcResult.action);
+        } else {
+          npcActions.push({ ...npcResult.action, succeeded: false, reason: "动作在最终权威结算中被拒绝" });
+        }
+      }
+    }
     const proposedPostDmProgressMutations = evaluateProgress(this.state, postDmEvents);
     const postDmProgressSettlement = this.settleLegacyMutations(
       proposedPostDmProgressMutations,

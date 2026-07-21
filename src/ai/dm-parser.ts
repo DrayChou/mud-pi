@@ -104,10 +104,37 @@ const gmOperationKinds = new Set<GmTableProposal["kind"]>([
 
 function parseGmOperations(value: unknown): GmTableProposal[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((operation): operation is GmTableProposal => {
-    if (!operation || typeof operation !== "object") return false;
-    return gmOperationKinds.has((operation as { kind?: GmTableProposal["kind"] }).kind as GmTableProposal["kind"]);
-  }).slice(0, 16).map((operation) => structuredClone(operation));
+  return value.filter(isValidRawGmOperation).slice(0, 16).map((operation) => structuredClone(operation));
+}
+
+function isValidRawGmOperation(value: unknown): value is GmTableProposal {
+  if (!value || typeof value !== "object") return false;
+  const operation = value as Record<string, unknown>;
+  const kind = operation.kind as GmTableProposal["kind"];
+  if (!gmOperationKinds.has(kind)) return false;
+  const string = (key: string) => typeof operation[key] === "string" && (operation[key] as string).trim().length > 0;
+  switch (kind) {
+    case "record_fact": return string("text") && (operation.roomId === undefined || string("roomId"));
+    case "remove_fact": return string("text");
+    case "set_exit": return string("roomId") && string("direction") && string("toRoomId");
+    case "adjust_parameter": return string("entityId") && string("parameterId") && string("cause") && typeof operation.delta === "number" && Number.isFinite(operation.delta);
+    case "move_npc": return string("npcId") && string("toRoomId");
+    case "transfer_card": return string("itemId") && Boolean(operation.to && typeof operation.to === "object");
+    case "consume_card": return string("itemId");
+    case "emit_signal": return string("signalId") && string("roomId") && string("message") && (operation.targetId === undefined || string("targetId"));
+    case "complete_objective": return string("objectiveId");
+    case "reach_outcome": return typeof operation.requestedAtTurn === "number" && Boolean(operation.outcome && typeof operation.outcome === "object");
+    case "move_player": return string("toRoomId");
+    // Item entity creation/reward and player inventory verbs retain their existing,
+    // more strongly sanitized WORLD_UPDATE fields rather than accepting raw nested cards here.
+    case "create_item":
+    case "grant_item_reward":
+    case "pick_up_item":
+    case "drop_item":
+    case "equip_item":
+    case "consume_item":
+      return false;
+  }
 }
 
 function buildDefaultStats(schema: StatsSchema, overrides?: Record<string, number>) {

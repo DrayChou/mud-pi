@@ -14,6 +14,12 @@ test("parses the bounded GM operation batch from a Pi response", async () => {
   );
 
   expect(response.gmOperations.map((operation) => operation.kind)).toEqual(["record_fact", "emit_signal"]);
+  const malformed = parseDmResponse(
+    `<NARRATION>无事发生。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"emit_signal","roomId":"${state.player.roomId}"}]}</WORLD_UPDATE>`,
+    state.schema,
+    state.player.roomId,
+  );
+  expect(malformed.gmOperations).toEqual([]);
 });
 
 describe("DM-created interactive items", () => {
