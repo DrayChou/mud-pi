@@ -1,394 +1,349 @@
-# mud-pi 设计文档
+# mud-pi 当前架构
 
-## 概览
+## 1. 产品模型
 
-mud-pi 是一个由可配置 AI backend（Pi SDK 或 Codex CLI）驱动的文字 MUD 引擎。世界观只提供开场设定，后续地图、剧情、NPC 全部由 DM（AI）在游戏中动态生成和累积。
+`mud-pi` 是单人 Pi-first 叙事 RPG 框架。它采用数字桌游而不是完整世界模拟器的心智模型：
 
----
+- Pi DM 是持久主持人、语义裁判和内容导演；
+- 重要 NPC 可以拥有独立持久 Pi Session；
+- 世界包是规则书、冒险模组、角色卡、道具模板和可信规则脚本；
+- Engine 是权威数字桌面、角色纸、棋子、计数器、骰塔和战役记录本；
+- Adapter 只负责输入输出，不拥有游戏规则。
 
-## 角色分工
+核心原则：
 
-```
-玩家输入
-   │
-   ▼
-[Interpreter]  ← 便宜小模型（haiku / flash），无状态，无历史
-   │              职责：自然语言 → ParsedCommand { verb, args }
-   ▼
-[Engine]       ← 纯 TypeScript 代码
-   │              职责：执行游戏规则，产生 EngineMutation[]
-   ▼
-[DM]           ← AI backend，强模型（Pi 或 Codex）
-   │              职责：接收世界快照+事件 → 叙事文字 + WorldUpdate JSON
-   ▼
-[apply + persist]
-                  职责：应用所有 mutation，写 state.json + turns.jsonl
-```
+> 代码实现名词和不变量，Pi 解释动词和意义。
 
----
+详细产品边界见 [`pi-role-boundary.md`](pi-role-boundary.md)。
 
-## 数据变更原则
-
-**所有状态变更必须经过 `applyMutation()`，没有例外。**
-
-变更来源只有两个：
-
-| 来源 | 类型前缀 | 触发时机 |
-|------|----------|----------|
-| 游戏引擎（玩家行动） | `engine/*` | 解析指令后，引擎执行时 |
-| DM 返回 | `dm/*` | 解析 `<WORLD_UPDATE>` JSON 后 |
-
-引擎 mutation 决定"能不能发生"，DM mutation 决定"世界如何响应"。
-
----
-
-## Engine Mutations（引擎变更）
-
-```typescript
-engine/player_moved       { toRoomId }
-engine/player_hp_changed  { delta }         // 负数=扣血
-engine/item_picked_up     { itemId }
-engine/item_dropped       { itemId, roomId }
-engine/item_equipped      { itemId, slot }
-engine/npc_killed         { npcId }
-engine/turn_advanced                        // 每轮最后执行
-```
-
----
-
-## DM Mutations（DM 变更）
-
-```typescript
-dm/room_added          { room: RoomDef }             // DM 创造新房间
-dm/room_exit_added     { roomId, direction, toRoomId } // 打通新出口
-dm/room_desc_updated   { roomId, descAppend }         // 追加描述变化
-dm/npc_added           { npc: NpcDef }               // DM 创造新 NPC
-dm/npc_moved           { npcId, toRoomId }
-dm/npc_killed          { npcId }
-dm/fact_added          { text, tile }                // tile=null 全局可见
-dm/fact_removed        { text }
-dm/plot_updated        { id, title?, status?, summary? }
-```
-
----
-
-## 数据文件
-
-```
-saves/{worldId}/
-├── state.json              ← 当前世界完整快照（每轮覆写）
-├── turns.jsonl             ← 轮次日志（只追加，永不修改）
-└── agents/
-    ├── manifest.json       ← Agent id → Pi Session JSONL 的引用
-    └── sessions/*.jsonl    ← Pi 原生持久 Session（历史、分支、compaction）
-```
-
-### state.json 结构
-
-```json
-{
-  "worldId": "station-dream-001",
-  "worldPack": "station-dream",
-  "turn": 42,
-  "player": {
-    "id": "player1",
-    "name": "旅行者",
-    "roomId": "Compartment3",
-    "hp": 85, "maxHp": 100,
-    "inventory": ["rusty_knife", "ticket"],
-    "equipment": { "weapon": "rusty_knife" }
-  },
-  "rooms": {
-    "StationHall": {
-      "id": "StationHall",
-      "title": "车站入口大厅",
-      "desc": "...",
-      "exits": { "east": "Platform" },
-      "source": "static"
-    },
-    "MysteriousTunnel": {
-      "source": "dm_generated",
-      "createdTurn": 38,
-      "..."
-    }
-  },
-  "npcs": { "ticket_clerk": { "roomId": "StationHall", "alive": true, "..." } },
-  "items": { "ticket": { "name": "车票", "..." } },
-  "plotThreads": {
-    "locked_door": {
-      "id": "locked_door",
-      "title": "铁门之谜",
-      "status": "active",
-      "summary": "铁门有感知，锁孔形状特殊，可能需要车票",
-      "updatedTurn": 40
-    }
-  },
-  "worldFacts": [
-    { "text": "售票员已等候数百年", "tile": null, "createdTurn": 1 },
-    { "text": "铁门锁孔形状异常", "tile": "Compartment3", "createdTurn": 15 }
-  ]
-}
-```
-
-### turns.jsonl 结构（每行一轮）
-
-```jsonl
-{"turn":42,"ts":1751615784,"playerInput":"检查铁门","parsed":{"verb":"examine","args":{"target":"铁门"},"confidence":0.95},"engineMutations":[{"kind":"engine/turn_advanced"}],"dmMutations":[{"kind":"dm/fact_added","text":"铁门锁孔形状异常","tile":"Compartment3"}],"narration":"铁门在你指尖微微颤抖...","dmModel":"claude-sonnet-4.6"}
-```
-
----
-
-## DM 上下文窗口
-
-DM backend 接收三层上下文。Pi backend 使用与游戏存档绑定的原生持久 Session JSONL，并可自动压缩；重新加载存档时通过 manifest 精确打开同一个 Session。Codex backend 通过每轮 `codex exec --ephemeral` 调用，因此主要依赖外部 state 注入保持连续性：
-
-```
-┌──────────────────────────────────────────────────────┐
-│  SYSTEM PROMPT（永久）                                │
-│  lore.md 世界观 + DM 行为指令 + 输出格式要求          │
-├──────────────────────────────────────────────────────┤
-│  CONVERSATION HISTORY（backend 相关）                 │
-│  Pi: 长会话 + 自动压缩；Codex: 每轮 one-shot           │
-│  事实连续性不依赖内部记忆，见外部记忆策略              │
-├──────────────────────────────────────────────────────┤
-│  CURRENT TURN PROMPT（每轮从 state.json 构建）        │
-│  见下方                                               │
-└──────────────────────────────────────────────────────┘
-```
-
-### 每轮注入给 DM 的 prompt 结构
-
-```
-[世界事实]                         ← 来自 state.worldFacts（按 tile 过滤）
-• 售票员已等候数百年
-• 铁门锁孔形状异常（位置：Compartment3）
-
-[活跃剧情线]                       ← 来自 state.plotThreads（status=active）
-• 🔴 铁门之谜：铁门有感知，可能需要车票
-
-[当前房间状态]                     ← 来自 state.rooms[player.roomId]
-位置：列车第三节车厢（Compartment3）
-出口：south → Compartment2, dream → DreamWorkshop
-房间内：阴影（alive），铁门
-
-[主角设定]                         ← 来自 state.player.profile（存档快照）
-姓名：林舟
-身份概括：想回家的乘客
-背景：你不确定自己为什么在车站醒来...
-动机：找到回家的站台
-
-[玩家状态]                         ← 来自 state.player
-姓名：林舟
-生命: 85/100 | 背包: [锈铁刀, 车票]
-
-[本轮引擎事件]                     ← 来自本轮 engineMutations
-- 玩家检查了铁门
-
-[任务]
-描述本轮发生的事，决定世界如何响应。
-返回 <NARRATION> 和 <WORLD_UPDATE>。
-```
-
-### DM 返回格式
-
-```xml
-<NARRATION>
-铁门在你指尖微微颤抖，似乎在另一侧有东西感知到你...
-</NARRATION>
-
-<WORLD_UPDATE>
-{
-  "worldFacts": [
-    { "text": "铁门对接触者有感知反应", "tile": "Compartment3" }
-  ],
-  "plotThreads": [
-    { "id": "locked_door", "status": "active", "summary": "铁门有感知，会对接触者反应" }
-  ],
-  "roomsAdded": [],
-  "exitsAdded": [],
-  "npcsAdded": []
-}
-</WORLD_UPDATE>
-```
-
----
-
-## 外部记忆策略
-
-游戏事实**不依赖** AI backend 的内部记忆。Pi backend 可以保留长会话并自动压缩；Codex backend 是 one-shot CLI 调用。为了两者都稳定，`worldFacts`、`plotThreads`、`roomState`、`player.profile` 每轮都从 `state.json` 重注入：
-
-```
-backend 内部上下文（可能压缩或不存在）  +  外部记忆（每轮重注入）
-───────────────────────────────  +  ─────────────────────────
-叙事连续性、情感氛围                  worldFacts（具体事实）
-角色关系的"感觉"                      plotThreads（剧情线状态）
-DM 的创作风格                          roomState + player.profile
-```
-
-两层互补：Pi Session 负责主观长期记忆、叙事风格和压缩后的上下文，外部状态负责客观事实准确。Session JSONL 直接复用 Pi 的原生格式，不由 mud-pi 自建消息或 compaction 格式。旧存档没有 Session，或 manifest 指向的 JSONL 丢失时，系统会创建恢复 Session，并注入当前权威快照与最近轮次。
-
-### 独立 NPC Session
-
-世界包 NPC 可设置 `controller: "pi_session"`，并提供结构化 `persona`（背景、说话方式、目标、约束）。这类 NPC 的 Session 按需创建：只有玩家与其发生有效对话时，才在 `agents/sessions/` 下创建 Pi 原生 JSONL，并写入 manifest 的 `npcs[npcId]`。
-
-当前闭环：
+## 2. 回合主链路
 
 ```text
-玩家 say
-  → Interpreter 提取 message/target
-  → 选择当前房间内的重要 NPC
-  → NPC 自己的持久 Pi Session 提出 say/move/wait 意图
-  → Engine 校验决策回合、NPC 位置、可见角色和出口
-  → 合法 move 转成 engine/npc_moved Mutation
-  → DM 收到“已确定 NPC 行动结果”并负责叙述
+玩家自然语言
+→ Interpreter
+→ ActionIntent
+→ Entity Reference Resolution
+→ 确定性动作或 Pi AdjudicationPlan
+→ CanonicalTableOperation[]
+→ ProposalBatch
+→ Decision
+→ WorldEvent
+→ Commit
+→ Evolve
+→ Public Projection / Outbox
+→ NarrativeClaim Verification
+→ 最终叙述
 ```
 
-每次 NPC 请求都会记录 `requestedAtTurn`、原房间和可见实体集合。模型返回时，如果回合、位置或房间人员已经变化，该响应会作为 stale decision 被拒绝。NPC 的 `thought` 只保留在自己的 Session 上下文中，不展示给玩家，也不发送给其他 NPC。DM 不允许通过 DM mutation 移动、杀死或修改独立控制 NPC 的属性；这类客观变化必须由 Engine mutation 执行。
+### 2.1 ActionIntent
 
----
+Interpreter 提取玩家表达的主要意图、目标、方法、问题、工具、方向和目的地。`ActionIntent` 保留原始文本和 legacy command，允许逐步迁移而不进行 Big Bang 重写。
 
-## 世界包格式
+实体引用解析结果包括：
 
-```
-worlds/{pack-name}/
-├── world.json    ← 初始房间、NPC、物品、出生点
-└── lore.md       ← 世界观文档，直接注入 Pi system prompt
-```
-
-启动新游戏时，如果没有传 `--world` 且当前是交互式 TTY，会先枚举 `worlds/*/world.json` 并让用户选择剧本；非交互环境使用 `.env` 的 `WORLD_PACK`，避免脚本/CI 卡住。
-
----
-
-## AI backend 抽象
-
-DM、Interpreter、CharacterGenerator 都通过统一 `AiBackend` 接口调用模型：
-
-```typescript
-interface AiBackend {
-  createSession(options: AiSessionOptions): Promise<AiSession>;
-  ask(options: AiPromptOptions): Promise<string>;
-}
+```text
+exact
+alias
+contextual
+narrated_unregistered
+ambiguous
+missing
 ```
 
-当前实现：
+`missing` 不自动等于“目标不存在”。未注册的叙事实体、含糊称呼和开放式行为必须有机会进入 Pi。
 
-- `PiBackend`：使用 Pi SDK、Pi auth/model registry、无工具模式；DM 可保留长会话。
-- `CodexBackend`：使用本地 Codex CLI，执行 `codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval never`；每次调用只读、临时、不会修改项目文件。
+### 2.2 确定性动作与 Pi 裁定
 
-配置方式：
+以下行为适合 Engine 直接处理：
 
-- `AI_BACKEND=pi|codex` 设置默认 backend。
-- `DM_BACKEND`、`INTERPRETER_BACKEND`、`CHARACTER_BACKEND` 可按角色覆盖。
-- Pi backend 使用 `DM_PROVIDER`/`DM_MODEL` 和 `INTERPRETER_PROVIDER`/`INTERPRETER_MODEL`。
-- Codex backend 使用 `CODEX_MODEL` 或角色级 `CODEX_DM_MODEL`、`CODEX_INTERPRETER_MODEL`、`CODEX_CHARACTER_MODEL`；留空则使用 Codex 默认模型。
+- 精确方向快捷命令；
+- 背包、状态、地图等 UI 查询；
+- 已解析实体的普通拾取、装备和使用；
+- 世界包已声明的确定性冲突或骰子；
+- 生命周期和终局后的权威限制。
 
----
+以下行为优先进入 Pi：
 
-## 角色创建与故事包主角设定
+- 调查、欺骗、说服、潜行和机关；
+- 目的地式导航和未注册场景引用；
+- 不完整、含糊或复合行动；
+- 创造性方案与成功程度；
+- 剧情意义、代价和非机械后果。
 
-新游戏启动后进入角色创建流程，而不是通过启动参数塞入主角信息。世界包可以提供预设主角列表；用户也可以输入自己的姓名和角色描述，由 AI 按世界观生成候选主角，再从候选中选择。
+Pi 只能提出操作，不能直接修改状态。
+
+## 3. 权威结算
+
+状态修改遵循：
+
+```text
+Proposal → Decision → WorldEvent → Commit → Evolve
+```
+
+### 3.1 Proposal
+
+Proposal 表示某个来源希望桌面发生的操作。来源包括：
+
+```text
+player
+engine
+dm
+npc
+objective
+world_script
+system
+```
+
+不同来源有不同权限。DM 不能绕过 Engine 修改独立控制 NPC，世界脚本也不能获得无限 GM 权限。
+
+### 3.2 Decision
+
+Decider 是纯裁定边界：
+
+```text
+state + proposal → accepted/rejected/adjusted + exact events
+```
+
+拒绝必须结构化，不能依赖 `console.warn` 表达业务结果。
+
+### 3.3 WorldEvent 与 Evolve
+
+WorldEvent 保存可以确定性重放的精确事实，而不是模糊命令。例如参数变化事件保存 before/after，物品转移保存精确来源和目的地。
+
+`evolve(state, event)` 是权威状态演化入口。提交失败时 live state 和 revision 不变。
+
+### 3.4 Revision 与 Turn
+
+- `turn` 是叙事时间；
+- `revision` 是权威状态版本。
+
+一轮可以提交多个事务，因此两者不能混用。异步 NPC 和 AI 响应应使用 revision、房间和可见实体快照做 stale 校验。
+
+完整契约见 [`settlement-contract.md`](settlement-contract.md)。
+
+## 4. Pi 桌面操作协议
+
+DM 的 legacy `WORLD_UPDATE` 与新的 `gmOperations` 会被标准化为 `CanonicalTableOperation`，并按依赖阶段排序：
+
+```text
+materialize → topology → state → outcome
+```
+
+含义：
+
+1. 先创建房间、NPC 和物品；
+2. 再建立出口和拓扑；
+3. 再移动实体、转移卡牌、调整参数、记录事实；
+4. 最后完成 Objective 或 StoryOutcome。
+
+这样可以在同一轮安全支持：
+
+```text
+创建房间 → 建立出口 → 移动玩家
+创建 NPC → 发起交互
+创建物品 → 转入背包
+记录事实 → 评估结局
+```
+
+## 5. 叙述一致性
+
+DM 首次返回的是候选叙述。只有在操作完成结算后，Runtime 才会发布最终文本。
+
+可声明并验证的 `NarrativeClaim` 包括：
+
+```text
+player_location
+entity_present
+exit_available
+item_location
+npc_lifecycle
+outcome
+```
+
+若候选叙述与 committed state 不一致，Runtime 会在同一 Session 中进行最多一次有界修正。修正失败或超时时使用 committed-state fallback，不回滚已经成立的事实。
+
+## 6. 双层状态与记忆
+
+### 6.1 WorldState
+
+`WorldState` 保存客观权威状态：
+
+- 玩家位置、参数、生命周期和角色快照；
+- 房间、出口、探索状态和地图元数据；
+- NPC、物品位置、装备和销毁状态；
+- Condition、Objective、StoryOutcome；
+- WorldFact 和 PlotThread；
+- turn、revision 和确定性随机种子。
+
+### 6.2 Pi Session
+
+Pi Session 保存主观连续性：
+
+- 对话语气；
+- 叙事风格；
+- 角色印象；
+- 私人记忆；
+- 压缩后的长上下文。
+
+项目直接复用 Pi 原生 JSONL 和 compaction，不另建重复的长期记忆数据库。客观事实必须回到 `WorldState`，不能只依赖 Session 记忆。
+
+## 7. 持久 NPC
+
+世界包可将重要 NPC 声明为：
 
 ```json
 {
-  "defaultProtagonistId": "lost_commuter",
-  "protagonists": [
-    {
-      "id": "lost_commuter",
-      "name": "迟归的通勤者",
-      "summary": "每天搭乘末班车的人，却忘了自己要回哪里。",
-      "background": "你总觉得自己错过了一站，但车票上没有目的地。",
-      "motivation": "找回自己真正想回去的地方。",
-      "initialStats": { "hp": 100, "attack": 6, "defense": 3 },
-      "initialInventory": ["ticket"],
-      "openingHook": "你在空白时刻表前醒来，手里攥着一张没有目的地的旧车票。"
-    }
-  ]
+  "controller": "pi_session",
+  "persona": {
+    "background": "...",
+    "speechStyle": "...",
+    "goals": ["..."],
+    "constraints": ["..."]
+  }
 }
 ```
 
-开局流程：
+Session 只在 NPC 第一次需要回应时创建。NPC 可以提出有界的：
 
-1. 如果没有传 `--world`，先展示可用剧本列表，用户选择剧本。
-2. 加载所选世界包摘要与 `protagonists[]`。
-3. 展示故事包预设主角，默认选中 `defaultProtagonistId`。
-4. 用户可输入自己的玩家姓名覆盖预设名；姓名限制为 1-16 个字符，且不能像整句描述。
-5. 用户也可选择“输入自己的角色描述”，由 AI 生成 2-3 个符合世界观的原创候选主角；prompt 明确禁止复刻已有作品角色。
-6. 用户从 AI 候选中再次选择，或返回重新输入描述。
-7. 最终主角作为 `state.player.profile` 快照保存，并在每轮 DM prompt 中注入。
-
-存档保存的是创建时的主角快照，而不是只保存 `protagonistId`，这样故事包更新不会改变旧存档。
-
----
-
-## 世界包校验
-
-`loadWorldPackSummary()` 和 `loadWorldPack()` 都会先校验世界包，避免启动后才在运行时崩溃。校验项包括：
-
-- `bornPoint` 必须指向存在的 room。
-- room exits 必须指向存在的 room。
-- NPC `roomId` 必须存在。
-- item `inRoom` 必须存在。
-- `defaultProtagonistId` 必须存在于 `protagonists[]`。
-- protagonist id、room id、NPC id、item id、stat key 必须唯一。
-- `playerStats`、NPC stats、protagonist `initialStats` 只能使用 schema 中定义的 stat key，或 `{stat}Max` 形式的最大值 override。
-- stat 当前值必须落在 `min` 和对应最大值之间；若需要强 NPC，可显式写 `hpMax` / `mpMax` / `sanMax` 等 override。
-- protagonist `initialInventory` 只能引用存在的 item id。
-
----
-
-## 项目目录结构
-
-```
-mud-pi/
-├── src/
-│   ├── types/
-│   │   ├── world.ts        # WorldState, RoomDef, NpcDef...
-│   │   └── mutations.ts    # EngineMutation, DmMutation, TurnRecord
-│   ├── store/
-│   │   ├── apply.ts        # applyMutation() — 唯一变更入口
-│   │   └── persist.ts      # loadState/saveState/appendTurn
-│   ├── engine/
-│   │   ├── commands.ts     # verb → EngineMutation[]
-│   │   └── world-loader.ts # worlds/*.json → 初始 WorldState
-│   ├── ai/
-│   │   ├── backend.ts             # AI backend 抽象与路由
-│   │   ├── pi-backend.ts          # Pi SDK backend
-│   │   ├── codex-backend.ts       # Codex CLI backend
-│   │   ├── character-generator.ts # 用户描述 → 主角候选
-│   │   ├── interpreter.ts         # 小模型：input → ParsedCommand
-│   │   ├── dm-session.ts          # DM 会话封装
-│   │   ├── dm-prompt.ts           # state → DM prompt 字符串
-│   │   └── dm-parser.ts           # DM 返回 → DmMutation[]
-│   └── server/
-│       └── telnet.ts       # TCP/Telnet 服务器
-├── worlds/
-│   └── station-dream/
-│       ├── world.json
-│       └── lore.md
-├── saves/                  # 运行时生成
-│   └── {worldId}/
-│       ├── state.json
-│       └── turns.jsonl
-├── docs/
-│   └── design.md           # 本文档
-└── package.json
+```text
+say
+move
+wait
+give_item
 ```
 
----
+Engine 验证 NPC 是否存活、是否同房间、出口是否存在、奖励模板是否允许以及响应是否过期。NPC 私有 thought 不进入公开 TurnRecord，也不会发送给其他 NPC。
 
-## 一轮完整流程
+## 8. 世界包
 
+世界包目录：
+
+```text
+worlds/<id>/
+├── world.json
+├── lore.md
+└── conflict.ts   # 可选
 ```
-1. 玩家发送文字输入
-2. Interpreter（小模型）→ ParsedCommand { verb, args }
-3. Engine 根据 verb 执行规则 → EngineMutation[]
-4. applyMutations(state, engineMutations)  [先应用引擎变更]
-5. buildDmPrompt(state, engineEvents)      [构建本轮 DM prompt]
-6. DM（Pi）→ <NARRATION> + <WORLD_UPDATE>
-7. parseDmResponse() → DmMutation[]
-8. applyMutations(state, dmMutations)      [应用 DM 变更]
-9. applyMutation(state, engine/turn_advanced)
-10. saveState(state)                       [覆写 state.json]
-11. appendTurn(worldId, turnRecord)        [追加 turns.jsonl]
-12. 发送 narration 给玩家
+
+`world.json` 可以定义：
+
+- 世界摘要和出生点；
+- 参数 schema、生命周期 threshold；
+- 房间、出口、NPC 和道具；
+- 预设主角与初始背包；
+- Condition；
+- Objective 及依赖；
+- StoryOutcome criteria；
+- AI 奖励模板；
+- 冲突规则和程序化地图配置。
+
+`lore.md` 提供主题、事实、语气和边界，不应写成要求玩家猜中的命令列表。
+
+可信 `conflict.ts` 在世界包目录内执行，并必须返回受验证的结构化数值。第三方不可信脚本目前不具备完整进程级沙箱，不应直接加载。
+
+## 9. 持久化
+
+```text
+saves/<id>/
+├── state.json
+├── turns.jsonl
+├── world-events.jsonl
+├── outbox.jsonl
+├── agents/
+│   ├── manifest.json
+│   └── sessions/*.jsonl
+└── logs/
 ```
+
+### Journal
+
+`world-events.jsonl` 保存 committed transactions。Snapshot 可以通过 Journal 恢复，并使用 checksum 和 revision 防止读取错误分叉。
+
+### Outbox
+
+需要在提交后执行的持久化和投影副作用进入 Outbox。失败副作用可以重试，但不能回滚已经提交的世界事实。
+
+### TurnRecord
+
+`turns.jsonl` 是叙事回合记录，不是唯一权威来源。被拒绝的 Proposal 不应伪装成已经执行的 TurnRecord 内容。
+
+## 10. Runtime 与 Adapter
+
+`GameRuntime` 是所有界面的共同应用层：
+
+```text
+CLI ─┐
+TUI ─┼→ GameRuntime → Engine / AI / Store
+Telnet┤
+Web ─┘
+```
+
+Adapter 可以展示不同 UI，但不能绕过 Runtime 修改状态。
+
+- CLI：传统逐行文本；
+- TUI：宽屏三面板、窄屏纵向布局；
+- Telnet：ANSI 与 GMCP 投影；
+- Web：匿名隔离实例和恢复 token。
+
+## 11. AI backend 与超时
+
+所有 AI 角色通过统一 backend 抽象调用：
+
+- Pi backend 使用模型注册、认证和持久 Session；
+- Codex backend 使用只读、ephemeral 的本地 CLI 调用。
+
+Interpreter、DM、NPC 和 Character 使用独立有界超时。Provider 失败必须显式记录，不能用硬编码语言 fast path 掩盖。DM 超时使用权威状态 fallback，不回滚 committed events。
+
+## 12. 诊断
+
+每个请求使用 world、request、turn、revision 和 AI call ID 关联：
+
+```text
+operations.jsonl
+ai-requests.jsonl
+errors.jsonl
+```
+
+关键阶段包括：
+
+```text
+interpreter
+pi_session_stage
+pi_request_policy
+pi_first_event
+pi_first_text_delta
+pi_assistant_message_end
+dm_table_plan
+settlement
+narration_correction
+```
+
+日志用于分析首 token、总耗时、Provider 重试、错误率和状态结算，不记录 API key。
+
+## 13. 代码结构
+
+```text
+src/
+├── adapters/       # CLI/TUI/Telnet 协议和展示
+├── ai/             # backend、Prompt、Parser、Session
+├── content/        # 通用展示文案
+├── diagnostics/    # 日志和分析
+├── engine/         # 意图、规则、地图、冲突、投影
+├── runtime/        # GameRuntime 和输出模型
+├── store/          # Settlement、Journal、Evolve、Outbox
+├── types/          # 领域类型
+├── web/            # Bun Web 服务和前端
+└── main.ts
+```
+
+## 14. 明确非目标
+
+当前不建设：
+
+- 多人共享世界、PvP、公会和权限体系；
+- 自动生态、NPC 日程、天气和离线世界模拟；
+- 完整 Quest FSM 或要求玩家按固定流程行动；
+- 完整经济、制作和交易所；
+- 由 Engine 穷举所有自然语言动作；
+- exactly-once AI invocation；
+- 面向不可信第三方脚本的完整沙箱。

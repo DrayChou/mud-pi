@@ -266,94 +266,53 @@ Engine 只保存其客观事实：
 
 ---
 
-## 7. 下一步需要补全的最小框架
+## 7. 当前裁定出口与剩余最小能力
 
-目标不是补齐传统 MUD 的全部子系统，而是补齐 Pi 主持游戏所需的通用“裁定出口”。
-
-### P0：Authoritative Settlement Kernel
-
-这是当前最高优先级：
+框架已经具备以下通用链路：
 
 ```text
-Proposal
-  → Decision
-  → Accepted(WorldEvent[]) / Rejected(Rejection)
-  → Atomic Commit
-  → evolve()
-  → Public Projection
-  → Post-Commit Effects
+ActionIntent
+  → Entity Reference Resolution
+  → Pi / Deterministic Adjudication
+  → CanonicalTableOperation
+  → Proposal → Decision → WorldEvent
+  → Atomic Commit → evolve()
+  → Public Projection / Outbox
+  → NarrativeClaim Verification
 ```
 
-它让 Pi 可以大胆发挥，而不会把错误、越权或半成功状态写入存档。
+已经落地的桌面操作包括：
 
-必须包括：
+- 记录权威事实；
+- 创建房间、NPC 和物品；
+- 开放或修改出口；
+- 移动玩家和受控 NPC；
+- 转移、装备和消耗物品卡；
+- 调整世界定义参数；
+- 应用、移除和过期 Condition；
+- 完成允许 Pi 裁定的 Objective；
+- 提议世界包声明的 StoryOutcome；
+- 发出可感知信号。
 
-- `WorldState.revision`；
-- `ProposalEnvelope`；
-- 结构化 rejection；
-- committed `WorldEvent`；
-- 纯 `evolve()`；
-- legacy Mutation adapter；
-- GameEvent 从 committed events 投影；
-- 被拒绝 Proposal 只进入审计；
-- Agent、NPC、UI 和存档通知只在 commit 后发生。
+Pi 的候选操作被拒绝、调整或与叙述声明不一致时，Runtime 会进行一次有界叙述修正；修正失败则使用 committed-state fallback。
 
-### P1：通用 Pi GM 桌面操作 Proposal
+下一步只补充真实游玩反复需要的最小名词：
 
-建立少量、稳定、与剧情无关的桌面操作类型，让 Pi 能把自由裁定造成的后果放到角色纸、卡牌、棋子和记录本上：
+### P0：SceneObject
 
-- 增删 WorldFact / flag；
-- 开放或关闭出口；
-- 精确参数变化；
-- 应用或移除通用 condition；
-- 创建、转移、消耗权威物品；
-- NPC/玩家合法移动；
-- 客观关系值变化；
-- 提议 Objective 语义完成/失败；
-- 提议 StoryOutcome；
-- 发出可感知信号，如噪音、闪光、公开言语。
+用于门、机关、祭坛和其他需要跨回合查询或改变的环境对象。只保存 ID、别名、位置、能力、状态和生命周期，不建设完整机关模拟器。
 
-这些是“结果词汇”，不是自动玩法系统。
+### P0：稳定 WorldFact key
 
-### P2：结构化裁定反馈
+为需要被 Objective、Outcome 或脚本引用的事实增加稳定 key。自然语言 text 仍用于展示，不建设完整知识图谱。
 
-Pi 的输出被清洗或拒绝后，必须将结构化反馈带入下一次 Prompt：
+### P1：更稳定的实体和地点引用
 
-```text
-proposal rejected: item template not allowed
-proposal adjusted: parameter delta clamped from -20 to -3
-proposal ignored: target NPC is not present
-```
+补充 Room/NPC aliases、目的地导航和有界澄清，但不把自然语言重新缩减成固定命令菜单。
 
-避免叙述声称事情已经发生，但权威状态没有发生。
+### P1：必要时才增加新的世界变量
 
-### P3：最小通用 Condition
-
-只实现 Pi 经常需要、且必须跨回合保存的状态容器：
-
-- condition ID；
-- 来源；
-- stacks；
-- 可选持续回合；
-- 世界包定义的 parameter modifiers / traits；
-- apply/remove/expire 事件。
-
-不在 Engine 中硬编码中毒、恐惧、眩晕等语义。
-
-### P4：任务的语义 Proposal
-
-保留现有确定性 Objective，同时允许 Pi 对世界包明确声明的开放目标提出：
-
-```text
-objective_complete_proposed
-objective_failed_proposed
-```
-
-Engine 校验 objective ID、前置条件、当前状态和 revision；Pi 提供自然语言理由。
-
-### P5：必要时才引入世界时间
-
-只有当剧本确实需要持续状态、限时任务或昼夜变化时，才加入最小 `worldTime`。不建设完整天气、刷新、NPC 排班和自动生态系统。
+只有真实世界包证明 Fact、Objective、Condition、Item 和 Outcome 无法可靠表达某项跨回合状态时，才增加轻量变量或时钟。不会预先建设天气、刷新、NPC 排班和自动生态系统。
 
 ---
 

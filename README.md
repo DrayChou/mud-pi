@@ -1,321 +1,274 @@
 # mud-pi
 
-单人 Pi-first 叙事 RPG 框架，心智模型是一场由 Pi 主持的数字桌游：持久 Pi DM 对应真人 DM，负责理解自由行动、裁定开放情境和推进故事；世界包对应规则书与冒险模组；Engine 对应角色纸、道具卡、棋子、计数器、骰塔和战役记录本，只维护权威事实并校验 GM 对桌面的操作。项目不试图自动模拟完整 MUD 世界，也不支持多人并发。
+`mud-pi` 是一个开源的、单人 **Pi-first 叙事 RPG 框架**。它把 AI 当作持久的游戏主持人，把代码引擎当作权威数字桌面：
 
-职责边界见 [`docs/pi-role-boundary.md`](docs/pi-role-boundary.md)。
+- **Pi DM** 理解玩家的自由表达，裁定调查、交涉、机关、潜行和创造性方案；
+- **Engine** 管理位置、实体、物品、参数、状态、目标、骰子和已提交事实；
+- **世界包** 定义规则书、冒险模组、角色、道具、结局条件和可信规则脚本；
+- **CLI、TUI、Telnet/GMCP、Web** 共用同一个 `GameRuntime`。
 
-## 项目地址
+项目专注于单人叙事游戏，不是多人共享世界服务器，也不尝试用代码模拟完整世界生态。
 
-- GitHub: <https://github.com/DrayChou/mud-pi>
+## 核心原则
 
-## 前置条件
+> 代码实现名词和不变量，Pi 解释动词和意义。
 
-使用本项目之前，用户需要先安装并配置好至少一个 AI backend：默认推荐 [Pi](https://pi.dev)；如果客户只有 Codex，也可以使用本地 Codex CLI。本项目不会提交、保存或要求你把密钥写进仓库；只读取用户本机已经登录/配置好的 AI 能力。
+玩家不需要猜命令菜单。自然语言行动先被解释为 `ActionIntent`；不明确的引用和开放式行为会交给 Pi 裁定。所有会改变权威状态的结果都必须通过 Engine 提交：
 
-### 1. 安装 Bun
+```text
+ActionIntent
+→ Entity Reference Resolution
+→ Pi Adjudication / Deterministic Action
+→ Ordered TableOperation
+→ Proposal → Decision → WorldEvent → Commit → Evolve
+→ NarrativeClaim Verification
+→ Final Narration
+```
+
+被拒绝的操作不会进入世界事实、NPC 感知、目标进度或玩家界面。详细边界见 [Pi 与 Engine 的职责边界](docs/pi-role-boundary.md)。
+
+## 功能概览
+
+- 持久 Pi DM Session，并复用 Pi 原生 JSONL 和 compaction；
+- 重要 NPC 可懒加载独立持久 Pi Session；
+- 权威 `WorldState`、revision、事件 Journal、Snapshot 和 Outbox；
+- 房间、动态出口、地图探索和确定性程序化地图；
+- 权威物品位置、装备、消耗、AI 动态道具和模板约束奖励；
+- 世界定义参数、Condition、Objective、StoryOutcome；
+- 可复现冲突和骰子结算，支持世界包自定义可信脚本；
+- 候选叙述在结算后发布，并校验位置、实体、出口、物品和结局声明；
+- CLI、响应式 TUI、Telnet/GMCP 和匿名 Web 试玩入口；
+- 结构化 AI 请求、操作、错误和性能诊断日志；
+- Pi SDK 与本地 Codex CLI 两种 AI backend。
+
+## 环境要求
+
+### Bun
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
 ```
 
-也可以参考 Bun 官方文档：<https://bun.sh/docs/installation>
+### AI backend
 
-### 2. 安装 Pi（官方方式）
-
-Pi 官方 README 当前推荐的 npm 安装方式：
+默认使用 [Pi](https://pi.dev)：
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-```
-
-官方安装脚本方式：
-
-```bash
-curl -fsSL https://pi.dev/install.sh | sh
-```
-
-更多说明见 Pi 官网和官方文档：
-
-- <https://pi.dev>
-- <https://www.npmjs.com/package/@earendil-works/pi-coding-agent>
-
-### 3. 配置 AI backend
-
-#### 方式 A：Pi（默认）
-
-先打开 Pi 并完成登录或 API key 配置：
-
-```bash
 pi
 ```
 
-在 Pi 里可以使用：
+在 Pi 中使用 `/login` 配置 provider，使用 `/model` 查看模型 ID。
 
-```text
-/login   # 选择 provider 并登录
-/model   # 查看或切换模型
-```
-
-也可以通过环境变量/API key 使用 Pi 支持的 provider。模型列表和自定义 provider 配置请参考 Pi 官方文档中的 Providers & Models / Custom Models。
-
-#### 方式 B：Codex CLI
-
-如果客户本地只有 Codex，先确认已安装并登录 Codex：
+也可以使用已经登录的 Codex CLI：
 
 ```bash
 codex login
 codex doctor
 ```
 
-然后在 `.env` 中设置：
-
-```env
-AI_BACKEND=codex
-# 可选：不填则使用 Codex 默认模型
-# CODEX_MODEL=gpt-5.1
-```
+项目不会要求把 API key 写入仓库。认证由 Pi 或 Codex 自己管理。
 
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
 bun install
-
-# 2. 复制配置模板
 cp .env.example .env
-
-# 3. 编辑 .env：选择 AI_BACKEND=pi 或 codex，并配置模型名称
-#    大模型负责 DM 叙事与世界推进；小模型负责玩家指令解析。
-
-# 4. 启动
-# 新游戏会先选择剧本，再创建角色
 bun start
 ```
 
-开发模式：
+新游戏会依次选择世界包和主角。也可以直接指定：
 
 ```bash
-bun run dev
+bun start --world station-dream
+bun start --world station-dream --seed night-train-42
+bun start --save <存档ID>
 ```
 
-启动选项：
+### 可用界面
 
 ```bash
-bun start --world station-dream   # 指定世界包
-bun start --save station-dream-001 # 读取存档
-bun start --name 旅行者            # 兼容旧用法：预填玩家姓名
-bun start --world station-dream --seed night-train-42 # 复现程序化地图
-bun run tui                         # 使用本地多面板 TUI
-bun start --tui --save <存档ID>     # 用 TUI 读取指定存档
-bun run telnet                      # 在 127.0.0.1:4000 启动 Telnet/GMCP
-bun start --telnet --host 0.0.0.0 --port 4001 --save <存档ID>
-bun run web                         # 在 0.0.0.0:3000 启动匿名 Web 试玩入口
+bun start          # 传统逐行 CLI
+bun run tui        # 响应式多面板 TUI
+bun run telnet     # Telnet/GMCP，默认 127.0.0.1:4000
+bun run web        # Web，默认 0.0.0.0:3000
+bun run web:dev    # Web 热更新
 ```
 
-TUI 在宽终端中显示玩家/目标、叙事、房间/地图三个面板；窄终端自动切换为纵向布局。按 Enter 发送指令，Esc 或 Ctrl+C 保存并退出。传统逐行 CLI 仍是默认 adapter。
+指定参数示例：
 
-Telnet adapter 第一版默认只监听本机并允许一个控制客户端连接；如需远程连接可显式传入 `--host 0.0.0.0`，并自行配置防火墙。支持 ANSI 文本及 GMCP：`Char.Vitals`、`Room.Info`、`MudPi.Inventory`、`MudPi.Objectives`、`MudPi.Map`、`MudPi.Combat`、`MudPi.Outcome`。可使用 Mudlet、TinTin++ 或普通 telnet 客户端连接；服务端按 Ctrl+C 保存并停止。
+```bash
+bun start --tui --save <存档ID>
+bun start --telnet --host 0.0.0.0 --port 4001
+WEB_HOST=127.0.0.1 WEB_PORT=4123 bun run web
+```
 
-Web 入口为每个匿名访客创建独立存档、DM/NPC Session 和访问 token，不是多人共享世界。浏览器会在本地保存恢复凭证；部署时可通过 `WEB_HOST` 和 `WEB_PORT` 设置监听地址。公开到互联网前仍应在前方配置 HTTPS 反向代理和基础限流。
+Web 为每个匿名访客创建隔离的存档、AI Session 和访问 token，不是多人共享世界。公开部署前应配置 HTTPS、限流、日志轮转和运行时回收。
 
-所有 CLI、TUI、Telnet 与 Web 回合都会在 `saves/<存档ID>/logs/` 记录关联后的 `operations.jsonl`、`ai-requests.jsonl` 和 `errors.jsonl`。日志包含匿名玩家输入、AI System Prompt/Prompt/Response、模型、阶段、耗时、Settlement 摘要和最终输出，用于后续分析优化；不会写入 API key。
+## 配置
 
-新游戏启动后会先进入剧本选择流程；选择剧本后再进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。玩家姓名限制为 1-16 个字符；背景、作品参考和人物描述请写到“角色描述”里。非交互环境会自动使用 `.env` 中的 `WORLD_PACK`。
-
-## 配置说明（.env）
-
-本项目支持 Pi SDK 和 Codex CLI 两种 backend。请先在对应工具中完成登录/模型配置，然后在 `.env` 中选择 backend 和模型名。
+复制 `.env.example` 后按需修改：
 
 | 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `AI_BACKEND` | 默认 AI backend：`pi` 或 `codex` | `pi` |
-| `DM_BACKEND` | 可选：DM 单独使用的 backend | 继承 `AI_BACKEND` |
-| `INTERPRETER_BACKEND` | 可选：指令解析单独使用的 backend | 继承 `AI_BACKEND` |
-| `CHARACTER_BACKEND` | 可选：角色生成单独使用的 backend | 继承 `AI_BACKEND` |
-| `DM_PROVIDER` | Pi backend 下 DM 大模型 provider | `ac` |
-| `DM_MODEL` | Pi backend 下 DM 大模型名称；优先低延迟 | `gemini-3.5-flash` |
-| `INTERPRETER_PROVIDER` | Pi backend 下指令解析小模型 provider | `ac` |
-| `INTERPRETER_MODEL` | Pi backend 下指令解析小模型名称 | `gemini-3.1-flash-lite` |
-| `CODEX_MODEL` | Codex backend 默认模型；留空使用 Codex 自己的默认模型 | — |
-| `CODEX_DM_MODEL` | 可选：Codex backend 下 DM 模型 | 继承 `CODEX_MODEL` |
-| `CODEX_INTERPRETER_MODEL` | 可选：Codex backend 下指令解析模型 | 继承 `CODEX_MODEL` |
-| `CODEX_CHARACTER_MODEL` | 可选：Codex backend 下角色生成模型 | 继承 `CODEX_MODEL` |
-| `DM_THINKING` | DM 思考深度：off/minimal/low/medium/high | `low` |
-| `AI_INTERPRETER_TIMEOUT_MS` | 指令解析超时；失败后快速回退 | `15000` |
-| `AI_DM_TIMEOUT_MS` | DM 单次请求总超时；默认不隐藏重试 | `30000` |
-| `AI_NPC_TIMEOUT_MS` | NPC 单次请求总超时；默认不隐藏重试 | `30000` |
+|---|---|---|
+| `AI_BACKEND` | `pi` 或 `codex` | `pi` |
+| `DM_BACKEND` | DM 单独使用的 backend | 继承 `AI_BACKEND` |
+| `INTERPRETER_BACKEND` | Interpreter backend | 继承 `AI_BACKEND` |
+| `CHARACTER_BACKEND` | 角色生成 backend | 继承 `AI_BACKEND` |
+| `DM_PROVIDER` / `DM_MODEL` | Pi DM 模型 | 见 `.env.example` |
+| `INTERPRETER_PROVIDER` / `INTERPRETER_MODEL` | Pi 指令解析模型 | 见 `.env.example` |
+| `CODEX_MODEL` | Codex 默认模型；留空使用本地默认 | — |
+| `DM_THINKING` | `off/minimal/low/medium/high` | `low` |
+| `AI_INTERPRETER_TIMEOUT_MS` | Interpreter 总超时 | `15000` |
+| `AI_DM_TIMEOUT_MS` | DM 总超时 | `30000` |
+| `AI_NPC_TIMEOUT_MS` | NPC 总超时 | `30000` |
 | `AI_CHARACTER_TIMEOUT_MS` | 角色生成总超时 | `45000` |
-| `AI_REQUEST_TIMEOUT_MS` | 可选：所有角色的共享超时后备值 | — |
-| `WORLD_PACK` | 默认世界包；非交互启动或直接回车时使用 | `station-dream` |
+| `WORLD_PACK` | 非交互模式默认世界包 | `station-dream` |
 | `DEFAULT_PLAYER_NAME` | 默认玩家名 | `旅行者` |
 
-Pi 用户可先运行 `pi`，再用 `/model` 查看可用 provider/model id。Codex 用户可运行 `codex doctor` 检查本机登录和运行状态。`.env` 应保留在本地，不要提交。
+完整示例和注释见 [`.env.example`](.env.example)。
 
-## 隐私与安全
+## 玩家输入
 
-- `.env`、本地存档 `saves/`、`node_modules/` 等已在 `.gitignore` 中排除。
-- 不要把 API key、OAuth token、cookie、私钥或本地 Pi 登录态提交到仓库。
-- Pi / Codex 的认证信息保存在用户本机对应工具的配置目录中，本项目不会把认证信息写入项目文件。
-- 游戏存档可能包含玩家输入、生成剧情和测试内容，默认不提交。
-
-## 游戏指令
+精确快捷命令可低延迟执行：
 
 ```text
-look [目标]   查看周围或物品
-go <方向>     移动（东/西/南/北）
-say <内容>    说话（DM 会让 NPC 响应）
+look [目标]   查看环境或实体
+north/south/east/west/up/down
+say <内容>    与当前场景人物交谈
 get <物品>    拾取
-drop <物品>   丢弃
+inventory     查看背包
 equip <物品>  装备
-attack <目标> 调用当前世界包的冲突脚本
-use <物品>    调用世界脚本解释道具 effects
-inv           查看背包
-status        查看状态
-help          显示帮助
+use <物品>    使用
+attack <目标> 发起冲突
+status        查看角色状态
+objectives    查看目标
+map           查看已探索地图
+help          查看帮助
 quit          保存并退出
 ```
 
-## AI 动态道具
+同时支持自然语言和复合行动，例如：
 
-DM 可以在探索、NPC 交付、任务奖励和场景变化中创建新的权威道具，而不是只在叙事文字中提到它们：
+```text
+我把车票夹在指间，问售票员这班车是否还能回去。
+先观察门缝里的光，再尝试用钥匙轻轻转动锁芯。
+返回大厅，找到刚才提到的守卫并向他说明情况。
+```
 
-- `placement: "room"`：放入当前或新创建的房间，玩家需要检查、拾取或使用；
-- `placement: "inventory"`：仅用于 AI 根据任务完成、NPC 动机、信任或交换关系判定应发放的奖励，并且必须引用世界包 `itemRewardRules.templates`；
-- 任意 `pi_session` NPC 可以提出 `give_item`，DM 也可以代表普通 NPC 提出奖励；赠予者必须存活并与玩家同房间；
-- AI 只能决定是否奖励以及创作名称、描述、别名，物品种类、槽位、参数修正、traits、effects 和消耗规则全部来自世界包模板；
-- Objective 可声明 `reward.mode: "ai_judged"`、允许模板、合格 NPC、指导和最大发放次数；完成目标只开放奖励资格，不保证必掉，最终仍由 AI 判断；
-- 任务完成会产生 `objective_completed` 权威事件，并在同一轮 NPC 决策前结算；
-- 奖励直接进入背包，并保证可以通过 `use` 使用或通过 `equip` 装备；
-- 普通场景物品仍支持 `item`、`equipment`、`key`、`scenery`，以及世界参数对应的 modifiers、traits 和 effects；
-- ID、位置、赠予者、模板、冷却、单 NPC 发放上限、参数引用、修正范围、骰子规模和每轮创建数量均由解析层及 Engine 判定层校验；
-- 新地点可以生成少量符合场景的物品或陈设，但 Prompt 会要求避免每房必掉和无理由生成强力装备。
+## 存档与诊断
 
-## 存档
+每局游戏保存在：
 
-每局游戏自动保存在本地 `saves/{worldId}/`：
+```text
+saves/<存档ID>/
+├── state.json
+├── turns.jsonl
+├── world-events.jsonl
+├── agents/
+│   ├── manifest.json
+│   └── sessions/*.jsonl
+└── logs/
+    ├── operations.jsonl
+    ├── ai-requests.jsonl
+    └── errors.jsonl
+```
 
-- `state.json` — 当前世界快照
-- `turns.jsonl` — 完整轮次日志（追加写入，不修改）
-- `agents/manifest.json` — DM/NPC 与 Pi Session 的引用关系
-- `agents/sessions/*.jsonl` — Pi 原生持久会话文件，包含历史与 compaction 记录
+- `state.json` 是当前快照；
+- `world-events.jsonl` 是权威提交 Journal；
+- `turns.jsonl` 是面向游戏回合的记录；
+- `agents/sessions/` 保存 Pi 原生持久 Session；
+- `logs/` 保存关联后的请求阶段、耗时、首 token、重试、结算摘要和错误。
 
-Pi backend 下，DM 会话与存档绑定；退出后使用 `--save` 载入时会精确恢复同一个 Pi Session，而不是重新创建开场。世界包中标记为 `controller: "pi_session"` 的重要 NPC 也会在玩家首次与其对话时懒创建独立 Pi Session，并在后续读档中恢复自己的 JSONL 历史。旧存档或会话文件缺失时，会根据权威状态创建恢复会话。Codex backend 仍使用 ephemeral one-shot 调用。
+诊断命令：
 
-`saves/` 是本地运行数据，默认不提交。复制存档时请复制整个 `saves/{worldId}/` 目录，以保留 Pi 长期会话。
+```bash
+bun run logs:ai
+bun run logs:ai <存档ID>
+```
 
-## 添加世界包
+日志可能包含玩家输入和 AI Prompt/Response，但不应包含 API key。`saves/` 和 `.env` 默认被 Git 忽略。
 
-在 `worlds/` 下新建目录：
+## 世界包
+
+世界包位于 `worlds/<id>/`：
 
 ```text
 worlds/my-world/
-├── world.json   # 初始房间、NPC、物品
-└── lore.md      # 世界观（注入给 DM）
+├── world.json
+├── lore.md
+└── conflict.ts    # 可选，可信本地规则脚本
 ```
 
-然后启动：
+最小启动方式：
 
 ```bash
 bun start --world my-world
 ```
 
+世界包可以声明：
+
+- 参数、生命周期阈值和角色模板；
+- 房间、出口、NPC、道具和初始位置；
+- 预设主角与初始背包；
+- Objective、StoryOutcome 和 Condition；
+- AI 奖励模板；
+- 冲突文案、规则数据和可信脚本；
+- 程序化地图配置。
+
+Loader 会在启动时校验 ID 唯一性、引用、位置、参数范围、脚本路径和结局条件。世界包是事实与机械边界，不是要求玩家猜中的固定流程。
+
 ## 项目结构
 
 ```text
 src/
-├── types/
-│   ├── world.ts        # WorldState 数据结构
-│   └── mutations.ts    # EngineMutation + DmMutation（所有变更类型）
-├── store/
-│   ├── apply.ts        # applyMutation() — 唯一变更入口
-│   └── persist.ts      # state.json + turns.jsonl 读写
-├── engine/
-│   ├── commands.ts     # 指令 → EngineMutation[]
-│   └── world-loader.ts # 世界包加载
-├── ai/
-│   ├── backend.ts             # AI backend 抽象
-│   ├── pi-backend.ts          # Pi SDK backend
-│   ├── codex-backend.ts       # Codex CLI backend
-│   ├── character-generator.ts # 用户描述 → 主角候选
-│   ├── interpreter.ts         # 小模型：文本 → ParsedCommand
-│   ├── dm-session.ts          # DM 会话封装
-│   ├── dm-prompt.ts           # 构建每轮 DM prompt
-│   └── dm-parser.ts           # DM 返回 → DmMutation[]
-└── main.ts             # CLI 入口
+├── adapters/       # CLI/TUI/Telnet 输出与协议适配
+├── ai/             # backend、Interpreter、DM/NPC Session 与协议解析
+├── diagnostics/    # 结构化日志与分析工具
+├── engine/         # ActionIntent、规则裁定、冲突、地图和投影
+├── runtime/        # 所有界面共享的 GameRuntime
+├── store/          # Settlement、Evolve、Journal、Snapshot、Outbox
+├── types/          # 权威领域类型
+├── web/            # Bun Web 服务与前端
+└── main.ts
+
+worlds/             # 公开示例世界包
+docs/               # 架构、契约、研究和参考实玩
+saves/               # 本地运行数据，不提交
 ```
 
-## 角色创建
-
-每个世界包可以在 `world.json` 中提供 `defaultProtagonistId` 和 `protagonists[]`。新游戏启动后，玩家会在 CLI 中选择预设主角，或输入自己的姓名和角色描述，让 AI 生成符合世界观的候选角色。姓名只接受短名称；AI 生成角色会被要求创作原创角色，不复刻已有小说、影视、游戏、动漫或其他作品中的角色。
-
-角色信息会保存到 `state.player.profile` 快照中，并注入每轮 DM prompt，使叙事能稳定参考角色背景、动机、初始物品和开场钩子。存档保存的是创建时的角色快照，因此故事包后续更新不会改变旧存档。
-
-世界包加载时会校验引用关系和属性范围：出生点、出口、NPC 房间、物品位置、默认主角、初始物品、属性 key 都必须有效。若某个 NPC 或主角需要超过 schema 默认上限，可以显式提供 `hpMax`、`mpMax` 这类 `{stat}Max` override。
-
-重要 NPC 可以拥有独立长期 Pi Session：
-
-```json
-{
-  "id": "ticket_clerk",
-  "name": "售票员",
-  "roomId": "StationHall",
-  "personality": "神秘、惜字如金",
-  "controller": "pi_session",
-  "persona": {
-    "background": "你在没有日期的售票窗口后工作了很久。",
-    "speechStyle": "句子简短，常用车票和归途作隐喻。",
-    "goals": ["判断旅客是否准备好面对目的地"],
-    "constraints": ["不直接说出玩家内心的答案"]
-  }
-}
-```
-
-这类 Session 只在 NPC 首次需要回应时创建。NPC 负责自己的私人记忆，并可提出 `say`、`move` 或 `wait` 意图；Engine 会验证回合、位置、房间人员和出口后再产生 Mutation，DM 只叙述已经确定的公开结果。
-
-世界包主角示例：
-
-```json
-{
-  "defaultProtagonistId": "lost_commuter",
-  "protagonists": [
-    {
-      "id": "lost_commuter",
-      "name": "迟归的通勤者",
-      "summary": "每天搭乘末班车的人，却忘了自己要回哪里。",
-      "background": "你总觉得自己错过了一站，但车票上没有目的地。",
-      "motivation": "找回自己真正想回去的地方。",
-      "initialStats": { "hp": 100, "attack": 6, "defense": 3 },
-      "initialInventory": ["ticket"],
-      "openingHook": "你在空白时刻表前醒来，手里攥着一张没有目的地的旧车票。"
-    }
-  ]
-}
-```
-
-## Codex 兼容说明
-
-当 `AI_BACKEND=codex` 时，mud-pi 会通过本地 `codex exec` 调用 Codex，并使用：
+## 开发
 
 ```bash
-codex exec --ephemeral --ignore-rules --sandbox read-only --ask-for-approval never
+bun install
+bun run typecheck
+bun test
+bun run dev
+bun run web:dev
 ```
 
-这样 Codex 只作为只读 AI 生成 backend 使用，不会让 Codex 修改项目文件。DM、指令解析、角色生成都可以统一走 Codex；也可以用 `DM_BACKEND` / `INTERPRETER_BACKEND` / `CHARACTER_BACKEND` 混用 Pi 和 Codex。
-
-## 剧本化冲突规则
-
-每个世界包通过 `conflictScript: "./conflict.ts"` 指定自己的冲突计算脚本，`conflictRules` 只作为脚本数据；未声明脚本时使用本地默认 resolver。风险提示文案由世界包定义，避免显示“数据模拟”等出戏术语。冲突调研见 [`docs/conflict-resolution-research.md`](docs/conflict-resolution-research.md)。参数、装备、traits 和道具 effects 的 RPG Maker 式数据分层见 [`docs/rpgmaker-data-model.md`](docs/rpgmaker-data-model.md)。
-
-## 开发命令
+提交前建议至少执行：
 
 ```bash
-bun install       # 安装依赖
-bun run dev       # watch 模式启动
-bun start         # 启动传统 CLI
-bun run tui       # 启动多面板 TUI
-bun run telnet    # 启动 Telnet/GMCP 服务（默认端口 4000）
-bun run web       # 启动匿名 Web 入口（默认端口 3000）
-bun run web:dev   # Web 热更新开发模式
-bun test          # 运行测试
-bun run typecheck # TypeScript 类型检查
+bun run typecheck
+bun test
+git diff --check
 ```
+
+## 文档
+
+从 [文档索引](docs/README.md) 开始阅读：
+
+- [当前架构](docs/design.md)
+- [Pi 与 Engine 的职责边界](docs/pi-role-boundary.md)
+- [权威结算契约](docs/settlement-contract.md)
+- [开发状态与路线图](docs/development-plan.md)
+- [参考完整游玩记录](docs/playtests/station-dream-reference-playthrough.md)
+
+## 项目状态
+
+当前版本适合本地开发、架构研究和小范围试玩。它尚未提供大规模公开服务所需的完整运维能力，例如全局限流、AI 请求队列、闲置实例回收、集中监控和 HTTPS 自动化。
+
+## License
+
+见 [LICENSE](LICENSE)。
