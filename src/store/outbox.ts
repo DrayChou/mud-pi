@@ -9,7 +9,7 @@ import type { JournalTransaction } from "./journal.ts";
 export type OutboxEffect =
   | { kind: "snapshot"; worldId: string; revision: number }
   | { kind: "turn_record"; worldId: string; record: TurnRecord }
-  | { kind: "npc_perception"; worldId: string; events: GameEvent[]; maxWakeups: number; correlationId: string; phase: "pre_dm" | "post_dm" | "recovery" }; 
+  | { kind: "npc_perception"; worldId: string; events: GameEvent[]; maxWakeups: number; correlationId: string; phase: "pre_dm" | "post_dm" | "recovery" };
 
 export interface PendingRecord {
   kind: "pending";
