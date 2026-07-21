@@ -199,6 +199,13 @@ function cmdUse(state: WorldState, cmd: ParsedCommand, conflictResolver: Conflic
 
 // ── Combat ─────────────────────────────────────────────────────────────────
 
+function normalizedNpcTarget(target: string): string {
+  return target.trim()
+    .replace(/^(所有|全部|这些|那些|这几个|那几个)/, "")
+    .replace(/(们|一伙|一群)$/, "")
+    .replace(/^被污染的?/, "污染");
+}
+
 function isContextualAttackTarget(target: string): boolean {
   return /^(他|它|她|怪物|敌人|对方|眼睛|头|头部|脑袋|要害|身体|躯干|爪子)$/.test(target.trim());
 }
@@ -238,8 +245,11 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: Conf
   const roomNpcs = Object.values(state.npcs).filter(
     (npc) => npc.roomId === state.player.roomId && npc.alive
   );
+  const normalizedTarget = normalizedNpcTarget(targetName);
   const explicitTarget = roomNpcs.find(
-    (npc) => npc.name.includes(targetName) || npc.id.includes(targetName)
+    (npc) => npc.name.includes(targetName)
+      || npc.id.includes(targetName)
+      || (normalizedTarget.length >= 2 && (npc.name.includes(normalizedTarget) || npc.id.includes(normalizedTarget)))
   );
   const hostileNpcs = roomNpcs.filter((npc) => npc.hostile);
   const npc = explicitTarget ?? (
@@ -247,7 +257,7 @@ function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: Conf
       ? hostileNpcs[0]
       : undefined
   );
-  if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
+  if (!npc) return { mutations: [] }; // The DM may need to materialize a narrated NPC before combat.
 
   const selectedWeapon = selectExplicitWeapon(state, cmd);
   const combatState = selectedWeapon ? stateWithEquippedItem(state, selectedWeapon.id) : state;

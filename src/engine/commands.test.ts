@@ -73,6 +73,25 @@ describe("combat commands", () => {
     expect(result.combatContext?.player.attack).toBe(23);
   });
 
+  test("matches plural group wording to a registered narrated NPC", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    state.player.roomId = "MiskULibrary";
+    state.npcs.polluted_professor = {
+      ...structuredClone(state.npcs.librarian!),
+      id: "polluted_professor",
+      name: "被污染的失踪教授",
+      roomId: "MiskULibrary",
+      alive: true,
+      hostile: false,
+      stats: { ...state.npcs.librarian!.stats, hp: 5 },
+    };
+
+    const result = executeCommand(state, { ...command("attack", { target: "教授们" }), raw: "开枪打死这些教授" });
+
+    expect(result.directReply).toBeUndefined();
+    expect(result.mutations.some((mutation) => mutation.kind === "engine/combat_started" && mutation.npcId === "polluted_professor")).toBe(true);
+  });
+
   test("resolves the whole fight once and returns presentation frames", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.roomId = "Compartment3";

@@ -42,8 +42,8 @@ interface RawWorldUpdate {
   worldFacts?: Array<{ text: string; tile?: string | null }>;
   factsRemoved?: string[];
   plotThreads?: Array<{ id: string; title?: string; status?: string; summary?: string }>;
-  roomsAdded?: Array<{ id: string; title: string; desc: string; exits?: Record<string, string>; tags?: string[] }>;
-  exitsAdded?: Array<{ roomId: string; direction: string; toRoomId: string }>;
+  roomsAdded?: Array<{ id: string; title?: string; name?: string; desc: string; exits?: Record<string, string>; tags?: string[] }>;
+  exitsAdded?: Array<{ roomId?: string; fromRoomId?: string; direction: string; toRoomId: string }>;
   roomDescUpdates?: Array<{ roomId: string; descAppend: string }>;
   itemsAdded?: Array<{
     id: string;
@@ -209,10 +209,11 @@ function buildMutations(
   }
 
   for (const r of u.roomsAdded ?? []) {
-    if (!r.id || !r.title || !r.desc) continue;
+    const title = r.title ?? r.name;
+    if (!r.id || !title || !r.desc) continue;
     const room: RoomDef = {
       id: r.id,
-      title: r.title,
+      title,
       desc: r.desc,
       exits: r.exits ?? {},
       source: "dm_generated",
@@ -223,8 +224,9 @@ function buildMutations(
   }
 
   for (const e of u.exitsAdded ?? []) {
-    if (e.roomId && e.direction && e.toRoomId)
-      out.push({ kind: "dm/room_exit_added", roomId: e.roomId, direction: e.direction, toRoomId: e.toRoomId });
+    const roomId = e.roomId ?? e.fromRoomId;
+    if (roomId && e.direction && e.toRoomId)
+      out.push({ kind: "dm/room_exit_added", roomId, direction: e.direction, toRoomId: e.toRoomId });
   }
 
   for (const d of u.roomDescUpdates ?? []) {

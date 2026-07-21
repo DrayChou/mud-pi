@@ -487,7 +487,9 @@ export class GameRuntime {
       && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up");
     const shouldRetryMovement = (parsed.verb === "go" || (parsed.verb === "interact" && Boolean(parsed.args.direction)))
       && !engineMuts.some((mutation) => mutation.kind === "engine/player_moved");
-    if (shouldRetryPickup || shouldRetryMovement) {
+    const shouldRetryAttack = parsed.verb === "attack"
+      && !engineMuts.some((mutation) => mutation.kind === "engine/combat_started");
+    if (shouldRetryPickup || shouldRetryMovement || shouldRetryAttack) {
       const retry = executeCommand(this.state, retryCommand, this.conflictResolver);
       if (retry.directReply === undefined) {
         const retrySettlement = this.settleLegacyMutations(

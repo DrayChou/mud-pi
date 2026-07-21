@@ -40,6 +40,10 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("绝不能回答“背包里没有门”");
     expect(prompt).toContain("roomsAdded");
     expect(prompt).toContain("不要让 set_exit 指向尚未创建的房间");
+    expect(prompt).toContain("可交互对象必须实体化");
+    expect(prompt).toContain("允许玩家主动施暴");
+    expect(prompt).toContain("npcsAdded");
+    expect(prompt).toContain('"kind":"move_player"');
     expect(prompt).toContain("完整回应复合意图");
     expect(prompt).toContain("[Interpreter 辅助理解]");
     expect(prompt).toContain('"question":"这里为何阻止我"');

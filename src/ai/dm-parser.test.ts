@@ -5,6 +5,20 @@ import { applyMutations } from "../store/apply.ts";
 import { executeCommand } from "../engine/commands.ts";
 import type { ParsedCommand } from "./interpreter.ts";
 
+test("accepts legacy room name and fromRoomId aliases from persistent DM sessions", async () => {
+  const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+  const response = parseDmResponse(
+    `<NARRATION>门后露出石阶。</NARRATION><WORLD_UPDATE>{"roomsAdded":[{"id":"SpecialCollections","name":"地下特藏室","desc":"潮湿的地下石室。"}],"exitsAdded":[{"fromRoomId":"MiskULibrary","direction":"down","toRoomId":"SpecialCollections"}]}</WORLD_UPDATE>`,
+    state.schema,
+    "MiskULibrary",
+  );
+
+  expect(response.mutations).toEqual([
+    expect.objectContaining({ kind: "dm/room_added", room: expect.objectContaining({ id: "SpecialCollections", title: "地下特藏室" }) }),
+    { kind: "dm/room_exit_added", roomId: "MiskULibrary", direction: "down", toRoomId: "SpecialCollections" },
+  ]);
+});
+
 test("parses the bounded GM operation batch from a Pi response", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const response = parseDmResponse(
