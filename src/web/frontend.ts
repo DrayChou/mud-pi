@@ -63,7 +63,9 @@ function renderSetup(error = "") {
         method: "POST",
         body: { worldPack: data.get("worldPack"), protagonistId: data.get("protagonistId"), playerName: data.get("playerName") },
       });
-      game = { sessionId: created.sessionId, worldId: created.state.worldId, token: created.token };
+      const sessionId = created.sessionId ?? created.state?.worldId;
+      if (!sessionId || !created.token) throw new Error("服务器没有返回有效的 session_id，请刷新后重试");
+      game = { sessionId, worldId: created.state.worldId, token: created.token };
       saveGame(game);
       view = created.state;
       addOutputs(created.outputs);

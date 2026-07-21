@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { promptWithTimeout, sessionManagerFor } from "./pi-backend.ts";
+import { aiRequestTimeoutMs, promptWithTimeout, sessionManagerFor } from "./pi-backend.ts";
 
 const dirs: string[] = [];
 
@@ -13,6 +13,13 @@ function tempSessionDir(): string {
 
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+test("uses a short interpreter deadline and bounded narrative deadlines", () => {
+  expect(aiRequestTimeoutMs("interpreter")).toBe(15_000);
+  expect(aiRequestTimeoutMs("dm")).toBe(60_000);
+  expect(aiRequestTimeoutMs("npc")).toBe(60_000);
+  expect(aiRequestTimeoutMs("character")).toBe(60_000);
 });
 
 test("Pi request timeout aborts provider retries instead of waiting indefinitely", async () => {

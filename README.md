@@ -141,6 +141,11 @@ Web 入口为每个匿名访客创建独立存档、DM/NPC Session 和访问 tok
 | `CODEX_INTERPRETER_MODEL` | 可选：Codex backend 下指令解析模型 | 继承 `CODEX_MODEL` |
 | `CODEX_CHARACTER_MODEL` | 可选：Codex backend 下角色生成模型 | 继承 `CODEX_MODEL` |
 | `DM_THINKING` | DM 思考深度：off/minimal/low/medium/high | `low` |
+| `AI_INTERPRETER_TIMEOUT_MS` | 指令解析超时；失败后快速回退 | `15000` |
+| `AI_DM_TIMEOUT_MS` | DM 单次请求超时 | `60000` |
+| `AI_NPC_TIMEOUT_MS` | NPC 单次请求超时 | `60000` |
+| `AI_CHARACTER_TIMEOUT_MS` | 角色生成超时 | `60000` |
+| `AI_REQUEST_TIMEOUT_MS` | 可选：所有角色的共享超时后备值 | — |
 | `WORLD_PACK` | 默认世界包；非交互启动或直接回车时使用 | `station-dream` |
 | `DEFAULT_PLAYER_NAME` | 默认玩家名 | `旅行者` |
 

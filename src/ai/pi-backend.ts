@@ -49,7 +49,7 @@ export class PiBackend implements AiBackend {
       }),
     });
 
-    return new PiAiSession(session);
+    return new PiAiSession(session, options.role);
   }
 
   async ask(options: AiPromptOptions): Promise<string> {
@@ -65,7 +65,7 @@ export class PiBackend implements AiBackend {
 class PiAiSession implements AiSession {
   readonly info: AiSessionInfo;
 
-  constructor(private session: AgentSession) {
+  constructor(private session: AgentSession, private role: AiSessionOptions["role"]) {
     this.info = {
       sessionId: session.sessionId,
       sessionFile: session.sessionFile,
@@ -85,7 +85,7 @@ class PiAiSession implements AiSession {
     });
 
     try {
-      await promptWithTimeout(this.session, prompt, aiRequestTimeoutMs());
+      await promptWithTimeout(this.session, prompt, aiRequestTimeoutMs(this.role));
     } finally {
       unsub();
     }
@@ -118,9 +118,11 @@ export async function promptWithTimeout(
   }
 }
 
-function aiRequestTimeoutMs(): number {
-  const configured = Number(Bun.env.AI_REQUEST_TIMEOUT_MS ?? 90_000);
-  return Number.isFinite(configured) && configured >= 5_000 ? configured : 90_000;
+export function aiRequestTimeoutMs(role: AiSessionOptions["role"]): number {
+  const roleName = role.toUpperCase();
+  const fallback = role === "interpreter" ? 15_000 : role === "character" ? 60_000 : 60_000;
+  const configured = Number(Bun.env[`AI_${roleName}_TIMEOUT_MS`] ?? Bun.env.AI_REQUEST_TIMEOUT_MS ?? fallback);
+  return Number.isFinite(configured) && configured >= 5_000 ? configured : fallback;
 }
 
 export function sessionManagerFor(options: AiSessionOptions): SessionManager {

@@ -75,8 +75,19 @@ export class WebGameManager {
     await Bun.write(accessFile(state.worldId), JSON.stringify({ schemaVersion: 1, token, createdAt: new Date().toISOString() }));
     const game = await this.initialize(state, false, token);
     this.games.set(state.worldId, game);
-    const opening = await this.exclusive(game, () => game.runtime.processOpening());
-    return { sessionId: state.worldId, token, outputs: opening.outputs, state: projectGame(state) };
+    try {
+      const opening = await this.exclusive(game, () => game.runtime.processOpening());
+      return { sessionId: state.worldId, token, outputs: opening.outputs, state: projectGame(state) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        sessionId: state.worldId,
+        token,
+        outputs: [{ kind: "direct_reply" as const, text: `Pi DM 暂时没有完成开场（${message}）。会话已经保存，你可以直接描述第一个行动重试。` }],
+        openingError: message,
+        state: projectGame(state),
+      };
+    }
   }
 
   async resume(worldId: string, token: string) {
