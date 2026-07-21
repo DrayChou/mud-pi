@@ -6,7 +6,7 @@ type View = any;
 
 const root = document.querySelector<HTMLElement>("#app")!;
 let worlds: World[] = [];
-let game: { worldId: string; token: string } | null = loadGame();
+let game: { sessionId: string; worldId: string; token: string } | null = loadGame();
 let view: View | null = null;
 let transcript: Array<{ type: string; text: string }> = [];
 
@@ -25,7 +25,7 @@ async function boot() {
     } else renderSetup();
   } catch (error) {
     game = null;
-    localStorage.removeItem("mud-pi-game");
+    localStorage.removeItem("mud-pi-active-session");
     renderSetup(errorMessage(error));
   }
 }
@@ -63,8 +63,8 @@ function renderSetup(error = "") {
         method: "POST",
         body: { worldPack: data.get("worldPack"), protagonistId: data.get("protagonistId"), playerName: data.get("playerName") },
       });
-      game = { worldId: created.state.worldId, token: created.token };
-      localStorage.setItem("mud-pi-game", JSON.stringify(game));
+      game = { sessionId: created.sessionId, worldId: created.state.worldId, token: created.token };
+      saveGame(game);
       view = created.state;
       addOutputs(created.outputs);
       renderGame();
@@ -74,7 +74,7 @@ function renderSetup(error = "") {
 
 function renderGame() {
   root.innerHTML = `<div class="game shell">
-    <header><div class="brand small"><span class="sigil">◈</span><div><h1>mud-pi</h1><p>${escapeHtml(view.worldName)} · 第 ${view.turn} 轮</p></div></div><button id="new-save" class="ghost">新游戏</button></header>
+    <header><div class="brand small"><span class="sigil">◈</span><div><h1>mud-pi</h1><p>${escapeHtml(view.worldName)} · 第 ${view.turn} 轮 · session_id ${escapeHtml(game!.sessionId)}</p></div></div><div class="header-actions"><button id="copy-session" class="ghost">复制会话ID</button><button id="new-save" class="ghost">新游戏</button></div></header>
     <section class="board">
       <aside class="panel state"><h2>${escapeHtml(view.player.name)}</h2><p class="lifecycle">${escapeHtml(view.player.lifecycle)}</p><div class="stats">${Object.entries(view.player.stats).map(([key, value]) => `<span><b>${escapeHtml(key)}</b>${value}</span>`).join("")}</div><h3>背包</h3><ul>${view.player.inventory.map((item: any) => `<li>${item.equipped ? "◆ " : ""}${escapeHtml(item.name)}</li>`).join("") || "<li class=muted>空</li>"}</ul><h3>目标</h3><ul>${view.objectives.map((objective: any) => `<li class="${objective.status}">${objective.status === "completed" ? "✓" : "○"} ${escapeHtml(objective.title)}</li>`).join("")}</ul></aside>
       <section class="story"><div id="transcript">${transcript.map((entry) => `<article class="${entry.type}">${escapeHtml(entry.text)}</article>`).join("")}</div><form id="command"><textarea name="input" rows="2" maxlength="2000" placeholder="描述你的行动……例如：我把旧车票放在窗口上，但没有松手"></textarea><button type="submit">行动</button></form></section>
@@ -83,7 +83,8 @@ function renderGame() {
   </div>`;
   const transcriptElement = root.querySelector("#transcript")!;
   transcriptElement.scrollTop = transcriptElement.scrollHeight;
-  root.querySelector("#new-save")!.addEventListener("click", () => { if (confirm("创建新游戏？当前存档仍会保留，但浏览器将不再自动恢复它。")) { localStorage.removeItem("mud-pi-game"); game = null; view = null; transcript = []; renderSetup(); } });
+  root.querySelector("#copy-session")!.addEventListener("click", async () => { await navigator.clipboard.writeText(game!.sessionId); transcript.push({ type: "system", text: `已复制 session_id：${game!.sessionId}` }); renderGame(); });
+  root.querySelector("#new-save")!.addEventListener("click", () => { if (confirm("创建新游戏？当前会话仍会保留，可使用 session_id 恢复。")) { localStorage.removeItem("mud-pi-active-session"); history.replaceState(null, "", location.pathname); game = null; view = null; transcript = []; renderSetup(); } });
   root.querySelectorAll<HTMLElement>("[data-command]").forEach((button) => button.addEventListener("click", () => submitCommand(button.dataset.command!)));
   root.querySelector<HTMLFormElement>("#command")!.addEventListener("submit", (event) => { event.preventDefault(); const input = new FormData(event.currentTarget as HTMLFormElement).get("input")?.toString().trim(); if (input) submitCommand(input); });
 }
@@ -121,7 +122,29 @@ async function api<T = any>(path: string, options: { method?: string; token?: st
   return data;
 }
 
-function loadGame() { try { return JSON.parse(localStorage.getItem("mud-pi-game") ?? "null"); } catch { return null; } }
+function loadGame(): { sessionId: string; worldId: string; token: string } | null {
+  try {
+    const requested = new URLSearchParams(location.search).get("session_id");
+    const sessions = JSON.parse(localStorage.getItem("mud-pi-sessions") ?? "{}") as Record<string, { worldId: string; token: string }>;
+    const active = requested ?? localStorage.getItem("mud-pi-active-session");
+    if (active && sessions[active]) return { sessionId: active, ...sessions[active] };
+    const legacy = JSON.parse(localStorage.getItem("mud-pi-game") ?? "null");
+    if (legacy?.worldId && legacy?.token) {
+      const migrated = { sessionId: legacy.worldId, worldId: legacy.worldId, token: legacy.token };
+      saveGame(migrated);
+      localStorage.removeItem("mud-pi-game");
+      return migrated;
+    }
+    return null;
+  } catch { return null; }
+}
+function saveGame(value: { sessionId: string; worldId: string; token: string }) {
+  const sessions = JSON.parse(localStorage.getItem("mud-pi-sessions") ?? "{}") as Record<string, { worldId: string; token: string }>;
+  sessions[value.sessionId] = { worldId: value.worldId, token: value.token };
+  localStorage.setItem("mud-pi-sessions", JSON.stringify(sessions));
+  localStorage.setItem("mud-pi-active-session", value.sessionId);
+  history.replaceState(null, "", `${location.pathname}?session_id=${encodeURIComponent(value.sessionId)}`);
+}
 function renderLoading(text: string) { root.innerHTML = `<section class="loading"><span class="sigil pulse">◈</span><p>${escapeHtml(text)}</p></section>`; }
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error); }
 function escapeHtml(value: unknown) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!); }

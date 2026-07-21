@@ -76,13 +76,14 @@ export class WebGameManager {
     const game = await this.initialize(state, false, token);
     this.games.set(state.worldId, game);
     const opening = await this.exclusive(game, () => game.runtime.processOpening());
-    return { token, outputs: opening.outputs, state: projectGame(state) };
+    return { sessionId: state.worldId, token, outputs: opening.outputs, state: projectGame(state) };
   }
 
   async resume(worldId: string, token: string) {
     const game = await this.authorizedGame(worldId, token);
     const turns = await loadTurns(worldId);
     return {
+      sessionId: worldId,
       outputs: [] as GameOutput[],
       history: turns.slice(-30).flatMap((turn) => [
         ...(turn.playerInput.startsWith("开始游戏") ? [] : [{ type: "player", text: `你：${turn.playerInput}` }]),

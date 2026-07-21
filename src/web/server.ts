@@ -1,4 +1,5 @@
 import index from "./index.html";
+import { createConnection } from "node:net";
 import { WebGameManager } from "./game-manager.ts";
 
 const manager = new WebGameManager();
@@ -38,14 +39,15 @@ const serveOptions = {
   development: Bun.env.NODE_ENV !== "production" ? { hmr: true, console: true } : false,
 } satisfies Omit<Parameters<typeof Bun.serve>[0], "port">;
 
-const server = startOnAvailablePort(preferredPort);
+const server = await startOnAvailablePort(preferredPort);
 console.log(`mud-pi Web：http://${hostname === "0.0.0.0" ? "localhost" : hostname}:${server.port}`);
 if (server.port !== preferredPort) console.log(`[web] 端口 ${preferredPort} 已占用，已自动使用 ${server.port}`);
 
-function startOnAvailablePort(preferred: number) {
+async function startOnAvailablePort(preferred: number) {
   const first = Number.isInteger(preferred) && preferred > 0 && preferred <= 65535 ? preferred : 3000;
   let lastError: unknown;
   for (let port = first; port <= Math.min(65535, first + 20); port++) {
+    if (await portAcceptsConnections(port)) continue;
     try {
       return Bun.serve({ ...serveOptions, port });
     } catch (error) {
@@ -58,6 +60,17 @@ function startOnAvailablePort(preferred: number) {
   } catch (error) {
     throw lastError ?? error;
   }
+}
+
+function portAcceptsConnections(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: "127.0.0.1", port });
+    const finish = (busy: boolean) => { socket.destroy(); resolve(busy); };
+    socket.setTimeout(250);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
 }
 
 function isAddressInUse(error: unknown): boolean {
