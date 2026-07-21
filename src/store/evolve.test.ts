@@ -58,6 +58,21 @@ describe("evolve", () => {
     expect(initial.conditions[`${initial.player.id}:focused`]).toEqual(condition);
   });
 
+  test("rejects expiry events for permanent or not-yet-expired conditions", () => {
+    const initial = state();
+    initial.conditionDefinitions.focused = { id: "focused", label: "Focused", stacking: "replace" };
+    const key = `${initial.player.id}:focused`;
+    const permanent = { conditionId: "focused", targetEntityId: initial.player.id, stacks: 1, appliedRevision: 1, appliedTurn: 0 };
+    initial.conditions[key] = structuredClone(permanent);
+    expect(() => evolve(initial, { kind: "condition_expired", key, condition: permanent, expiredAtTurn: 3 })).toThrow(EventInvariantError);
+    expect(initial.conditions[key]).toEqual(permanent);
+
+    const finite = { ...permanent, expiresAtTurn: 5 };
+    initial.conditions[key] = structuredClone(finite);
+    expect(() => evolve(initial, { kind: "condition_expired", key, condition: finite, expiredAtTurn: 4 })).toThrow(EventInvariantError);
+    expect(initial.conditions[key]).toEqual(finite);
+  });
+
   test("updates inventory and equipment from ordered exact transfers", () => {
     const initial = state();
     evolve(initial, { kind: "item_transferred", itemId: "sword", from: { kind: "equipped", ownerId: "player", slot: "hand" }, to: { kind: "inventory", ownerId: "player" } });

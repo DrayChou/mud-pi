@@ -179,9 +179,15 @@ export function evolve(state: WorldState, event: WorldEvent): void {
       state.conditions[event.key] = structuredClone(event.after);
       return;
     case "condition_removed":
-    case "condition_expired":
       invariant(same(state.conditions[event.key], event.condition), `condition removal mismatch: ${event.key}`, event);
       validateCondition(state, event.key, event.condition, event);
+      delete state.conditions[event.key];
+      return;
+    case "condition_expired":
+      invariant(same(state.conditions[event.key], event.condition), `condition expiry mismatch: ${event.key}`, event);
+      validateCondition(state, event.key, event.condition, event);
+      invariant(event.condition.expiresAtTurn !== undefined, `permanent condition cannot expire: ${event.key}`, event);
+      invariant(Number.isInteger(event.expiredAtTurn) && event.expiredAtTurn >= event.condition.expiresAtTurn, `condition expired before its boundary: ${event.key}`, event);
       delete state.conditions[event.key];
       return;
     case "objective_completed": {
