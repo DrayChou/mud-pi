@@ -79,7 +79,7 @@ function fastParse(
 ): Omit<ParsedCommand, "raw"> | null {
   if (["inv", "i", "背包", "inventory"].includes(input))
     return { verb: "inv", args: {}, confidence: 1 };
-  if (["look", "l", "环顾", "查看", "看"].includes(input))
+  if (["look", "l", "环顾", "查看", "看", "看看周围", "看看附近", "观察周围", "观察附近", "环顾四周"].includes(input))
     return { verb: "look", args: {}, confidence: 1 };
   if (["status", "st", "hp", "状态"].includes(input))
     return { verb: "status", args: {}, confidence: 1 };

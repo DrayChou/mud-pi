@@ -56,6 +56,27 @@ describe("GameRuntime", () => {
     expect(dmCalls).toBe(0);
   });
 
+  test("falls back to authoritative local narration when the DM times out", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("look") },
+      dm: { ask: async () => { throw new Error("AI request timed out after 60000ms"); } },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("看看周围");
+
+    expect(result.turnAdvanced).toBe(true);
+    expect(result.outputs).toContainEqual({
+      kind: "narration",
+      text: `${state.rooms[state.player.roomId]!.desc} 暂时没有发现超出眼前权威状态的新变化。`,
+    });
+    expect(state.turn).toBe(1);
+  });
+
   test("settles movement and objective progress before constructing the DM prompt", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.roomId = "Platform";

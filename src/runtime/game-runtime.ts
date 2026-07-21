@@ -388,7 +388,17 @@ export class GameRuntime {
       this.storyOutcomes,
       preDmEvents
     );
-    const dmRaw = await this.dm.ask(dmPrompt);
+    let dmRaw: string;
+    try {
+      dmRaw = await this.dm.ask(dmPrompt);
+    } catch (error) {
+      appendOperationLog(this.state.worldId, {
+        kind: "ai_fallback",
+        phase: "dm_turn",
+        reason: serializeError(error),
+      });
+      dmRaw = `<NARRATION>${dmUnavailableNarration(this.state, parsed, engineMuts)}</NARRATION><WORLD_UPDATE>{"gmOperations":[],"worldFacts":[],"factsRemoved":[],"plotThreads":[],"roomsAdded":[],"exitsAdded":[],"roomDescUpdates":[],"itemsAdded":[],"npcsAdded":[],"npcsMoved":[],"npcsKilled":[],"outcomeReached":null}</WORLD_UPDATE>`;
+    }
     const dmResponse = parseDmResponse(
       dmRaw,
       this.state.schema,
@@ -534,13 +544,22 @@ export class GameRuntime {
     const progressMutations = [...preDmProgressMutations, ...postDmProgressMutations];
     let narration = dmResponse.narration;
     if (narrationNeedsCorrection(narrationIssues)) {
-      const correctionRaw = await this.dm.ask(buildNarrationCorrectionPrompt(
-        this.state,
-        narration,
-        narrationIssues,
-        gameEvents,
-      ));
-      narration = parseNarrationCorrection(correctionRaw) ?? fallbackNarration(this.state, narrationIssues);
+      try {
+        const correctionRaw = await this.dm.ask(buildNarrationCorrectionPrompt(
+          this.state,
+          narration,
+          narrationIssues,
+          gameEvents,
+        ));
+        narration = parseNarrationCorrection(correctionRaw) ?? fallbackNarration(this.state, narrationIssues);
+      } catch (error) {
+        appendOperationLog(this.state.worldId, {
+          kind: "ai_fallback",
+          phase: "dm_narration_correction",
+          reason: serializeError(error),
+        });
+        narration = fallbackNarration(this.state, narrationIssues);
+      }
     }
     const turnRecord = this.persist ? {
         turn: this.state.turn + 1,
@@ -629,6 +648,24 @@ function publicProjectionContext(state: WorldState) {
         }] as const),
     ),
   };
+}
+
+function dmUnavailableNarration(
+  state: WorldState,
+  parsed: ParsedCommand,
+  engineMutations: EngineMutation[],
+): string {
+  const room = state.rooms[state.player.roomId];
+  if (engineMutations.some((mutation) => mutation.kind === "engine/item_picked_up")) {
+    return "你完成了拾取，物品已经进入背包。四周暂时没有新的回应。";
+  }
+  if (engineMutations.some((mutation) => mutation.kind === "engine/player_moved")) {
+    return `你来到${room?.title ?? "新的地点"}。周围暂时只有既有景象，没有新的声音回应。`;
+  }
+  if (parsed.verb === "look") {
+    return `${room?.desc ?? "你重新观察四周。"} 暂时没有发现超出眼前权威状态的新变化。`;
+  }
+  return "你的行动已经被记录；Pi DM 暂时没有补充新的叙述。";
 }
 
 function withPlayerSpeech(
