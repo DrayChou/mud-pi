@@ -17,10 +17,17 @@ import type {
   StoryOutcomeDef,
 } from "../types/world.ts";
 
+export interface DmParseIssue {
+  code: "invalid_proposal";
+  message: string;
+  details?: Record<string, unknown>;
+}
+
 export interface DmResponse {
   narration: string;
   mutations: DmMutation[];
   gmOperations: GmTableProposal[];
+  parseIssues: DmParseIssue[];
   raw: string;
 }
 
@@ -73,12 +80,15 @@ export function parseDmResponse(
   const narration = extractTag(raw, "NARRATION") ?? raw.trim();
   const updateStr = extractTag(raw, "WORLD_UPDATE");
   const mutations: DmMutation[] = [];
+  const parseIssues: DmParseIssue[] = [];
   let gmOperations: GmTableProposal[] = [];
 
   if (updateStr) {
     try {
       const update = JSON.parse(updateStr) as RawWorldUpdate;
-      gmOperations = parseGmOperations(update.gmOperations);
+      const parsedOperations = parseGmOperations(update.gmOperations);
+      gmOperations = parsedOperations.operations;
+      parseIssues.push(...parsedOperations.issues);
       buildMutations(
         update,
         mutations,
@@ -90,10 +100,11 @@ export function parseDmResponse(
       );
     } catch (e) {
       console.warn("[dm-parser] failed to parse WORLD_UPDATE:", e);
+      parseIssues.push({ code: "invalid_proposal", message: "WORLD_UPDATE was not valid JSON." });
     }
   }
 
-  return { narration, mutations, gmOperations, raw };
+  return { narration, mutations, gmOperations, parseIssues, raw };
 }
 
 const gmOperationKinds = new Set<GmTableProposal["kind"]>([
@@ -102,9 +113,25 @@ const gmOperationKinds = new Set<GmTableProposal["kind"]>([
   "move_player", "create_item", "grant_item_reward", "pick_up_item", "drop_item", "equip_item", "consume_item",
 ]);
 
-function parseGmOperations(value: unknown): GmTableProposal[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isValidRawGmOperation).slice(0, 16).map((operation) => structuredClone(operation));
+function parseGmOperations(value: unknown): { operations: GmTableProposal[]; issues: DmParseIssue[] } {
+  if (value === undefined) return { operations: [], issues: [] };
+  if (!Array.isArray(value)) {
+    return { operations: [], issues: [{ code: "invalid_proposal", message: "gmOperations must be an array." }] };
+  }
+  const operations: GmTableProposal[] = [];
+  const issues: DmParseIssue[] = [];
+  for (const [index, operation] of value.entries()) {
+    if (index >= 16) {
+      issues.push({ code: "invalid_proposal", message: "gmOperations exceeded the 16-operation limit.", details: { index } });
+      continue;
+    }
+    if (!isValidRawGmOperation(operation)) {
+      issues.push({ code: "invalid_proposal", message: "A malformed or unsupported GM operation was ignored.", details: { index } });
+      continue;
+    }
+    operations.push(structuredClone(operation));
+  }
+  return { operations, issues };
 }
 
 function isValidRawGmOperation(value: unknown): value is GmTableProposal {

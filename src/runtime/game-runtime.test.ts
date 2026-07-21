@@ -119,6 +119,58 @@ describe("GameRuntime", () => {
     expect(perceivedBatches.some((kinds) => kinds.includes("perceptible_signal"))).toBe(true);
   });
 
+  test("withholds rejected candidate narration and asks the same DM once for correction", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const prompts: string[] = [];
+    const replies = [
+      `<NARRATION>不存在的钟已经被抹去了。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"remove_fact","text":"A nonexistent bell."}]}</WORLD_UPDATE>`,
+      `<NARRATION>你侧耳倾听，远处依旧寂静无声。</NARRATION>`,
+    ];
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("look") },
+      dm: { ask: async (prompt) => { prompts.push(prompt); return replies.shift()!; } },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("观察四周");
+
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("entity_not_found");
+    expect(result.outputs.find((output) => output.kind === "narration")).toEqual({
+      kind: "narration",
+      text: "你侧耳倾听，远处依旧寂静无声。",
+    });
+  });
+
+  test("uses a committed-facts fallback when the single correction is malformed", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    let calls = 0;
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("look") },
+      dm: {
+        ask: async () => {
+          calls += 1;
+          return calls === 1
+            ? `<NARRATION>不存在的门已经打开。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"set_exit","roomId":"MissingRoom","direction":"north","toRoomId":"MissingRoom2"}]}</WORLD_UPDATE>`
+            : "仍然声称门已经打开";
+        },
+      },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("观察四周");
+    const narration = result.outputs.find((output) => output.kind === "narration");
+
+    expect(calls).toBe(2);
+    expect(narration?.kind === "narration" && narration.text).toContain("并未如预想般改变");
+  });
+
   test("accepts an AI NPC reward after authoritative objective and room checks", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     let perceivedKinds: string[] = [];

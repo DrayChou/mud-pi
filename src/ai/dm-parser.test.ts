@@ -14,18 +14,21 @@ test("parses the bounded GM operation batch from a Pi response", async () => {
   );
 
   expect(response.gmOperations.map((operation) => operation.kind)).toEqual(["record_fact", "emit_signal"]);
+  expect(response.parseIssues).toHaveLength(1);
   const malformed = parseDmResponse(
     `<NARRATION>无事发生。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"emit_signal","roomId":"${state.player.roomId}"}]}</WORLD_UPDATE>`,
     state.schema,
     state.player.roomId,
   );
   expect(malformed.gmOperations).toEqual([]);
+  expect(malformed.parseIssues).toHaveLength(1);
   const forbiddenTransfer = parseDmResponse(
     `<NARRATION>无事发生。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"transfer_card","itemId":"ticket","to":{"kind":"destroyed"}}]}</WORLD_UPDATE>`,
     state.schema,
     state.player.roomId,
   );
   expect(forbiddenTransfer.gmOperations).toEqual([]);
+  expect(forbiddenTransfer.parseIssues).toHaveLength(1);
 });
 
 describe("DM-created interactive items", () => {

@@ -1,6 +1,13 @@
 import type { ParsedCommand } from "../ai/interpreter.ts";
 import { formatConflictWarning } from "../content/default-conflict-copy.ts";
 import { buildDmPrompt } from "../ai/dm-prompt.ts";
+import {
+  buildNarrationCorrectionPrompt,
+  fallbackNarration,
+  narrationNeedsCorrection,
+  parseNarrationCorrection,
+  type NarrationSettlementIssue,
+} from "../ai/dm-correction.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
 import { defaultConflictResolver, type ConflictResolver } from "../engine/conflict-script.ts";
@@ -92,10 +99,11 @@ export class GameRuntime {
     mutations: AnyMutation[],
     correlationId: string,
     sourceId: string,
-  ): { mutations: typeof mutations; committedEvents: CommittedWorldEvent[]; gameEvents: GameEvent[] } {
+  ): { mutations: typeof mutations; committedEvents: CommittedWorldEvent[]; gameEvents: GameEvent[]; narrationIssues: NarrationSettlementIssue[] } {
     const accepted: typeof mutations = [];
     const committedEvents: CommittedWorldEvent[] = [];
     const gameEvents: GameEvent[] = [];
+    const narrationIssues: NarrationSettlementIssue[] = [];
     for (const mutation of mutations) {
       const before = structuredClone(this.state);
       const settlement = settleRuntimeMutation(this.state, mutation, {
@@ -104,9 +112,15 @@ export class GameRuntime {
         sourceId,
         sourceKind: this.state.npcs[sourceId] ? "npc" : undefined,
       }, this.storyOutcomes);
-      if (!settlement.accepted) continue;
+      if (!settlement.accepted) {
+        narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
+        continue;
+      }
       accepted.push(mutation as never);
       committedEvents.push(...settlement.committedEvents);
+      for (const warning of settlement.warnings) {
+        narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "warning", warning });
+      }
       if (isMigratedTableMutation(mutation)) {
         gameEvents.push(...settlement.committedEvents.flatMap((event) =>
           projectPublicEvents(event, publicProjectionContext(this.state))
@@ -115,7 +129,7 @@ export class GameRuntime {
         gameEvents.push(...deriveGameEvents(before, [mutation], this.state));
       }
     }
-    return { mutations: accepted, committedEvents, gameEvents };
+    return { mutations: accepted, committedEvents, gameEvents, narrationIssues };
   }
 
   async processInput(input: string): Promise<GameTurnResult> {
@@ -234,6 +248,17 @@ export class GameRuntime {
     );
 
     const gmBatchEvents: GameEvent[] = [];
+    const narrationIssues: NarrationSettlementIssue[] = dmResponse.parseIssues.map((issue, index) => ({
+      proposalId: `dm-parse-${index}`,
+      kind: "rejection",
+      rejection: {
+        code: issue.code,
+        safeMessage: "That proposed world change could not be understood safely.",
+        diagnostic: issue.message,
+        details: issue.details,
+        retryable: false,
+      },
+    }));
     if (dmResponse.gmOperations.length > 0) {
       const batch: ProposalBatchEnvelope<GmTableProposal> = {
         batchId: nextLegacyProposalId("dm-batch"),
@@ -244,8 +269,17 @@ export class GameRuntime {
         proposals: dmResponse.gmOperations.map((payload) => ({ proposalId: nextLegacyProposalId("dm-operation"), payload })),
       };
       const batchSettlement = settleGmBatch(this.state, batch, this.storyOutcomes);
+      if (!batchSettlement.accepted) {
+        narrationIssues.push({ proposalId: batch.batchId, kind: "rejection", rejection: batchSettlement.rejection });
+      }
       for (const settlement of batchSettlement.settlements) {
-        if (!settlement.accepted) continue;
+        if (!settlement.accepted) {
+          narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
+          continue;
+        }
+        for (const warning of settlement.warnings) {
+          narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "warning", warning });
+        }
         const context = publicProjectionContext(this.state);
         gmBatchEvents.push(...settlement.committedEvents.flatMap((event) => projectPublicEvents(event, context)));
       }
@@ -263,6 +297,7 @@ export class GameRuntime {
       "dm",
     );
     const settledWorldDmMutations = worldDmSettlement.mutations as typeof worldDmMutations;
+    narrationIssues.push(...worldDmSettlement.narrationIssues);
 
     const postDmEngineMuts: EngineMutation[] = [];
     const postDmEngineGameEvents: GameEvent[] = [];
@@ -304,14 +339,26 @@ export class GameRuntime {
       "objective_engine",
     );
     const postDmProgressMutations = postDmProgressSettlement.mutations as EngineMutation[];
-    const settledOutcomeMutations = this.settleLegacyMutations(
+    const outcomeSettlement = this.settleLegacyMutations(
       outcomeMutations,
       correlationId,
       "dm",
-    ).mutations as typeof outcomeMutations;
+    );
+    const settledOutcomeMutations = outcomeSettlement.mutations as typeof outcomeMutations;
+    narrationIssues.push(...outcomeSettlement.narrationIssues);
 
     const gameEvents = [...preDmEvents, ...postDmEvents];
     const progressMutations = [...preDmProgressMutations, ...postDmProgressMutations];
+    let narration = dmResponse.narration;
+    if (narrationNeedsCorrection(narrationIssues)) {
+      const correctionRaw = await this.dm.ask(buildNarrationCorrectionPrompt(
+        this.state,
+        narration,
+        narrationIssues,
+        gameEvents,
+      ));
+      narration = parseNarrationCorrection(correctionRaw) ?? fallbackNarration(this.state, narrationIssues);
+    }
     this.settleLegacyMutations([{ kind: "engine/turn_advanced" }], correlationId, "turn_engine");
 
     if (this.persist) {
@@ -329,7 +376,7 @@ export class GameRuntime {
         dmMutations: [...settledWorldDmMutations, ...settledOutcomeMutations],
         gameEvents,
         npcActions,
-        narration: dmResponse.narration,
+        narration,
         dmModel: this.dmModelLabel,
       });
     }
@@ -349,7 +396,7 @@ export class GameRuntime {
       });
     }
     if (result.combatContext) outputs.push({ kind: "combat_result", result: result.combatContext });
-    outputs.push({ kind: "narration", text: dmResponse.narration });
+    outputs.push({ kind: "narration", text: narration });
     for (const mutation of progressMutations) {
       if (mutation.kind !== "engine/objective_completed") continue;
       const objective = this.state.objectives[mutation.objectiveId];
