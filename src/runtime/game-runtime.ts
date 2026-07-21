@@ -29,6 +29,13 @@ import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
 import type { GameOutput, GameTurnResult } from "./game-output.ts";
+import {
+  appendErrorLog,
+  appendOperationLog,
+  runWithDiagnosticContext,
+  serializeError,
+  type RuntimeChannel,
+} from "../diagnostics/logger.ts";
 import { buildMapSnapshot, type MapSnapshot } from "../engine/map.ts";
 
 export interface RuntimeInterpreter {
@@ -61,6 +68,8 @@ export interface GameRuntimeOptions {
   dmModelLabel?: string;
   persist?: boolean;
   conflictResolver?: ConflictResolver;
+  channel?: RuntimeChannel;
+  diagnostics?: boolean;
 }
 
 /** Transport-agnostic orchestration for one loaded game save. */
@@ -73,6 +82,8 @@ export class GameRuntime {
   private readonly dmModelLabel: string;
   private readonly persist: boolean;
   private readonly conflictResolver: ConflictResolver;
+  private readonly channel: RuntimeChannel;
+  private readonly diagnostics: boolean;
 
   constructor(options: GameRuntimeOptions) {
     this.state = options.state;
@@ -83,6 +94,8 @@ export class GameRuntime {
     this.dmModelLabel = options.dmModelLabel ?? "dm";
     this.persist = options.persist ?? true;
     this.conflictResolver = options.conflictResolver ?? defaultConflictResolver;
+    this.channel = options.channel ?? "system";
+    this.diagnostics = options.diagnostics ?? this.persist;
   }
 
   getSnapshot(): WorldState {
@@ -114,6 +127,19 @@ export class GameRuntime {
         sourceId,
         sourceKind: this.state.npcs[sourceId] ? "npc" : undefined,
       }, this.storyOutcomes);
+      appendOperationLog(this.state.worldId, {
+        kind: "settlement",
+        domain: "legacy_runtime",
+        proposalId: settlement.proposal.proposalId,
+        sourceId,
+        mutationKind: mutation.kind,
+        accepted: settlement.accepted,
+        rejection: settlement.accepted ? undefined : settlement.rejection,
+        warningCodes: settlement.accepted ? settlement.warnings.map((warning) => warning.code) : [],
+        eventKinds: settlement.accepted ? settlement.committedEvents.map(({ event }) => event.kind) : [],
+        revisionBefore: before.revision,
+        revisionAfter: this.state.revision,
+      });
       if (!settlement.accepted) {
         narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
         continue;
@@ -174,19 +200,86 @@ export class GameRuntime {
   }
 
   async processOpening(): Promise<GameTurnResult> {
-    await this.recoverNpcPerceptions();
-    return await this.processParsedInput("开始游戏，玩家刚刚进入世界", {
-      verb: "look",
-      args: {},
-      confidence: 1,
-      raw: "开始游戏，玩家刚刚进入世界",
+    return await this.runLoggedOperation("opening", "开始游戏，玩家刚刚进入世界", async () => {
+      await this.recoverNpcPerceptions();
+      const parsed = {
+        verb: "look",
+        args: {},
+        confidence: 1,
+        raw: "开始游戏，玩家刚刚进入世界",
+      };
+      appendOperationLog(this.state.worldId, { kind: "input_parsed", parsed });
+      return await this.processParsedInput(parsed.raw, parsed);
     });
   }
 
   async processInput(input: string): Promise<GameTurnResult> {
-    await this.recoverNpcPerceptions();
-    const parsed = await this.interpreter.parse(input);
-    return await this.processParsedInput(input, parsed);
+    return await this.runLoggedOperation("player_input", input, async () => {
+      await this.recoverNpcPerceptions();
+      const parsed = await this.interpreter.parse(input);
+      appendOperationLog(this.state.worldId, { kind: "input_parsed", parsed });
+      return await this.processParsedInput(input, parsed);
+    });
+  }
+
+  private async runLoggedOperation(
+    operation: "opening" | "player_input",
+    input: string,
+    execute: () => Promise<GameTurnResult>,
+  ): Promise<GameTurnResult> {
+    if (!this.diagnostics) return await execute();
+    const requestId = crypto.randomUUID();
+    const turnBefore = this.state.turn;
+    const revisionBefore = this.state.revision;
+    const startedAt = performance.now();
+    return await runWithDiagnosticContext({
+      worldId: this.state.worldId,
+      requestId,
+      channel: this.channel,
+      turn: turnBefore,
+      revision: revisionBefore,
+    }, async () => {
+      appendOperationLog(this.state.worldId, {
+        kind: "runtime_operation_started",
+        operation,
+        input,
+        turnBefore,
+        revisionBefore,
+      });
+      try {
+        const result = await execute();
+        appendOperationLog(this.state.worldId, {
+          kind: "runtime_operation_completed",
+          operation,
+          input,
+          quit: result.quit,
+          turnAdvanced: result.turnAdvanced,
+          outputKinds: result.outputs.map((output) => output.kind),
+          outputs: result.outputs,
+          turnBefore,
+          turnAfter: this.state.turn,
+          revisionBefore,
+          revisionAfter: this.state.revision,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        return result;
+      } catch (error) {
+        const diagnosticError = serializeError(error);
+        appendOperationLog(this.state.worldId, {
+          kind: "runtime_operation_failed",
+          operation,
+          input,
+          turnBefore,
+          turnAfter: this.state.turn,
+          revisionBefore,
+          revisionAfter: this.state.revision,
+          durationMs: Math.round(performance.now() - startedAt),
+          error: diagnosticError,
+        });
+        appendErrorLog(this.state.worldId, { kind: "runtime_error", operation, error: diagnosticError });
+        throw error;
+      }
+    });
   }
 
   private async processParsedInput(input: string, parsed: ParsedCommand): Promise<GameTurnResult> {
@@ -327,6 +420,23 @@ export class GameRuntime {
         proposals: dmResponse.gmOperations.map((payload) => ({ proposalId: nextLegacyProposalId("dm-operation"), payload })),
       };
       const batchSettlement = settleGmBatch(this.state, batch, this.storyOutcomes);
+      appendOperationLog(this.state.worldId, {
+        kind: "settlement_batch",
+        domain: "gm",
+        batchId: batch.batchId,
+        accepted: batchSettlement.accepted,
+        proposalCount: batch.proposals.length,
+        acceptedCount: batchSettlement.settlements.filter((settlement) => settlement.accepted).length,
+        rejectionCount: batchSettlement.settlements.filter((settlement) => !settlement.accepted).length,
+        settlements: batchSettlement.settlements.map((settlement) => ({
+          proposalId: settlement.proposal.proposalId,
+          operationKind: (settlement.proposal.payload as GmTableProposal).kind,
+          accepted: settlement.accepted,
+          rejection: settlement.accepted ? undefined : settlement.rejection,
+          warningCodes: settlement.accepted ? settlement.warnings.map((warning) => warning.code) : [],
+          eventKinds: settlement.accepted ? settlement.committedEvents.map(({ event }) => event.kind) : [],
+        })),
+      });
       if (!batchSettlement.accepted) {
         narrationIssues.push({ proposalId: batch.batchId, kind: "rejection", rejection: batchSettlement.rejection });
       }

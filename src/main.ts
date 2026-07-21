@@ -384,6 +384,7 @@ async function main() {
     npcSessions,
     dmModelLabel: backendLabel(config, "dm"),
     conflictResolver,
+    channel: args.tui ? "tui" : args.telnet ? "telnet" : "cli",
   });
 
   // Only a new game gets an opening turn. It uses the same authoritative
