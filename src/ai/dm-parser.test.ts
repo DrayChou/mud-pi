@@ -19,6 +19,18 @@ test("accepts legacy room name and fromRoomId aliases from persistent DM session
   ]);
 });
 
+test("parses bounded narrative claims and rejects malformed claims", async () => {
+  const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+  const response = parseDmResponse(
+    `<NARRATION>你已经进入地下室。</NARRATION><WORLD_UPDATE>{"narrativeClaims":[{"kind":"player_location","roomId":"vault"},{"kind":"npc_lifecycle","npcId":"professor","alive":"no"}]}</WORLD_UPDATE>`,
+    state.schema,
+    state.player.roomId,
+  );
+
+  expect(response.narrativeClaims).toEqual([{ kind: "player_location", roomId: "vault" }]);
+  expect(response.parseIssues).toHaveLength(1);
+});
+
 test("parses the bounded GM operation batch from a Pi response", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const response = parseDmResponse(

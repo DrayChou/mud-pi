@@ -46,6 +46,9 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("绝不能用“当前没有明确目标”");
     expect(prompt).toContain("npcsAdded");
     expect(prompt).toContain('"kind":"move_player"');
+    expect(prompt).toContain("narrativeClaims");
+    expect(prompt).toContain('"kind":"player_location"');
+    expect(prompt).toContain('"kind":"outcome"');
     expect(prompt).toContain("完整回应复合意图");
     expect(prompt).toContain("[Interpreter 辅助理解]");
     expect(prompt).toContain('"question":"这里为何阻止我"');

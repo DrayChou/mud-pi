@@ -375,6 +375,15 @@ ${Object.values(state.conditionDefinitions).map((condition) => `- ${condition.id
 - 完成语义目标：{"kind":"complete_objective","objectiveId":"仅限 gmCompletionAllowed 的目标ID","reason":"成立原因"}
 如果叙述声称出口出现、物品已进入或离开背包、跨回合状态生效、参数改变或目标完成，对应的已结算事件或 gmOperations 不得缺失。不要把这些变化只写进 NARRATION。
 
+对叙述中的关键权威断言填写 narrativeClaims，Engine 会在 Settlement 后逐项核对：
+- 玩家已经到达房间：{"kind":"player_location","roomId":"房间ID"}
+- NPC/场景实体实际出现在房间：{"kind":"entity_present","entityId":"实体ID","roomId":"房间ID"}
+- 出口已经可通行：{"kind":"exit_available","roomId":"起点ID","direction":"down","toRoomId":"终点ID"}
+- 物品位置：{"kind":"item_location","itemId":"物品ID","locationKind":"inventory","ownerId":"${state.player.id}"}
+- NPC 生死：{"kind":"npc_lifecycle","npcId":"NPC ID","alive":false}
+- 故事结果已经成立：{"kind":"outcome","outcomeId":"Outcome ID"}
+纯气氛、感官描写、角色推测和一次性对话不需要 claim。若叙述说玩家已经进入、目标已经死亡、出口已经打开或结局已经达成，相应 claim 不得省略。
+
 严格按以下格式返回：
 
 <NARRATION>
@@ -383,6 +392,7 @@ ${Object.values(state.conditionDefinitions).map((condition) => `- ${condition.id
 <WORLD_UPDATE>
 {
   "gmOperations": [],
+  "narrativeClaims": [],
   "worldFacts": [],
   "factsRemoved": [],
   "plotThreads": [],

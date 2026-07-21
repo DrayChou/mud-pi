@@ -154,6 +154,7 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
 <WORLD_UPDATE>
 {
   "gmOperations": [],
+  "narrativeClaims": [],
   "worldFacts": [],
   "factsRemoved": [],
   "plotThreads": [],

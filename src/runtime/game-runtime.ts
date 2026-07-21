@@ -17,15 +17,15 @@ import { projectPublicEvents } from "../engine/public-events.ts";
 import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { isMigratedTableMutation, settleRuntimeMutation } from "../store/domain-settlement.ts";
-import { settleGmBatch, settleGmOperation } from "../store/gm-protocol.ts";
+import { settleGmOperation } from "../store/gm-protocol.ts";
 import { nextLegacyProposalId } from "../store/legacy-settlement.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
 import { completeOutbox, drainPersistenceOutbox, enqueueOutbox, pendingOutbox } from "../store/outbox.ts";
 import { clearStagedJournalOutbox, stageJournalOutbox } from "../store/journal.ts";
 import type { GameEvent } from "../types/events.ts";
-import type { AnyMutation, EngineMutation } from "../types/mutations.ts";
-import type { ProposalBatchEnvelope } from "../types/proposals.ts";
-import type { GmTableProposal } from "../types/gm-proposals.ts";
+import type { AnyMutation, DmMutation, EngineMutation } from "../types/mutations.ts";
+import { normalizeTableOperations } from "../engine/table-operations.ts";
+import { validateNarrativeClaims } from "../engine/narrative-claims.ts";
 import type { NpcDecision, NpcPublicAction } from "../types/npc.ts";
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { StoryOutcomeDef, WorldState } from "../types/world.ts";
@@ -433,7 +433,9 @@ export class GameRuntime {
       this.state.player.id
     );
 
-    const gmBatchEvents: GameEvent[] = [];
+    const dmPlanEvents: GameEvent[] = [];
+    const settledWorldDmMutations: DmMutation[] = [];
+    const settledOutcomeMutations: DmMutation[] = [];
     const narrationIssues: NarrationSettlementIssue[] = dmResponse.parseIssues.map((issue, index) => ({
       proposalId: `dm-parse-${index}`,
       kind: "rejection",
@@ -445,62 +447,45 @@ export class GameRuntime {
         retryable: false,
       },
     }));
-    if (dmResponse.gmOperations.length > 0) {
-      const batch: ProposalBatchEnvelope<GmTableProposal> = {
-        batchId: nextLegacyProposalId("dm-batch"),
+    const normalizedDmPlan = normalizeTableOperations(dmResponse.mutations, dmResponse.gmOperations);
+    const deferredOutcomeOperations = normalizedDmPlan.filter((entry) => entry.phase === "outcome");
+    appendOperationLog(this.state.worldId, {
+      kind: "dm_table_plan",
+      operationCount: normalizedDmPlan.length,
+      operations: normalizedDmPlan.map((entry) => ({
+        source: entry.source,
+        phase: entry.phase,
+        kind: entry.operation.kind,
+      })),
+    });
+    for (const entry of normalizedDmPlan) {
+      if (entry.phase === "outcome") continue;
+      if (entry.source === "legacy_world_update") {
+        const settlement = this.settleLegacyMutations([entry.operation], correlationId, "dm");
+        settledWorldDmMutations.push(...settlement.mutations as DmMutation[]);
+        dmPlanEvents.push(...settlement.gameEvents);
+        narrationIssues.push(...settlement.narrationIssues);
+        continue;
+      }
+      const settlement = settleGmOperation(this.state, {
+        proposalId: nextLegacyProposalId("dm-operation"),
         correlationId,
         source: { kind: "dm", id: "dm" },
         expectedRevision: this.state.revision,
         observedTurn: this.state.turn,
-        proposals: dmResponse.gmOperations.map((payload) => ({ proposalId: nextLegacyProposalId("dm-operation"), payload })),
-      };
-      const batchSettlement = settleGmBatch(this.state, batch, this.storyOutcomes);
-      appendOperationLog(this.state.worldId, {
-        kind: "settlement_batch",
-        domain: "gm",
-        batchId: batch.batchId,
-        accepted: batchSettlement.accepted,
-        proposalCount: batch.proposals.length,
-        acceptedCount: batchSettlement.settlements.filter((settlement) => settlement.accepted).length,
-        rejectionCount: batchSettlement.settlements.filter((settlement) => !settlement.accepted).length,
-        settlements: batchSettlement.settlements.map((settlement) => ({
-          proposalId: settlement.proposal.proposalId,
-          operationKind: (settlement.proposal.payload as GmTableProposal).kind,
-          accepted: settlement.accepted,
-          rejection: settlement.accepted ? undefined : settlement.rejection,
-          warningCodes: settlement.accepted ? settlement.warnings.map((warning) => warning.code) : [],
-          eventKinds: settlement.accepted ? settlement.committedEvents.map(({ event }) => event.kind) : [],
-        })),
-      });
-      if (!batchSettlement.accepted) {
-        narrationIssues.push({ proposalId: batch.batchId, kind: "rejection", rejection: batchSettlement.rejection });
+        payload: entry.operation,
+      }, this.storyOutcomes);
+      if (!settlement.accepted) {
+        narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
+        continue;
       }
-      for (const settlement of batchSettlement.settlements) {
-        if (!settlement.accepted) {
-          narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
-          continue;
-        }
-        for (const warning of settlement.warnings) {
-          narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "warning", warning });
-        }
-        const context = publicProjectionContext(this.state);
-        gmBatchEvents.push(...settlement.committedEvents.flatMap((event) => projectPublicEvents(event, context)));
+      for (const warning of settlement.warnings) {
+        narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "warning", warning });
       }
+      dmPlanEvents.push(...settlement.committedEvents.flatMap((event) =>
+        projectPublicEvents(event, publicProjectionContext(this.state))
+      ));
     }
-
-    const outcomeMutations = dmResponse.mutations.filter(
-      (mutation) => mutation.kind === "dm/outcome_reached"
-    );
-    const worldDmMutations = dmResponse.mutations.filter(
-      (mutation) => mutation.kind !== "dm/outcome_reached"
-    );
-    const worldDmSettlement = this.settleLegacyMutations(
-      worldDmMutations,
-      correlationId,
-      "dm",
-    );
-    const settledWorldDmMutations = worldDmSettlement.mutations as typeof worldDmMutations;
-    narrationIssues.push(...worldDmSettlement.narrationIssues);
 
     const postDmEngineMuts: EngineMutation[] = [];
     const postDmEngineGameEvents: GameEvent[] = [];
@@ -521,7 +506,7 @@ export class GameRuntime {
       }
     }
 
-    const postDmEvents = [...gmBatchEvents, ...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
+    const postDmEvents = [...dmPlanEvents, ...postDmEngineGameEvents];
     const remainingNpcWakeups = Math.max(0, 2 - sessionDecisions.length);
     if (!result.combatContext && remainingNpcWakeups > 0 && postDmEvents.length > 0 && this.npcSessions.respondToEvents) {
       const postDmNpcResponse = await this.respondToEventsDurably(postDmEvents, remainingNpcWakeups, correlationId, "post_dm");
@@ -547,13 +532,44 @@ export class GameRuntime {
       "objective_engine",
     );
     const postDmProgressMutations = postDmProgressSettlement.mutations as EngineMutation[];
-    const outcomeSettlement = this.settleLegacyMutations(
-      outcomeMutations,
-      correlationId,
-      "dm",
-    );
-    const settledOutcomeMutations = outcomeSettlement.mutations as typeof outcomeMutations;
-    narrationIssues.push(...outcomeSettlement.narrationIssues);
+    for (const entry of deferredOutcomeOperations) {
+      if (entry.source === "legacy_world_update") {
+        const settlement = this.settleLegacyMutations([entry.operation], correlationId, "dm");
+        settledOutcomeMutations.push(...settlement.mutations as DmMutation[]);
+        postDmEvents.push(...settlement.gameEvents);
+        narrationIssues.push(...settlement.narrationIssues);
+        continue;
+      }
+      const settlement = settleGmOperation(this.state, {
+        proposalId: nextLegacyProposalId("dm-outcome"),
+        correlationId,
+        source: { kind: "dm", id: "dm" },
+        expectedRevision: this.state.revision,
+        observedTurn: this.state.turn,
+        payload: entry.operation,
+      }, this.storyOutcomes);
+      if (!settlement.accepted) {
+        narrationIssues.push({ proposalId: settlement.proposal.proposalId, kind: "rejection", rejection: settlement.rejection });
+      } else {
+        postDmEvents.push(...settlement.committedEvents.flatMap((event) =>
+          projectPublicEvents(event, publicProjectionContext(this.state))
+        ));
+      }
+    }
+
+    for (const [index, issue] of validateNarrativeClaims(this.state, dmResponse.narrativeClaims).entries()) {
+      narrationIssues.push({
+        proposalId: `narrative-claim-${index}`,
+        kind: "rejection",
+        rejection: {
+          code: "event_invariant_failed",
+          safeMessage: "The candidate narration claimed a state change that was not committed.",
+          diagnostic: issue.message,
+          details: { claim: issue.claim },
+          retryable: false,
+        },
+      });
+    }
 
     const expirySettlement = settleGmOperation(this.state, {
       proposalId: nextLegacyProposalId("condition-expiry"),

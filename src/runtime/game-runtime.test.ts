@@ -165,7 +165,7 @@ describe("GameRuntime", () => {
     expect(state.player.roomId).toBe("Platform");
   });
 
-  test("settles Pi GM operations as a batch and routes post-DM signals to NPC sessions", async () => {
+  test("settles the normalized Pi GM table plan and routes post-DM signals to NPC sessions", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const perceivedBatches: string[][] = [];
     const roomId = state.npcs.ticket_clerk!.roomId;
@@ -214,6 +214,27 @@ describe("GameRuntime", () => {
       kind: "narration",
       text: "你侧耳倾听，远处依旧寂静无声。",
     });
+  });
+
+  test("withholds narration whose declared claims are not supported by committed state", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    const replies = [
+      `<NARRATION>你已经进入不存在的地下室。</NARRATION><WORLD_UPDATE>{"narrativeClaims":[{"kind":"player_location","roomId":"missing_vault"}]}</WORLD_UPDATE>`,
+      `<NARRATION>你仍站在原地；眼前没有通往地下室的已知道路。</NARRATION>`,
+    ];
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: await loadStoryOutcomes("cthulhu"),
+      interpreter: { parse: async () => parsed("interact", { target: "暗门" }) },
+      dm: { ask: async () => replies.shift()! },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("走进暗门后的地下室");
+
+    expect(result.outputs).toContainEqual({ kind: "narration", text: "你仍站在原地；眼前没有通往地下室的已知道路。" });
+    expect(state.player.roomId).toBe("ArkhamStreet");
   });
 
   test("uses a committed-facts fallback when the single correction is malformed", async () => {

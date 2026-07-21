@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { GmTableProposal } from "../types/gm-proposals.ts";
+import type { NarrativeClaim } from "../types/narrative-claims.ts";
 import type { DmMutation } from "../types/mutations.ts";
 import type {
   DataTrait,
@@ -28,6 +29,7 @@ export interface DmResponse {
   mutations: DmMutation[];
   gmOperations: GmTableProposal[];
   parseIssues: DmParseIssue[];
+  narrativeClaims: NarrativeClaim[];
   raw: string;
 }
 
@@ -39,6 +41,7 @@ function extractTag(text: string, tag: string): string | null {
 
 interface RawWorldUpdate {
   gmOperations?: unknown[];
+  narrativeClaims?: unknown[];
   worldFacts?: Array<{ text: string; tile?: string | null }>;
   factsRemoved?: string[];
   plotThreads?: Array<{ id: string; title?: string; status?: string; summary?: string }>;
@@ -82,10 +85,11 @@ export function parseDmResponse(
   const mutations: DmMutation[] = [];
   const parseIssues: DmParseIssue[] = [];
   let gmOperations: GmTableProposal[] = [];
+  let update: RawWorldUpdate | undefined;
 
   if (updateStr) {
     try {
-      const update = JSON.parse(updateStr) as RawWorldUpdate;
+      update = JSON.parse(updateStr) as RawWorldUpdate;
       const parsedOperations = parseGmOperations(update.gmOperations);
       gmOperations = parsedOperations.operations;
       parseIssues.push(...parsedOperations.issues);
@@ -104,7 +108,44 @@ export function parseDmResponse(
     }
   }
 
-  return { narration, mutations, gmOperations, parseIssues, raw };
+  const claims = parseNarrativeClaims(update?.narrativeClaims);
+  parseIssues.push(...claims.issues);
+  return { narration, mutations, gmOperations, parseIssues, narrativeClaims: claims.claims, raw };
+}
+
+function parseNarrativeClaims(value: unknown): { claims: NarrativeClaim[]; issues: DmParseIssue[] } {
+  if (value === undefined) return { claims: [], issues: [] };
+  if (!Array.isArray(value)) {
+    return { claims: [], issues: [{ code: "invalid_proposal", message: "narrativeClaims must be an array." }] };
+  }
+  const claims: NarrativeClaim[] = [];
+  const issues: DmParseIssue[] = [];
+  for (const [index, claim] of value.entries()) {
+    if (!claim || typeof claim !== "object" || typeof (claim as { kind?: unknown }).kind !== "string") {
+      issues.push({ code: "invalid_proposal", message: `narrativeClaims[${index}] is invalid.` });
+      continue;
+    }
+    const candidate = claim as Record<string, unknown>;
+    const string = (key: string) => typeof candidate[key] === "string";
+    const valid = (() => {
+      switch (candidate.kind) {
+        case "player_location": return string("roomId");
+        case "entity_present": return string("entityId") && string("roomId");
+        case "exit_available": return string("roomId") && string("direction") && string("toRoomId");
+        case "item_location": return string("itemId") && ["room", "inventory", "equipped", "destroyed"].includes(String(candidate.locationKind))
+          && (candidate.roomId === undefined || string("roomId")) && (candidate.ownerId === undefined || string("ownerId"));
+        case "npc_lifecycle": return string("npcId") && typeof candidate.alive === "boolean";
+        case "outcome": return string("outcomeId");
+        default: return false;
+      }
+    })();
+    if (!valid) {
+      issues.push({ code: "invalid_proposal", message: `narrativeClaims[${index}] has an unsupported shape.` });
+      continue;
+    }
+    claims.push(structuredClone(candidate) as NarrativeClaim);
+  }
+  return { claims, issues };
 }
 
 const gmOperationKinds = new Set<GmTableProposal["kind"]>([
