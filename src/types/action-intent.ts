@@ -5,6 +5,7 @@ export type ActionKind =
   | "communicate"
   | "combat"
   | "inventory"
+  | "objectives"
   | "story_status"
   | "unknown";
 

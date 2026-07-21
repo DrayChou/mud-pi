@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { actionIntentFromParsed, resolveActionIntent } from "./action-intent.ts";
+import { actionIntentFromParsed, completionCommandForIntent, resolveActionIntent } from "./action-intent.ts";
 import { loadWorldPack } from "./world-loader.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
 
@@ -77,6 +77,17 @@ describe("authoritative entity reference resolution", () => {
 
     expect(resolved.resolvedTargets[0]?.resolution).toBe("missing");
     expect(resolved.requiresSemanticAdjudication).toBe(true);
+  });
+
+  test("builds generic completion commands by action kind instead of verb-specific retries", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    const navigateParsed = parsed("interact", { target: "铁门", direction: "down" }, "推门下楼");
+    const navigate = resolveActionIntent(state, actionIntentFromParsed(navigateParsed));
+    const statusParsed = parsed("story_status", { question: "结束了吗" }, "结束了吗");
+    const status = resolveActionIntent(state, actionIntentFromParsed(statusParsed));
+
+    expect(completionCommandForIntent(navigate, navigateParsed)).toMatchObject({ verb: "go", args: { direction: "down" } });
+    expect(completionCommandForIntent(status, statusParsed)).toBeUndefined();
   });
 
   test("routes story status through semantic adjudication without a target", async () => {

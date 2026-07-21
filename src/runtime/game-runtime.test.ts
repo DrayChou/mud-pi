@@ -56,6 +56,29 @@ describe("GameRuntime", () => {
     expect(dmCalls).toBe(0);
   });
 
+  test("defers semantic direct replies so missing narrative references reach the Pi GM", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    let capturedPrompt = "";
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: await loadStoryOutcomes("cthulhu"),
+      interpreter: { parse: async () => parsed("equip", { item: "祭坛上的仪式匕首" }) },
+      dm: { ask: async (prompt) => {
+        capturedPrompt = prompt;
+        return `<NARRATION>祭坛上并没有匕首，只有干涸的蜡痕。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>`;
+      } },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("拿起并装备祭坛上的仪式匕首");
+
+    expect(result.turnAdvanced).toBe(true);
+    expect(result.outputs).toContainEqual({ kind: "narration", text: "祭坛上并没有匕首，只有干涸的蜡痕。" });
+    expect(capturedPrompt).toContain("需要语义裁定：是");
+    expect(capturedPrompt).toContain('"resolution":"missing"');
+  });
+
   test("falls back to authoritative local narration when the DM times out", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const runtime = new GameRuntime({

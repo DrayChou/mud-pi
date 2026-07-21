@@ -21,7 +21,7 @@ const VERB_KIND: Record<string, ActionKind> = {
   use: "inventory",
   inv: "inventory",
   status: "inventory",
-  objectives: "story_status",
+  objectives: "objectives",
   story_status: "story_status",
 };
 
@@ -155,6 +155,21 @@ function ambiguous(ref: EntityReference, candidates: Candidate[]): ResolvedRefer
     resolution: "ambiguous",
     candidates: candidates.map(({ entityId, entityKind, name }) => ({ entityId, entityKind, name })),
   };
+}
+
+export function completionCommandForIntent(
+  intent: ResolvedActionIntent,
+  parsed: ParsedCommand,
+): ParsedCommand | undefined {
+  const unresolved = [...intent.resolvedTargets, ...intent.resolvedTools, ...(intent.resolvedDestination ? [intent.resolvedDestination] : [])]
+    .some((ref) => ref.resolution === "missing" || ref.resolution === "ambiguous" || ref.resolution === "narrated_unregistered");
+
+  if (intent.primaryKind === "navigate" && intent.direction) return parsed;
+  if (intent.primaryKind === "interact" && intent.direction) {
+    return { ...parsed, verb: "go", args: { ...parsed.args, direction: intent.direction } };
+  }
+  if ((intent.primaryKind === "combat" || intent.primaryKind === "inventory") && !unresolved) return parsed;
+  return undefined;
 }
 
 export function resolveActionIntent(state: WorldState, intent: ActionIntent): ResolvedActionIntent {

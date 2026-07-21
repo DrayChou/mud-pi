@@ -10,7 +10,7 @@ import {
 } from "../ai/dm-correction.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
-import { actionIntentFromParsed, resolveActionIntent } from "../engine/action-intent.ts";
+import { actionIntentFromParsed, completionCommandForIntent, resolveActionIntent } from "../engine/action-intent.ts";
 import { defaultConflictResolver, type ConflictResolver } from "../engine/conflict-script.ts";
 import { deriveGameEvents, type GameEventContext } from "../engine/game-events.ts";
 import { projectPublicEvents } from "../engine/public-events.ts";
@@ -286,7 +286,29 @@ export class GameRuntime {
   private async processParsedInput(input: string, parsed: ParsedCommand): Promise<GameTurnResult> {
     const correlationId = nextLegacyProposalId("turn");
     const resolvedIntent = resolveActionIntent(this.state, actionIntentFromParsed(parsed));
-    const result = executeCommand(this.state, parsed, this.conflictResolver);
+    const shouldExecuteBeforeDm = !resolvedIntent.requiresSemanticAdjudication
+      || this.state.player.lifecycle !== "active"
+      || Boolean(this.state.outcome?.terminal);
+    let result = shouldExecuteBeforeDm
+      ? executeCommand(this.state, parsed, this.conflictResolver)
+      : { mutations: [] as EngineMutation[] };
+    const semanticDirectReply = result.directReply !== undefined
+      && resolvedIntent.requiresSemanticAdjudication
+      && this.state.player.lifecycle === "active"
+      && !this.state.outcome?.terminal;
+    if (semanticDirectReply) {
+      appendOperationLog(this.state.worldId, {
+        kind: "semantic_direct_reply_deferred",
+        verb: parsed.verb,
+        directReply: result.directReply,
+        unresolvedReferences: [
+          ...resolvedIntent.resolvedTargets,
+          ...resolvedIntent.resolvedTools,
+          ...(resolvedIntent.resolvedDestination ? [resolvedIntent.resolvedDestination] : []),
+        ].filter((reference) => reference.resolution === "missing" || reference.resolution === "ambiguous"),
+      });
+      result = { mutations: [], combatContext: result.combatContext };
+    }
 
     if (result.directReply !== undefined) {
       if (result.directReply === "__QUIT__") {
@@ -482,25 +504,20 @@ export class GameRuntime {
 
     const postDmEngineMuts: EngineMutation[] = [];
     const postDmEngineGameEvents: GameEvent[] = [];
-    const retryCommand = parsed.verb === "interact" && parsed.args.direction
-      ? { ...parsed, verb: "go", args: { ...parsed.args, direction: parsed.args.direction } }
-      : parsed;
-    const shouldRetryPickup = parsed.verb === "get"
-      && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up");
-    const shouldRetryMovement = (parsed.verb === "go" || (parsed.verb === "interact" && Boolean(parsed.args.direction)))
-      && !engineMuts.some((mutation) => mutation.kind === "engine/player_moved");
-    const shouldRetryAttack = parsed.verb === "attack"
-      && !engineMuts.some((mutation) => mutation.kind === "engine/combat_started");
-    if (shouldRetryPickup || shouldRetryMovement || shouldRetryAttack) {
-      const retry = executeCommand(this.state, retryCommand, this.conflictResolver);
-      if (retry.directReply === undefined) {
-        const retrySettlement = this.settleLegacyMutations(
-          retry.mutations,
-          correlationId,
-          "player_engine_retry",
-        );
-        postDmEngineMuts.push(...retrySettlement.mutations as EngineMutation[]);
-        postDmEngineGameEvents.push(...retrySettlement.gameEvents);
+    if (engineMuts.length === 0) {
+      const refreshedIntent = resolveActionIntent(this.state, actionIntentFromParsed(parsed));
+      const completionCommand = completionCommandForIntent(refreshedIntent, parsed);
+      if (completionCommand) {
+        const completion = executeCommand(this.state, completionCommand, this.conflictResolver);
+        if (completion.directReply === undefined) {
+          const completionSettlement = this.settleLegacyMutations(
+            completion.mutations,
+            correlationId,
+            "player_intent_completion",
+          );
+          postDmEngineMuts.push(...completionSettlement.mutations as EngineMutation[]);
+          postDmEngineGameEvents.push(...completionSettlement.gameEvents);
+        }
       }
     }
 
