@@ -172,6 +172,26 @@ export function projectPublicEvents(
         targetId: event.targetId,
       }];
 
+    case "condition_applied": {
+      const roomId = context.entityRoomIds?.[event.condition.targetEntityId]
+        ?? (event.condition.targetEntityId === context.playerId ? context.playerRoomId : undefined);
+      return roomId ? [{ kind: "condition_changed", turn, targetId: event.condition.targetEntityId, conditionId: event.condition.conditionId, change: "applied", stacks: event.condition.stacks, roomId }] : [];
+    }
+
+    case "condition_refreshed":
+    case "condition_stack_changed": {
+      const roomId = context.entityRoomIds?.[event.after.targetEntityId]
+        ?? (event.after.targetEntityId === context.playerId ? context.playerRoomId : undefined);
+      return roomId ? [{ kind: "condition_changed", turn, targetId: event.after.targetEntityId, conditionId: event.after.conditionId, change: event.kind === "condition_refreshed" ? "refreshed" : "stacks_changed", stacks: event.after.stacks, roomId }] : [];
+    }
+
+    case "condition_removed":
+    case "condition_expired": {
+      const roomId = context.entityRoomIds?.[event.condition.targetEntityId]
+        ?? (event.condition.targetEntityId === context.playerId ? context.playerRoomId : undefined);
+      return roomId ? [{ kind: "condition_changed", turn, targetId: event.condition.targetEntityId, conditionId: event.condition.conditionId, change: event.kind === "condition_removed" ? "removed" : "expired", stacks: event.condition.stacks, roomId }] : [];
+    }
+
     case "objective_completed": {
       if (!context.playerId || !context.playerRoomId) return [];
       return [{

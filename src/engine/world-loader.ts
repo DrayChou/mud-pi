@@ -5,6 +5,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  ConditionDefinition,
   ConflictRules,
   ItemDef,
   ItemEffect,
@@ -73,6 +74,7 @@ interface WorldPackJson {
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
   itemRewardRules?: ItemRewardRules;
+  conditions?: ConditionDefinition[];
 }
 
 export interface WorldPackSummary {
@@ -246,6 +248,8 @@ export async function loadWorldPack(
     conflictScript: pack.conflictScript,
     conflictOptions: structuredClone(pack.conflictOptions ?? {}),
     itemRewardRules: structuredClone(pack.itemRewardRules ?? { templates: [] }),
+    conditionDefinitions: Object.fromEntries((pack.conditions ?? []).map((condition) => [condition.id, structuredClone(condition)])),
+    conditions: {},
     player: {
       id: "player1",
       name: playerName,

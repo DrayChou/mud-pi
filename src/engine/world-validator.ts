@@ -4,6 +4,7 @@
 
 import { PROCEDURAL_MAP_VERSION, type ProceduralMapConfig } from "./procedural-map.ts";
 import type {
+  ConditionDefinition,
   ConflictRules,
   DataTrait,
   ItemEffect,
@@ -54,6 +55,7 @@ export interface WorldPackForValidation {
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
   itemRewardRules?: ItemRewardRules;
+  conditions?: ConditionDefinition[];
 }
 
 export function validateWorldPack(pack: WorldPackForValidation, label = pack.name): void {
@@ -94,6 +96,7 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
   }
   if (pack.conflictRules) validateConflictRules(pack.conflictRules, statKeys, errors);
   validateItemRewardRules(pack.itemRewardRules, statKeys, errors);
+  validateConditions(pack.conditions, statKeys, errors);
 
   if (pack.proceduralMap) {
     const config = pack.proceduralMap;
@@ -279,6 +282,29 @@ export function validateWorldPack(pack: WorldPackForValidation, label = pack.nam
 
   if (errors.length > 0) {
     throw new Error(`Invalid world pack ${label}:\n- ${errors.join("\n- ")}`);
+  }
+}
+
+function validateConditions(definitions: ConditionDefinition[] | undefined, statKeys: Set<string>, errors: string[]): void {
+  const ids = new Set<string>();
+  for (const definition of definitions ?? []) {
+    if (!/^[a-z][a-z0-9_-]{0,63}$/.test(definition.id ?? "") || ids.has(definition.id)) {
+      errors.push(`conditions has invalid or duplicate id: ${definition.id}`);
+      continue;
+    }
+    ids.add(definition.id);
+    if (!definition.label?.trim()) errors.push(`condition ${definition.id} requires label`);
+    if (!["replace", "refresh", "stack"].includes(definition.stacking)) errors.push(`condition ${definition.id} has invalid stacking policy`);
+    if (definition.maxStacks !== undefined && (!Number.isInteger(definition.maxStacks) || definition.maxStacks < 1)) errors.push(`condition ${definition.id} maxStacks must be a positive integer`);
+    if (definition.stacking !== "stack" && (definition.maxStacks ?? 1) !== 1) errors.push(`condition ${definition.id} only stack policy may use maxStacks > 1`);
+    if (definition.defaultDurationTurns !== undefined && (!Number.isInteger(definition.defaultDurationTurns) || definition.defaultDurationTurns < 1)) errors.push(`condition ${definition.id} defaultDurationTurns must be a positive integer`);
+    for (const modifier of definition.parameterModifiers ?? []) {
+      if (!statKeys.has(modifier.parameterId)) errors.push(`condition ${definition.id} modifier references missing parameter: ${modifier.parameterId}`);
+      if (!Number.isFinite(modifier.value) || (modifier.operation === "rate" && modifier.value <= 0)) errors.push(`condition ${definition.id} has invalid parameter modifier`);
+    }
+    for (const trait of definition.traits ?? []) {
+      if (!trait.code?.trim() || !Number.isFinite(trait.value)) errors.push(`condition ${definition.id} has invalid trait`);
+    }
   }
 }
 

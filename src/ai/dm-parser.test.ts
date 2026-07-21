@@ -29,6 +29,13 @@ test("parses the bounded GM operation batch from a Pi response", async () => {
   );
   expect(forbiddenTransfer.gmOperations).toEqual([]);
   expect(forbiddenTransfer.parseIssues).toHaveLength(1);
+
+  const condition = parseDmResponse(
+    `<NARRATION>寒意挥之不去。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"apply_condition","conditionId":"afraid","targetEntityId":"${state.player.id}","durationTurns":2}]}</WORLD_UPDATE>`,
+    state.schema,
+    state.player.roomId,
+  );
+  expect(condition.gmOperations).toEqual([{ kind: "apply_condition", conditionId: "afraid", targetEntityId: state.player.id, durationTurns: 2 }]);
 });
 
 describe("DM-created interactive items", () => {

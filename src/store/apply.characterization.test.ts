@@ -113,6 +113,8 @@ function makeState(): WorldState {
     },
     plotThreads: {},
     worldFacts: [],
+    conditionDefinitions: {},
+    conditions: {},
     objectives: {
       quest: {
         id: "quest",

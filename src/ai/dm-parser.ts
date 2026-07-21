@@ -109,7 +109,7 @@ export function parseDmResponse(
 
 const gmOperationKinds = new Set<GmTableProposal["kind"]>([
   "record_fact", "remove_fact", "set_exit", "adjust_parameter", "move_npc",
-  "transfer_card", "consume_card", "emit_signal", "complete_objective", "reach_outcome",
+  "transfer_card", "consume_card", "emit_signal", "apply_condition", "remove_condition", "complete_objective", "reach_outcome",
   "move_player", "create_item", "grant_item_reward", "pick_up_item", "drop_item", "equip_item", "consume_item",
 ]);
 
@@ -154,6 +154,12 @@ function isValidRawGmOperation(value: unknown): value is GmTableProposal {
     }
     case "consume_card": return string("itemId");
     case "emit_signal": return string("signalId") && string("roomId") && string("message") && (operation.targetId === undefined || string("targetId"));
+    case "apply_condition": return string("conditionId") && string("targetEntityId")
+      && (operation.sourceEntityId === undefined || string("sourceEntityId"))
+      && (operation.stacks === undefined || (typeof operation.stacks === "number" && Number.isInteger(operation.stacks)))
+      && (operation.durationTurns === undefined || (typeof operation.durationTurns === "number" && Number.isInteger(operation.durationTurns)));
+    case "remove_condition": return string("conditionId") && string("targetEntityId") && (operation.reason === undefined || string("reason"));
+    case "expire_conditions": return false;
     case "complete_objective": return string("objectiveId");
     case "reach_outcome": return typeof operation.requestedAtTurn === "number" && Boolean(operation.outcome && typeof operation.outcome === "object");
     case "move_player": return string("toRoomId");

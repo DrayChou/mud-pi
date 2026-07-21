@@ -24,6 +24,7 @@ function state(): WorldState {
       },
     },
     items: {}, plotThreads: {}, worldFacts: [], objectives: {},
+    conditionDefinitions: {}, conditions: {},
     itemRewardRules: {
       maxGrantedPerTurn: 2,
       templates: [{

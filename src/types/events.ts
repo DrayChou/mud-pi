@@ -61,6 +61,15 @@ export type GameEvent =
       targetId?: string;
     }
   | {
+      kind: "condition_changed";
+      turn: number;
+      targetId: string;
+      conditionId: string;
+      change: "applied" | "refreshed" | "stacks_changed" | "removed" | "expired";
+      stacks: number;
+      roomId: string;
+    }
+  | {
       kind: "objective_completed";
       turn: number;
       objectiveId: string;

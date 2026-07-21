@@ -60,6 +60,18 @@ describe("validateWorldPack", () => {
     expect(() => validateWorldPack(pack, "broken-stats")).toThrow(/playerStats.hp 999 is outside 0-10/);
   });
 
+  test("validates world-owned condition definitions", () => {
+    const pack = basePack();
+    pack.conditions = [{
+      id: "focused", label: "Focused", stacking: "stack", maxStacks: 3, defaultDurationTurns: 2,
+      parameterModifiers: [{ parameterId: "hp", operation: "add", value: 1 }],
+    }];
+    expect(() => validateWorldPack(pack, "conditions")).not.toThrow();
+
+    pack.conditions[0]!.parameterModifiers = [{ parameterId: "missing", operation: "add", value: 1 }];
+    expect(() => validateWorldPack(pack, "broken-condition")).toThrow(/modifier references missing parameter/);
+  });
+
   test("requires a persona for persistent NPC sessions", () => {
     const pack = basePack();
     pack.npcs[0]!.controller = "pi_session";

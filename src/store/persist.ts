@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
 import type {
+  ConditionDefinition,
   ConflictRules,
   ItemLocation,
   ItemRewardRules,
@@ -83,6 +84,7 @@ async function normalizeConflictRules(state: WorldState): Promise<void> {
         conflictScript?: string;
         conflictOptions?: Record<string, unknown>;
         itemRewardRules?: ItemRewardRules;
+        conditions?: ConditionDefinition[];
       }
     : {};
   if (!state.conflictRules) {
@@ -100,6 +102,8 @@ async function normalizeConflictRules(state: WorldState): Promise<void> {
   state.conflictScript ??= pack.conflictScript;
   state.conflictOptions ??= structuredClone(pack.conflictOptions ?? {});
   state.itemRewardRules ??= structuredClone(pack.itemRewardRules ?? { templates: [] });
+  state.conditionDefinitions ??= Object.fromEntries((pack.conditions ?? []).map((condition) => [condition.id, structuredClone(condition)]));
+  state.conditions ??= {};
 }
 
 function normalizeRoomDiscovery(state: WorldState): void {

@@ -1,4 +1,5 @@
 import type {
+  AppliedCondition,
   ItemDef,
   ItemLocation,
   NpcDef,
@@ -27,6 +28,11 @@ export interface WorldFactRemoved { kind: "world_fact_removed"; fact: WorldFact 
 export interface PlotThreadChanged { kind: "plot_thread_changed"; plotId: string; before?: PlotThread; after: PlotThread }
 export interface ConflictStarted { kind: "conflict_started"; actorId: string; targetId: string; roomId: string }
 export interface PerceptibleSignalEmitted { kind: "perceptible_signal_emitted"; signalId: string; roomId: string; message: string; targetId?: string }
+export interface ConditionApplied { kind: "condition_applied"; condition: AppliedCondition }
+export interface ConditionRefreshed { kind: "condition_refreshed"; key: string; before: AppliedCondition; after: AppliedCondition }
+export interface ConditionStackChanged { kind: "condition_stack_changed"; key: string; before: AppliedCondition; after: AppliedCondition }
+export interface ConditionRemoved { kind: "condition_removed"; key: string; condition: AppliedCondition; reason?: string }
+export interface ConditionExpired { kind: "condition_expired"; key: string; condition: AppliedCondition; expiredAtTurn: number }
 export interface ObjectiveCompleted { kind: "objective_completed"; objectiveId: string; completedTurn: number; reason?: string }
 export interface StoryOutcomeReached { kind: "story_outcome_reached"; outcome: ReachedOutcome }
 export interface TurnAdvanced { kind: "turn_advanced"; before: number; after: number }
@@ -36,6 +42,7 @@ export type WorldEvent =
   | RoomExplorationRecorded | ItemCreated | ItemTransferred | ParameterChanged
   | LifecycleChanged | NpcCreated | NpcMoved | NpcDefeated | WorldFactAdded
   | WorldFactRemoved | PlotThreadChanged | ConflictStarted | PerceptibleSignalEmitted
+  | ConditionApplied | ConditionRefreshed | ConditionStackChanged | ConditionRemoved | ConditionExpired
   | ObjectiveCompleted | StoryOutcomeReached | TurnAdvanced;
 
 export interface CommittedWorldEvent<TEvent extends WorldEvent = WorldEvent> {

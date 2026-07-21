@@ -68,6 +68,37 @@ test("GM card operations are explicit and player-style inventory actions remain 
   }
 });
 
+test("GM protocol applies, stacks, refreshes, removes, and expires world-defined conditions", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  state.conditionDefinitions.focused = {
+    id: "focused", label: "专注", stacking: "stack", maxStacks: 3, defaultDurationTurns: 2,
+    parameterModifiers: [{ parameterId: state.schema.defs[0]!.key, operation: "add", value: 1 }],
+  };
+  const context = { storyOutcomes: [] };
+  const first = settle(state, envelope(state, { kind: "apply_condition", conditionId: "focused", targetEntityId: state.player.id, stacks: 2 }, "condition-1"), decideGmProposal, context);
+  const stacked = settle(state, envelope(state, { kind: "apply_condition", conditionId: "focused", targetEntityId: state.player.id, stacks: 2 }, "condition-2"), decideGmProposal, context);
+
+  expect(first.accepted).toBe(true);
+  expect(stacked.accepted).toBe(true);
+  expect(state.conditions[`${state.player.id}:focused`]?.stacks).toBe(3);
+  expect(stacked.accepted && stacked.warnings.some((warning) => warning.code === "value_clamped")).toBe(true);
+
+  const expiry = settle(state, {
+    proposalId: "condition-expiry", correlationId: "turn", source: { kind: "engine", id: "condition_engine" },
+    expectedRevision: state.revision, observedTurn: state.turn, payload: { kind: "expire_conditions", throughTurn: 2 } as GmProposal,
+  }, decideGmProposal, context);
+  expect(expiry.accepted).toBe(true);
+  expect(state.conditions[`${state.player.id}:focused`]).toBeUndefined();
+  if (!expiry.accepted) throw new Error("expiry rejected");
+  expect(projectPublicEvents(expiry.committedEvents[0]!, { playerId: state.player.id, playerRoomId: state.player.roomId })[0]).toMatchObject({ kind: "condition_changed", change: "expired", conditionId: "focused" });
+
+  const reapplied = settle(state, envelope(state, { kind: "apply_condition", conditionId: "focused", targetEntityId: state.player.id }, "condition-3"), decideGmProposal, context);
+  expect(reapplied.accepted).toBe(true);
+  const removed = settle(state, envelope(state, { kind: "remove_condition", conditionId: "focused", targetEntityId: state.player.id, reason: "cleansed" }, "condition-4"), decideGmProposal, context);
+  expect(removed.accepted).toBe(true);
+  expect(state.conditions[`${state.player.id}:focused`]).toBeUndefined();
+});
+
 test("GM protocol only completes allowed objectives and outcomes", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const storyOutcomes = await loadStoryOutcomes(state.worldPack);

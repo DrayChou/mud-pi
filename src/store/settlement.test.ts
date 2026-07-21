@@ -15,7 +15,7 @@ function state(): WorldState {
       old: { id: "old", name: "Old", desc: "", location: { kind: "equipped", ownerId: "player", slot: "hand" } },
       new: { id: "new", name: "New", desc: "", location: { kind: "inventory", ownerId: "player" } },
     },
-    plotThreads: {}, worldFacts: [], objectives: {},
+    plotThreads: {}, worldFacts: [], objectives: {}, conditionDefinitions: {}, conditions: {},
   };
 }
 

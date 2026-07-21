@@ -11,6 +11,9 @@ export type GmProposal =
   | { kind: "transfer_card"; itemId: string; to: Extract<ItemLocation, { kind: "room" | "inventory" }> }
   | { kind: "consume_card"; itemId: string }
   | { kind: "emit_signal"; signalId: string; roomId: string; message: string; targetId?: string }
+  | { kind: "apply_condition"; conditionId: string; targetEntityId: string; sourceEntityId?: string; stacks?: number; durationTurns?: number }
+  | { kind: "remove_condition"; conditionId: string; targetEntityId: string; reason?: string }
+  | { kind: "expire_conditions"; throughTurn: number }
   | { kind: "complete_objective"; objectiveId: string; reason?: string }
   | { kind: "reach_outcome"; outcome: ReachedOutcome; requestedAtTurn: number; reason?: string };
 

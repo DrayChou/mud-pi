@@ -25,6 +25,7 @@ export function effectivePlayerTraits(state: WorldState): DataTrait[] {
   return [
     ...(state.player.traits ?? []),
     ...equippedItems(state.player, state.items).flatMap((item) => item.traits ?? []),
+    ...playerConditions(state).flatMap((definition) => definition.traits ?? []),
   ].map((trait) => ({ ...trait }));
 }
 
@@ -45,7 +46,19 @@ export function applyParameterModifiers(base: Stats, modifiers: ParameterModifie
 }
 
 function playerParameterModifiers(state: WorldState): ParameterModifier[] {
-  return equippedItems(state.player, state.items).flatMap((item) => item.parameterModifiers ?? []);
+  return [
+    ...equippedItems(state.player, state.items).flatMap((item) => item.parameterModifiers ?? []),
+    ...playerConditions(state).flatMap((definition) => definition.parameterModifiers ?? []),
+  ];
+}
+
+function playerConditions(state: WorldState) {
+  return Object.values(state.conditions)
+    .filter((condition) => condition.targetEntityId === state.player.id)
+    .flatMap((condition) => {
+      const definition = state.conditionDefinitions[condition.conditionId];
+      return definition ? Array.from({ length: condition.stacks }, () => definition) : [];
+    });
 }
 
 export function equippedItems(player: PlayerState, items: Record<string, ItemDef>): ItemDef[] {

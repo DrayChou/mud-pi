@@ -150,6 +150,24 @@ export function evolve(state: WorldState, event: WorldEvent): void {
       invariant(same(state.plotThreads[event.plotId], event.before), `plot thread before mismatch: ${event.plotId}`, event);
       state.plotThreads[event.plotId] = structuredClone(event.after);
       return;
+    case "condition_applied": {
+      const key = `${event.condition.targetEntityId}:${event.condition.conditionId}`;
+      invariant(!state.conditions[key], `condition already applied: ${key}`, event);
+      invariant(Boolean(state.conditionDefinitions[event.condition.conditionId]), `condition definition not found: ${event.condition.conditionId}`, event);
+      invariant(event.condition.targetEntityId === state.player.id || Boolean(state.npcs[event.condition.targetEntityId]), `condition target not found: ${event.condition.targetEntityId}`, event);
+      state.conditions[key] = structuredClone(event.condition);
+      return;
+    }
+    case "condition_refreshed":
+    case "condition_stack_changed":
+      invariant(same(state.conditions[event.key], event.before), `condition before mismatch: ${event.key}`, event);
+      state.conditions[event.key] = structuredClone(event.after);
+      return;
+    case "condition_removed":
+    case "condition_expired":
+      invariant(same(state.conditions[event.key], event.condition), `condition removal mismatch: ${event.key}`, event);
+      delete state.conditions[event.key];
+      return;
     case "objective_completed": {
       const objective = state.objectives[event.objectiveId];
       invariant(objective, `objective not found: ${event.objectiveId}`, event);

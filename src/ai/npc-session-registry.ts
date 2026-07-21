@@ -302,6 +302,8 @@ function describeEvent(state: WorldState, event: GameEvent): string {
       return `${playerName}放下了${itemName(state, event.itemId)}`;
     case "perceptible_signal":
       return event.message;
+    case "condition_changed":
+      return `${entityName(state, event.targetId)}的状态“${state.conditionDefinitions[event.conditionId]?.label ?? event.conditionId}”发生变化：${event.change}，层数${event.stacks}`;
     case "objective_completed":
       return `${playerName}完成了目标“${state.objectives[event.objectiveId]?.title ?? event.objectiveId}”`;
     case "entity_attacked":

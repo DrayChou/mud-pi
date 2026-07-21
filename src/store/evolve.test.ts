@@ -17,7 +17,7 @@ function state(): WorldState {
       sword: { id: "sword", name: "Sword", desc: "", location: { kind: "equipped", ownerId: "player", slot: "hand" } },
       shield: { id: "shield", name: "Shield", desc: "", location: { kind: "inventory", ownerId: "player" } },
     },
-    plotThreads: {}, worldFacts: [], objectives: {},
+    plotThreads: {}, worldFacts: [], objectives: {}, conditionDefinitions: {}, conditions: {},
   };
 }
 

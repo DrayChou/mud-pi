@@ -35,6 +35,21 @@ import { loadWorldPack } from "./world-loader.ts";
     expect(baseDeltaForEffectivePlayerChange(state, "hp", 10)).toBe(0);
   });
 
+  test("aggregates world-defined condition modifiers and traits once per stack", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.conditionDefinitions.focused = {
+      id: "focused", label: "专注", stacking: "stack", maxStacks: 3,
+      parameterModifiers: [{ parameterId: "accuracy", operation: "add", value: 2 }],
+      traits: [{ code: "focused", value: 1 }],
+    };
+    state.conditions[`${state.player.id}:focused`] = {
+      conditionId: "focused", targetEntityId: state.player.id, stacks: 2, appliedRevision: 1, appliedTurn: 0,
+    };
+
+    expect(effectivePlayerStats(state).accuracy).toBe(state.player.stats.accuracy! + 4);
+    expect(effectivePlayerTraits(state).filter((trait) => trait.code === "focused")).toHaveLength(2);
+  });
+
   test("derives effective values from equipped world-pack items without changing base stats", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.inventory = state.player.inventory.filter((id) => id !== "rusty_knife");

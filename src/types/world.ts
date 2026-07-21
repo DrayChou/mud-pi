@@ -170,6 +170,29 @@ export interface ItemEffect {
   stateId?: string;
 }
 
+export type ConditionStackingPolicy = "replace" | "refresh" | "stack";
+
+export interface ConditionDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  stacking: ConditionStackingPolicy;
+  maxStacks?: number;
+  defaultDurationTurns?: number;
+  parameterModifiers?: ParameterModifier[];
+  traits?: DataTrait[];
+}
+
+export interface AppliedCondition {
+  conditionId: string;
+  targetEntityId: string;
+  sourceEntityId?: string;
+  stacks: number;
+  appliedRevision: number;
+  appliedTurn: number;
+  expiresAtTurn?: number;
+}
+
 export interface AiItemRewardTemplate {
   id: string;
   label: string;
@@ -325,6 +348,8 @@ export interface WorldState {
   conflictScript?: string;
   conflictOptions?: Record<string, unknown>;
   itemRewardRules?: ItemRewardRules;
+  conditionDefinitions: Record<string, ConditionDefinition>;
+  conditions: Record<string, AppliedCondition>;
   player: PlayerState;
   rooms: Record<string, RoomDef>;
   npcs: Record<string, NpcDef>;

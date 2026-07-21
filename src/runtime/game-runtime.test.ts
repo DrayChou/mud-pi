@@ -171,6 +171,28 @@ describe("GameRuntime", () => {
     expect(narration?.kind === "narration" && narration.text).toContain("并未如预想般改变");
   });
 
+  test("expires finite conditions at the turn boundary through committed events", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    state.conditionDefinitions.brief_fear = { id: "brief_fear", label: "短暂恐惧", stacking: "refresh", defaultDurationTurns: 1 };
+    state.conditions[`${state.player.id}:brief_fear`] = {
+      conditionId: "brief_fear", targetEntityId: state.player.id, stacks: 1,
+      appliedRevision: state.revision, appliedTurn: state.turn, expiresAtTurn: state.turn + 1,
+    };
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => parsed("look") },
+      dm: { ask: async () => `<NARRATION>你稳住呼吸。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>` },
+      npcSessions: { respondToPlayerSay: async () => [], respondToEvents: async () => [] },
+      persist: false,
+    });
+
+    await runtime.processInput("观察四周");
+
+    expect(state.conditions[`${state.player.id}:brief_fear`]).toBeUndefined();
+    expect(state.turn).toBe(1);
+  });
+
   test("accepts an AI NPC reward after authoritative objective and room checks", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     let perceivedKinds: string[] = [];

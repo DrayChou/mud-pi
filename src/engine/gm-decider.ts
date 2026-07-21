@@ -1,7 +1,7 @@
 import type { Decider } from "./decide.ts";
 import type { GmProposal } from "../types/gm-proposals.ts";
 import type { Decision, SettlementRejectionCode, SettlementWarning } from "../types/proposals.ts";
-import type { PlayerLifecycle, WorldState } from "../types/world.ts";
+import type { AppliedCondition, PlayerLifecycle, WorldState } from "../types/world.ts";
 import type { WorldEvent } from "../types/world-events.ts";
 
 function reject(code: SettlementRejectionCode, diagnostic: string): Decision<GmProposal> {
@@ -11,6 +11,14 @@ function reject(code: SettlementRejectionCode, diagnostic: string): Decision<GmP
     events: [],
     warnings: [],
   };
+}
+
+function conditionKey(targetEntityId: string, conditionId: string): string {
+  return `${targetEntityId}:${conditionId}`;
+}
+
+function conditionTarget(state: Readonly<WorldState>, entityId: string) {
+  return entityId === state.player.id ? state.player : state.npcs[entityId];
 }
 
 function lifecycleAfter(state: Readonly<WorldState>, parameterId: string, after: number): PlayerLifecycle {
@@ -129,6 +137,76 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
         }
       }
       return { accepted: true, result: proposal, events: [{ kind: "perceptible_signal_emitted", signalId: proposal.signalId, roomId: proposal.roomId, message: proposal.message, targetId: proposal.targetId }], warnings: [] };
+    }
+
+    case "apply_condition": {
+      if (envelope.source.kind !== "dm" && envelope.source.kind !== "engine") return reject("permission_denied", `${envelope.source.kind} cannot apply conditions.`);
+      const definition = state.conditionDefinitions[proposal.conditionId];
+      if (!definition) return reject("entity_not_found", `Condition definition not found: ${proposal.conditionId}`);
+      const target = conditionTarget(state, proposal.targetEntityId);
+      if (!target) return reject("entity_not_found", `Condition target not found: ${proposal.targetEntityId}`);
+      if (proposal.targetEntityId !== state.player.id && envelope.source.kind === "dm" && state.npcs[proposal.targetEntityId]?.controller !== "dm") {
+        return reject("permission_denied", `DM cannot condition an independently controlled NPC: ${proposal.targetEntityId}`);
+      }
+      if (proposal.sourceEntityId && !conditionTarget(state, proposal.sourceEntityId)) return reject("entity_not_found", `Condition source not found: ${proposal.sourceEntityId}`);
+      const requestedStacks = proposal.stacks ?? 1;
+      if (!Number.isInteger(requestedStacks) || requestedStacks < 1) return reject("invalid_value", `Invalid condition stacks: ${requestedStacks}`);
+      const duration = proposal.durationTurns ?? definition.defaultDurationTurns;
+      if (duration !== undefined && (!Number.isInteger(duration) || duration < 1)) return reject("invalid_value", `Invalid condition duration: ${duration}`);
+      const key = conditionKey(proposal.targetEntityId, proposal.conditionId);
+      const prior = state.conditions[key];
+      const maxStacks = definition.maxStacks ?? 1;
+      const expiresAtTurn = duration === undefined ? undefined : state.turn + duration;
+      const base: AppliedCondition = {
+        conditionId: definition.id,
+        targetEntityId: proposal.targetEntityId,
+        sourceEntityId: proposal.sourceEntityId,
+        stacks: Math.min(requestedStacks, maxStacks),
+        appliedRevision: state.revision + 1,
+        appliedTurn: state.turn,
+        expiresAtTurn,
+      };
+      const warnings: SettlementWarning[] = [];
+      if (!prior) {
+        if (requestedStacks > maxStacks) warnings.push({ code: "value_clamped", message: `${definition.id} stacks were clamped to ${maxStacks}.`, details: { requested: requestedStacks, accepted: maxStacks }, narrationRelevant: true });
+        return { accepted: true, result: proposal, events: [{ kind: "condition_applied", condition: base }], warnings };
+      }
+      if (definition.stacking === "refresh") {
+        const after = { ...structuredClone(prior), sourceEntityId: proposal.sourceEntityId ?? prior.sourceEntityId, appliedRevision: state.revision + 1, appliedTurn: state.turn, expiresAtTurn };
+        if (JSON.stringify(after) === JSON.stringify(prior)) return reject("already_applied", `Condition is already current: ${key}`);
+        return { accepted: true, result: proposal, events: [{ kind: "condition_refreshed", key, before: structuredClone(prior), after }], warnings };
+      }
+      if (definition.stacking === "stack") {
+        const requestedTotal = prior.stacks + requestedStacks;
+        const acceptedStacks = Math.min(requestedTotal, maxStacks);
+        if (acceptedStacks === prior.stacks && expiresAtTurn === prior.expiresAtTurn) return reject("already_applied", `Condition is already at maximum stacks: ${key}`);
+        if (requestedTotal > maxStacks) warnings.push({ code: "value_clamped", message: `${definition.id} total stacks were clamped to ${maxStacks}.`, details: { requested: requestedTotal, accepted: maxStacks }, narrationRelevant: true });
+        const after = { ...structuredClone(prior), sourceEntityId: proposal.sourceEntityId ?? prior.sourceEntityId, stacks: acceptedStacks, appliedRevision: state.revision + 1, appliedTurn: state.turn, expiresAtTurn: expiresAtTurn ?? prior.expiresAtTurn };
+        return { accepted: true, result: proposal, events: [{ kind: "condition_stack_changed", key, before: structuredClone(prior), after }], warnings };
+      }
+      const after = base;
+      if (requestedStacks > maxStacks) warnings.push({ code: "value_clamped", message: `${definition.id} stacks were clamped to ${maxStacks}.`, details: { requested: requestedStacks, accepted: maxStacks }, narrationRelevant: true });
+      if (JSON.stringify(after) === JSON.stringify(prior)) return reject("already_applied", `Condition is already applied: ${key}`);
+      return { accepted: true, result: proposal, events: [{ kind: "condition_refreshed", key, before: structuredClone(prior), after }], warnings };
+    }
+
+    case "remove_condition": {
+      if (envelope.source.kind !== "dm" && envelope.source.kind !== "engine") return reject("permission_denied", `${envelope.source.kind} cannot remove conditions.`);
+      const key = conditionKey(proposal.targetEntityId, proposal.conditionId);
+      const condition = state.conditions[key];
+      if (!condition) return reject("entity_not_found", `Applied condition not found: ${key}`);
+      if (proposal.targetEntityId !== state.player.id && envelope.source.kind === "dm" && state.npcs[proposal.targetEntityId]?.controller !== "dm") {
+        return reject("permission_denied", `DM cannot remove a condition from an independently controlled NPC: ${proposal.targetEntityId}`);
+      }
+      return { accepted: true, result: proposal, events: [{ kind: "condition_removed", key, condition: structuredClone(condition), reason: proposal.reason }], warnings: [] };
+    }
+
+    case "expire_conditions": {
+      if (envelope.source.kind !== "engine") return reject("permission_denied", `${envelope.source.kind} cannot expire conditions.`);
+      if (!Number.isInteger(proposal.throughTurn) || proposal.throughTurn < state.turn) return reject("invalid_value", `Invalid condition expiry turn: ${proposal.throughTurn}`);
+      const expired = Object.entries(state.conditions).filter(([, condition]) => condition.expiresAtTurn !== undefined && condition.expiresAtTurn <= proposal.throughTurn);
+      if (expired.length === 0) return reject("already_applied", `No conditions expire through turn ${proposal.throughTurn}.`);
+      return { accepted: true, result: proposal, events: expired.map(([key, condition]) => ({ kind: "condition_expired", key, condition: structuredClone(condition), expiredAtTurn: proposal.throughTurn })) as [WorldEvent, ...WorldEvent[]], warnings: [] };
     }
 
     case "complete_objective": {

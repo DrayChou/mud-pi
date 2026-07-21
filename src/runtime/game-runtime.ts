@@ -16,7 +16,7 @@ import { projectPublicEvents } from "../engine/public-events.ts";
 import { executeNpcDecision } from "../engine/npc-intents.ts";
 import { evaluateProgress } from "../engine/progress.ts";
 import { isMigratedTableMutation, settleRuntimeMutation } from "../store/domain-settlement.ts";
-import { settleGmBatch } from "../store/gm-protocol.ts";
+import { settleGmBatch, settleGmOperation } from "../store/gm-protocol.ts";
 import { nextLegacyProposalId } from "../store/legacy-settlement.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
 import type { GameEvent } from "../types/events.ts";
@@ -346,6 +346,20 @@ export class GameRuntime {
     );
     const settledOutcomeMutations = outcomeSettlement.mutations as typeof outcomeMutations;
     narrationIssues.push(...outcomeSettlement.narrationIssues);
+
+    const expirySettlement = settleGmOperation(this.state, {
+      proposalId: nextLegacyProposalId("condition-expiry"),
+      correlationId,
+      source: { kind: "engine", id: "condition_engine" },
+      expectedRevision: this.state.revision,
+      observedTurn: this.state.turn,
+      payload: { kind: "expire_conditions", throughTurn: this.state.turn + 1 },
+    }, this.storyOutcomes);
+    if (expirySettlement.accepted) {
+      postDmEvents.push(...expirySettlement.committedEvents.flatMap((event) =>
+        projectPublicEvents(event, publicProjectionContext(this.state))
+      ));
+    }
 
     const gameEvents = [...preDmEvents, ...postDmEvents];
     const progressMutations = [...preDmProgressMutations, ...postDmProgressMutations];
