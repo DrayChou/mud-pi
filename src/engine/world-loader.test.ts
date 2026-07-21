@@ -16,7 +16,9 @@ describe("loadWorldPack protagonists", () => {
     expect(state.player.stats.attack).toBe(6);
     expect(state.player.stats.defense).toBe(3);
     expect(state.npcs.ticket_clerk?.controller).toBe("pi_session");
-    expect(state.npcs.ticket_clerk?.persona?.goals?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(state.npcs.ticket_clerk?.persona?.goals?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(state.npcs.ticket_clerk?.persona?.background).toContain("曾经也是忘记归途的旅客");
+    expect(state.npcs.ticket_clerk?.persona?.constraints).toContain("不能读取玩家私有思想；只能依据玩家说出口的话、可见物品和已提交事件推断");
     expect(state.npcs.ticket_clerk?.storyRole?.importance).toBe("critical");
     expect(state.rooms.EchoGate?.exits.north).toBeUndefined();
     expect(state.rooms.Compartment3?.exits.south).toBe("EchoGate");
