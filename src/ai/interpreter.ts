@@ -33,10 +33,12 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
 
 方向中文映射：东=east 西=west 南=south 北=north 上=up 下=down
 
+只选一个最需要 Engine 立即执行的主要机械动词，但要在 args 中保留复合表达的重要语义，可选字段：intent（最终目的）、approach（采用的方法）、question（同时提出的问题）、weapon（明确使用的武器）。所有字段值必须是字符串。
+
 输出格式：
-{"verb":"go","args":{"direction":"east"},"confidence":0.95}
-{"verb":"say","args":{"target":"售票员","message":"这张票能去哪里？"},"confidence":0.95}
-{"verb":"attack","args":{"target":"深渊之物","weapon":"左轮手枪"},"confidence":0.95}
+{"verb":"go","args":{"direction":"east","intent":"去港口调查夜间货运"},"confidence":0.95}
+{"verb":"say","args":{"target":"售票员","message":"这张票能去哪里？","intent":"询问车票目的地"},"confidence":0.95}
+{"verb":"attack","args":{"target":"深渊之物","weapon":"左轮手枪","question":"这到底是什么","approach":"瞄准眼睛开枪"},"confidence":0.95}
 
 无法解析时返回：
 {"verb":"unknown","args":{},"confidence":0.1}`;

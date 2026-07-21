@@ -386,7 +386,8 @@ export class GameRuntime {
       result.combatContext,
       npcActions,
       this.storyOutcomes,
-      preDmEvents
+      preDmEvents,
+      { verb: parsed.verb, args: parsed.args, confidence: parsed.confidence },
     );
     let dmRaw: string;
     try {

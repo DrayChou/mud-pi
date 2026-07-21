@@ -136,7 +136,8 @@ export function buildDmPrompt(
   combatContext?: CombatContext,
   npcActions: NpcPublicAction[] = [],
   outcomes: StoryOutcomeDef[] = [],
-  gameEvents: GameEvent[] = []
+  gameEvents: GameEvent[] = [],
+  interpretedIntent?: { verb: string; args: Record<string, string>; confidence: number },
 ): string {
   const room = state.rooms[state.player.roomId];
   const parts: string[] = [];
@@ -244,6 +245,13 @@ export function buildDmPrompt(
     parts.push(`[背包物品详情]\n${inventoryItems.map((item) => `• ${item.name}（${item.id}）：${describeItemData(state, item)}`).join("\n")}`);
   }
 
+  // ── Interpreter hint (never a replacement for the raw utterance) ──
+  if (interpretedIntent) {
+    parts.push(
+      `[Interpreter 辅助理解]\n主要机械动词：${interpretedIntent.verb}\n参数：${JSON.stringify(interpretedIntent.args)}\n置信度：${interpretedIntent.confidence}\n这只是 Engine 执行主要机械动作的辅助标签，不是玩家完整意图。你必须重新阅读原始输入，回应其中的提问、情绪、方法、条件和次要动作；不要因标签只有一个 verb 就忽略复合表达。`
+    );
+  }
+
   // ── Combat context ──
   if (combatContext) {
     const statDef = state.schema.defs.find((def) => def.key === combatContext.poolKey);
@@ -307,6 +315,11 @@ export function buildDmPrompt(
 8. **候选叙述必须可修正**：WORLD_UPDATE 只是 Proposal。若某项操作可能被 Engine 拒绝，叙述应避免把未经确认的机械结果写成不可撤销事实。
 9. **携带变化必须落桌**：如果玩家明确拿走当前房间已有的可携带物品，而本轮已结算事件中没有拾取事件，可用 transfer_card 将该 itemId 转入玩家 inventory。叙述声称“收进背包、夹进报纸、带在身上”时，必须已有拾取事件或在同一响应提交 transfer_card；否则只能描述检查，不能声称已经携带。
 10. **线索出现必须有场景因果**：冲突后出现的新线索应来自事先可成立的位置或关系，例如卡在鳞片、藏在衣袋、落在货箱旁或被打斗暴露。不要把普通敌人写成游戏怪物般凭空“掉落”文件或装备；创建物品时在同轮叙述中交代其物理来源。
+11. **规则是边界，不是选项菜单**：世界包描述已知事实、主题、机械词汇和不可违反的边界，但没有列出的方案不等于不可行。先依据当前 fiction 推演“以这种方法做这件事会发生什么”，再选择是否需要把结果落桌；不要要求玩家猜规则文件里的标准答案。
+12. **完整回应复合意图**：一句话可能同时包含提问、观察、移动、使用物品和攻击。Engine 会先执行主要机械动作，你仍要回应其余有意义部分。例如“这是什么，瞄准它开枪”既要依据可见特征回答它是什么，也要叙述已结算攻击，不能只处理其中一半。
+13. **在不确定处做真人 GM 判断**：当现有 fiction 足以支持时直接裁定；只有两种解释会导致显著不同且无法从上下文推断时才简短追问。不要因为规则未写、名称不精确或玩家用了代词就机械拒绝。
+14. **保持世界主动但不抢夺主角权**：让环境、威胁和 NPC 根据已发生事实作出有因果的反应，主动呈现后果与新压力；但不要替玩家决定思想、承诺、情感结论或未声明的重大行动。
+15. **区分知识层级**：可以描述角色当下可感知的形态、声音、气味和合理推断；只有已有线索或角色背景支持时才给出专有名称与真相。回答玩家问题时允许“不完全但有用”，不要无依据全知，也不要无信息回避。
 
 裁定示例：
 - 玩家根据两条已知线索准确指出机关规律：可以直接成功，不必掷骰。

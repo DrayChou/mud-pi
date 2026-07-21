@@ -15,6 +15,7 @@ describe("Pi DM adjudication prompt", () => {
       [],
       await loadStoryOutcomes("station-dream"),
       [],
+      { verb: "use", args: { item: "旧车票", question: "这里为何阻止我" }, confidence: 0.82 },
     );
 
     expect(prompt).toContain("你是真人式 Pi DM");
@@ -34,6 +35,11 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain('"kind":"transfer_card"');
     expect(prompt).toContain("物品已进入或离开背包");
     expect(prompt).toContain("不要把普通敌人写成游戏怪物般凭空");
+    expect(prompt).toContain("规则是边界，不是选项菜单");
+    expect(prompt).toContain("完整回应复合意图");
+    expect(prompt).toContain("[Interpreter 辅助理解]");
+    expect(prompt).toContain('"question":"这里为何阻止我"');
+    expect(prompt).toContain("不是玩家完整意图");
     expect(prompt).toContain('"gmOperations": []');
   });
 });
