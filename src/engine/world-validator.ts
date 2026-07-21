@@ -300,6 +300,7 @@ function validateConditions(definitions: ConditionDefinition[] | undefined, stat
     if (definition.defaultDurationTurns !== undefined && (!Number.isInteger(definition.defaultDurationTurns) || definition.defaultDurationTurns < 1)) errors.push(`condition ${definition.id} defaultDurationTurns must be a positive integer`);
     for (const modifier of definition.parameterModifiers ?? []) {
       if (!statKeys.has(modifier.parameterId)) errors.push(`condition ${definition.id} modifier references missing parameter: ${modifier.parameterId}`);
+      if (modifier.operation !== "add" && modifier.operation !== "rate") errors.push(`condition ${definition.id} has invalid parameter modifier operation`);
       if (!Number.isFinite(modifier.value) || (modifier.operation === "rate" && modifier.value <= 0)) errors.push(`condition ${definition.id} has invalid parameter modifier`);
     }
     for (const trait of definition.traits ?? []) {

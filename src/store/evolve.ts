@@ -34,6 +34,19 @@ function addEquipmentIndex(state: WorldState, itemId: string, location: ItemLoca
   state.player.equipment[location.slot] = itemId;
 }
 
+function validateCondition(state: WorldState, key: string, condition: WorldState["conditions"][string], event: WorldEvent): void {
+  const expectedKey = `${condition.targetEntityId}:${condition.conditionId}`;
+  const definition = state.conditionDefinitions[condition.conditionId];
+  invariant(key === expectedKey, `condition key mismatch: expected ${expectedKey}, got ${key}`, event);
+  invariant(Boolean(definition), `condition definition not found: ${condition.conditionId}`, event);
+  invariant(condition.targetEntityId === state.player.id || Boolean(state.npcs[condition.targetEntityId]), `condition target not found: ${condition.targetEntityId}`, event);
+  invariant(!condition.sourceEntityId || condition.sourceEntityId === state.player.id || Boolean(state.npcs[condition.sourceEntityId]), `condition source not found: ${condition.sourceEntityId}`, event);
+  invariant(Number.isInteger(condition.stacks) && condition.stacks >= 1 && condition.stacks <= (definition!.maxStacks ?? 1), `invalid condition stacks: ${key}/${condition.stacks}`, event);
+  invariant(Number.isInteger(condition.appliedRevision) && condition.appliedRevision >= 0, `invalid condition revision: ${key}`, event);
+  invariant(Number.isInteger(condition.appliedTurn) && condition.appliedTurn >= 0, `invalid condition turn: ${key}`, event);
+  invariant(condition.expiresAtTurn === undefined || (Number.isInteger(condition.expiresAtTurn) && condition.expiresAtTurn > condition.appliedTurn), `invalid condition expiry: ${key}`, event);
+}
+
 function transferOwnershipIndex(
   state: WorldState,
   itemId: string,
@@ -153,19 +166,22 @@ export function evolve(state: WorldState, event: WorldEvent): void {
     case "condition_applied": {
       const key = `${event.condition.targetEntityId}:${event.condition.conditionId}`;
       invariant(!state.conditions[key], `condition already applied: ${key}`, event);
-      invariant(Boolean(state.conditionDefinitions[event.condition.conditionId]), `condition definition not found: ${event.condition.conditionId}`, event);
-      invariant(event.condition.targetEntityId === state.player.id || Boolean(state.npcs[event.condition.targetEntityId]), `condition target not found: ${event.condition.targetEntityId}`, event);
+      validateCondition(state, key, event.condition, event);
       state.conditions[key] = structuredClone(event.condition);
       return;
     }
     case "condition_refreshed":
     case "condition_stack_changed":
       invariant(same(state.conditions[event.key], event.before), `condition before mismatch: ${event.key}`, event);
+      validateCondition(state, event.key, event.before, event);
+      validateCondition(state, event.key, event.after, event);
+      invariant(event.after.conditionId === event.before.conditionId && event.after.targetEntityId === event.before.targetEntityId, `condition identity changed: ${event.key}`, event);
       state.conditions[event.key] = structuredClone(event.after);
       return;
     case "condition_removed":
     case "condition_expired":
       invariant(same(state.conditions[event.key], event.condition), `condition removal mismatch: ${event.key}`, event);
+      validateCondition(state, event.key, event.condition, event);
       delete state.conditions[event.key];
       return;
     case "objective_completed": {

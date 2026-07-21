@@ -42,6 +42,22 @@ describe("evolve", () => {
     expect(initial.player.stats.hp).toBe(5);
   });
 
+  test("rejects malformed condition after-state identity and stacks", () => {
+    const initial = state();
+    initial.conditionDefinitions.focused = { id: "focused", label: "Focused", stacking: "stack", maxStacks: 3 };
+    initial.conditionDefinitions.other = { id: "other", label: "Other", stacking: "replace" };
+    const condition = { conditionId: "focused", targetEntityId: initial.player.id, stacks: 1, appliedRevision: 1, appliedTurn: 0 };
+    initial.conditions[`${initial.player.id}:focused`] = structuredClone(condition);
+
+    expect(() => evolve(initial, {
+      kind: "condition_stack_changed",
+      key: `${initial.player.id}:focused`,
+      before: condition,
+      after: { ...condition, conditionId: "other", stacks: 0 },
+    })).toThrow(EventInvariantError);
+    expect(initial.conditions[`${initial.player.id}:focused`]).toEqual(condition);
+  });
+
   test("updates inventory and equipment from ordered exact transfers", () => {
     const initial = state();
     evolve(initial, { kind: "item_transferred", itemId: "sword", from: { kind: "equipped", ownerId: "player", slot: "hand" }, to: { kind: "inventory", ownerId: "player" } });

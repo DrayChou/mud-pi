@@ -70,6 +70,8 @@ describe("validateWorldPack", () => {
 
     pack.conditions[0]!.parameterModifiers = [{ parameterId: "missing", operation: "add", value: 1 }];
     expect(() => validateWorldPack(pack, "broken-condition")).toThrow(/modifier references missing parameter/);
+    pack.conditions[0]!.parameterModifiers = [{ parameterId: "hp", operation: "multiply", value: 2 } as never];
+    expect(() => validateWorldPack(pack, "broken-operation")).toThrow(/invalid parameter modifier operation/);
   });
 
   test("requires a persona for persistent NPC sessions", () => {
