@@ -52,6 +52,7 @@ export function executeCommand(
     case "drop":   return cmdDrop(state, cmd);
     case "equip":  return cmdEquip(state, cmd);
     case "use":    return cmdUse(state, cmd, conflictResolver);
+    case "interact": return { mutations: [] }; // Scene semantics belong to the Pi GM.
     case "attack": return cmdAttack(state, cmd, conflictResolver);
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
@@ -74,7 +75,12 @@ function cmdGo(state: WorldState, cmd: ParsedCommand): CommandResult {
   if (!room) return { mutations: [], directReply: "你身处虚空之中。" };
 
   const toRoomId = room.exits[dir];
-  if (!toRoomId) return { mutations: [], directReply: `${dir} 方向没有出路。` };
+  if (!toRoomId) {
+    const bareDirection = Object.prototype.hasOwnProperty.call(DIRECTION_COMMANDS, (cmd.raw ?? "").trim().toLowerCase());
+    return bareDirection
+      ? { mutations: [], directReply: `${dir} 方向没有出路。` }
+      : { mutations: [] }; // Let the GM adjudicate doors, stairs, stealth, and narrated paths.
+  }
   if (!state.rooms[toRoomId]) return { mutations: [], directReply: "那条路通向虚无。" };
 
   return { mutations: [{ kind: "engine/player_moved", toRoomId }] };
@@ -144,14 +150,23 @@ function cmdEquip(state: WorldState, cmd: ParsedCommand): CommandResult {
   return { mutations: [{ kind: "engine/item_equipped", itemId, slot: item.equipSlot }] };
 }
 
+const DIRECTION_COMMANDS: Record<string, true> = {
+  east: true, e: true, 东: true,
+  west: true, w: true, 西: true,
+  south: true, s: true, 南: true,
+  north: true, n: true, 北: true,
+  up: true, u: true, 上: true,
+  down: true, d: true, 下: true,
+};
+
 function cmdUse(state: WorldState, cmd: ParsedCommand, conflictResolver: ConflictResolver): CommandResult {
   const itemName = cmd.args.item;
-  if (!itemName) return { mutations: [], directReply: "使用什么？" };
+  if (!itemName) return { mutations: [] }; // A model may have classified scenery manipulation as use.
   const itemId = state.player.inventory.find((id) => {
     const item = state.items[id];
     return item && itemMatches(item, itemName);
   });
-  if (!itemId) return { mutations: [], directReply: `背包里没有"${itemName}"。` };
+  if (!itemId) return { mutations: [] }; // Unknown targets may be scenery; let the Pi GM decide.
   const item = state.items[itemId]!;
   if (!item.effects?.length) return { mutations: [], directReply: `${item.name}没有可以直接使用的效果。` };
 

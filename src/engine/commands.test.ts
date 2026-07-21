@@ -88,6 +88,30 @@ describe("combat commands", () => {
   });
 });
 
+describe("scene interaction commands", () => {
+  test("routes doors and other scenery to the Pi GM instead of treating them as inventory", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    state.player.roomId = "MiskULibrary";
+
+    const misclassifiedUse = executeCommand(state, { ...command("use", { item: "坚固密门" }), raw: "推开坚固密门" });
+    const interaction = executeCommand(state, { ...command("interact", { target: "坚固密门", approach: "轻轻推开" }), raw: "轻轻推开门" });
+
+    expect(misclassifiedUse.directReply).toBeUndefined();
+    expect(interaction.directReply).toBeUndefined();
+  });
+
+  test("lets the GM adjudicate narrated paths while preserving exact direction shortcuts", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    state.player.roomId = "MiskULibrary";
+
+    const semantic = executeCommand(state, { ...command("go", { direction: "down", approach: "潜行并观察" }), raw: "慢慢走下去，不要弄出声响" });
+    const shortcut = executeCommand(state, { ...command("go", { direction: "down" }), raw: "down" });
+
+    expect(semantic.directReply).toBeUndefined();
+    expect(shortcut.directReply).toContain("没有出路");
+  });
+});
+
 describe("item commands", () => {
   test("uses world-script item effects and consumes configured items", async () => {
     const state = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });

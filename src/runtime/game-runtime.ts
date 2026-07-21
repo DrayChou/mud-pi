@@ -480,8 +480,15 @@ export class GameRuntime {
 
     const postDmEngineMuts: EngineMutation[] = [];
     const postDmEngineGameEvents: GameEvent[] = [];
-    if (parsed.verb === "get" && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up")) {
-      const retry = executeCommand(this.state, parsed, this.conflictResolver);
+    const retryCommand = parsed.verb === "interact" && parsed.args.direction
+      ? { ...parsed, verb: "go", args: { ...parsed.args, direction: parsed.args.direction } }
+      : parsed;
+    const shouldRetryPickup = parsed.verb === "get"
+      && !engineMuts.some((mutation) => mutation.kind === "engine/item_picked_up");
+    const shouldRetryMovement = (parsed.verb === "go" || (parsed.verb === "interact" && Boolean(parsed.args.direction)))
+      && !engineMuts.some((mutation) => mutation.kind === "engine/player_moved");
+    if (shouldRetryPickup || shouldRetryMovement) {
+      const retry = executeCommand(this.state, retryCommand, this.conflictResolver);
       if (retry.directReply === undefined) {
         const retrySettlement = this.settleLegacyMutations(
           retry.mutations,

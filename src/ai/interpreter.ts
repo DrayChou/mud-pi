@@ -23,7 +23,8 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
   get    — 拾取，需要 item
   drop   — 丢弃，需要 item
   equip  — 装备，需要 item
-  use    — 使用物品，需要 item
+  use    — 使用玩家携带的物品，需要 item；只用于背包/装备中的物品
+  interact — 操作门、机关、家具、墙壁等场景对象，需要 target，可附加 approach/intent；如果同时明确要穿过门、沿楼梯进入，必须附加 direction
   inv    — 查看背包
   status — 查看状态
   objectives — 查看目标、任务或当前进度
@@ -39,6 +40,9 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
 {"verb":"go","args":{"direction":"east","intent":"去港口调查夜间货运"},"confidence":0.95}
 {"verb":"say","args":{"target":"售票员","message":"这张票能去哪里？","intent":"询问车票目的地"},"confidence":0.95}
 {"verb":"attack","args":{"target":"深渊之物","weapon":"左轮手枪","question":"这到底是什么","approach":"瞄准眼睛开枪"},"confidence":0.95}
+{"verb":"interact","args":{"target":"铁门","direction":"down","approach":"轻轻推开并潜行下楼","intent":"进入门后的石阶且不发出声音"},"confidence":0.95}
+
+门、窗、石阶、按钮、机关和家具默认是场景对象，不是背包物品。“开门、推门、踹门、拉动机关”必须解析为 interact，不得解析为 use。带有潜行、观察或提问的移动要保留 approach/question/intent。
 
 无法解析时返回：
 {"verb":"unknown","args":{},"confidence":0.1}`;
