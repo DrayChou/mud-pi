@@ -17,6 +17,7 @@
 | [`design.md`](design.md) | 当前整体架构、回合流程、持久化和 Adapter 边界 |
 | [`pi-role-boundary.md`](pi-role-boundary.md) | “代码实现名词，Pi 解释动词”的产品与技术边界 |
 | [`settlement-contract.md`](settlement-contract.md) | 权威结算、原子性、revision、幂等和公共投影契约 |
+| [`world-pack-guide.md`](world-pack-guide.md) | 从最小世界包到 NPC、道具、目标、结局和规则脚本的开发指南 |
 | [`ai-item-rewards.md`](ai-item-rewards.md) | AI 判断奖励、模板约束和权威生成流程 |
 | [`rpgmaker-data-model.md`](rpgmaker-data-model.md) | 参数、装备、traits 和 effects 数据模型 |
 

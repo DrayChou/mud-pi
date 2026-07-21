@@ -10,9 +10,10 @@ dist
 coverage
 *.lcov
 
-# logs
+# logs and local AI/session exports
 logs
-_.log
+*.log
+pi-session-*.html
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # dotenv environment variable files
@@ -25,10 +26,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # game saves / local generated story data
 saves/
 
-# caches
+# caches and local agent workspaces
 .eslintcache
 .cache
 *.tsbuildinfo
+.agent-runs/
+.agent-worktrees/
 
 # IntelliJ based IDEs
 .idea
