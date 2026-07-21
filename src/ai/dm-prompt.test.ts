@@ -22,6 +22,10 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("允许创造性方案");
     expect(prompt).toContain("失败应推动故事");
     expect(prompt).toContain("出口尚未揭示时，不得声称玩家已经通过");
+    expect(prompt).toContain("[当前场景是开放式障碍]");
+    expect(prompt).toContain("gmOperations 不能留空");
+    expect(prompt).toContain('"kind":"set_exit"');
+    expect(prompt).toContain('"kind":"apply_condition"');
     expect(prompt).toContain("echo_mark：回声印记");
     expect(prompt).toContain("set_exit");
     expect(prompt).toContain("EchoGate");

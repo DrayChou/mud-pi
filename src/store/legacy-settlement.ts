@@ -14,8 +14,6 @@ export interface LegacyProposalMetadata {
   sessionId?: string;
 }
 
-let nextLegacyProposal = 0;
-
 const migratedTableMutationKinds = new Set<AnyMutation["kind"]>([
   "engine/player_moved",
   "dm/item_added",
@@ -38,8 +36,7 @@ const migratedTableMutationKinds = new Set<AnyMutation["kind"]>([
 ]);
 
 export function nextLegacyProposalId(prefix = "legacy"): string {
-  nextLegacyProposal += 1;
-  return `${prefix}-${nextLegacyProposal}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 function same(a: unknown, b: unknown): boolean {

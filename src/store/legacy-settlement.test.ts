@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
 import { loadWorldPack } from "../engine/world-loader.ts";
-import { settleLegacyMutation } from "./legacy-settlement.ts";
+import { nextLegacyProposalId, settleLegacyMutation } from "./legacy-settlement.ts";
 
 function metadata(id: string) {
   return { proposalId: id, correlationId: "turn-1" };
 }
+
+test("runtime-generated proposal ids use UUIDs instead of restartable counters", () => {
+  const first = nextLegacyProposalId("turn");
+  const second = nextLegacyProposalId("turn");
+  expect(first).not.toBe(second);
+  expect(first).toMatch(/^turn-[0-9a-f-]{36}$/);
+  expect(second).toMatch(/^turn-[0-9a-f-]{36}$/);
+});
 
 test("legacy settlement commits a non-migrated mutation as exact events", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
