@@ -90,6 +90,18 @@ describe("authoritative entity reference resolution", () => {
     expect(completionCommandForIntent(status, statusParsed)).toBeUndefined();
   });
 
+  test("routes named destinations without guessed directions through semantic adjudication", async () => {
+    const state = await loadWorldPack("dnd", { fallbackPlayerName: "冒险者" });
+    const resolved = resolveActionIntent(
+      state,
+      actionIntentFromParsed(parsed("go", { destination: "小镇", intent: "返回小镇" }, "返回小镇")),
+    );
+
+    expect(resolved.destination?.text).toBe("小镇");
+    expect(resolved.direction).toBeUndefined();
+    expect(resolved.requiresSemanticAdjudication).toBe(true);
+  });
+
   test("routes story status through semantic adjudication without a target", async () => {
     const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
     const resolved = resolveActionIntent(

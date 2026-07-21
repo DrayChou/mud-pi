@@ -189,6 +189,7 @@ export function resolveActionIntent(state: WorldState, intent: ActionIntent): Re
     resolvedDestination,
     requiresSemanticAdjudication: intent.primaryKind === "interact"
       || intent.primaryKind === "story_status"
+      || (intent.primaryKind === "navigate" && Boolean(intent.destination) && !intent.direction)
       || intent.primaryKind === "unknown"
       || unresolved,
   };

@@ -79,6 +79,24 @@ describe("GameRuntime", () => {
     expect(capturedPrompt).toContain('"resolution":"missing"');
   });
 
+  test("does not replay a guessed direction after the Pi GM already moved toward the named destination", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    state.player.roomId = "HarborsideWharf";
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: await loadStoryOutcomes("cthulhu"),
+      interpreter: { parse: async () => ({ ...parsed("go", { direction: "north", intent: "回到大街" }), raw: "回到大街" }) },
+      dm: { ask: async () => `<NARRATION>你沿西侧栈道回到黑暗大街。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"move_player","toRoomId":"ArkhamStreet"}],"narrativeClaims":[{"kind":"player_location","roomId":"ArkhamStreet"}]}</WORLD_UPDATE>` },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processInput("回到大街");
+
+    expect(state.player.roomId).toBe("ArkhamStreet");
+    expect(result.outputs).toContainEqual({ kind: "room_changed", roomId: "ArkhamStreet" });
+  });
+
   test("falls back to authoritative local narration when the DM times out", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     const runtime = new GameRuntime({

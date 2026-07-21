@@ -492,7 +492,8 @@ export class GameRuntime {
     if (engineMuts.length === 0) {
       const refreshedIntent = resolveActionIntent(this.state, actionIntentFromParsed(parsed));
       const completionCommand = completionCommandForIntent(refreshedIntent, parsed);
-      if (completionCommand) {
+      const dmAlreadyMovedPlayer = dmPlanEvents.some((event) => event.kind === "player_moved");
+      if (completionCommand && !(completionCommand.verb === "go" && dmAlreadyMovedPlayer)) {
         const completion = executeCommand(this.state, completionCommand, this.conflictResolver);
         if (completion.directReply === undefined) {
           const completionSettlement = this.settleLegacyMutations(
@@ -668,7 +669,7 @@ export class GameRuntime {
     if (!stateBeforeTurn.outcome && this.state.outcome) {
       outputs.push({ kind: "story_outcome", outcome: structuredClone(this.state.outcome) });
     }
-    if (engineMuts.some((mutation) => mutation.kind === "engine/player_moved")) {
+    if (stateBeforeTurn.player.roomId !== this.state.player.roomId) {
       outputs.push({ kind: "room_changed", roomId: this.state.player.roomId });
     }
 
