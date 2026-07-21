@@ -9,6 +9,33 @@ function parsed(verb: string, args: Record<string, string> = {}): ParsedCommand 
 }
 
 describe("GameRuntime", () => {
+  test("processes the opening through GM settlement and bounded narration correction", async () => {
+    const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+    const prompts: string[] = [];
+    const replies = [
+      `<NARRATION>不存在的门已经打开。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"set_exit","roomId":"MissingRoom","direction":"north","toRoomId":"MissingRoom2"}]}</WORLD_UPDATE>`,
+      `<NARRATION>站厅的灯光轻轻闪烁，列车仍未进站。</NARRATION>`,
+    ];
+    const runtime = new GameRuntime({
+      state,
+      storyOutcomes: [],
+      interpreter: { parse: async () => { throw new Error("opening must not invoke the interpreter"); } },
+      dm: { ask: async (prompt) => { prompts.push(prompt); return replies.shift()!; } },
+      npcSessions: { respondToPlayerSay: async () => [] },
+      persist: false,
+    });
+
+    const result = await runtime.processOpening();
+
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("结算反馈");
+    expect(result.outputs).toContainEqual({
+      kind: "narration",
+      text: "站厅的灯光轻轻闪烁，列车仍未进站。",
+    });
+    expect(state.turn).toBe(1);
+  });
+
   test("returns direct replies without invoking the DM or advancing the turn", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     let dmCalls = 0;

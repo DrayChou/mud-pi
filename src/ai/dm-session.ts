@@ -118,8 +118,8 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
 
 你需要：
 1. 用第二人称写出沉浸式叙事（2-4句，不超过120字）
-2. 如有必要，通过 WORLD_UPDATE 扩展世界（新房间、新事实、可交互道具、更新剧情线）
-3. 叙事中新出现且玩家可以检查、拾取、装备或使用的具体道具，必须在同一轮写入 itemsAdded；否则引擎无法让玩家与它交互
+2. 如有必要，通过 WORLD_UPDATE 扩展世界；优先使用每轮 Prompt 提供的有界 gmOperations 执行权威桌面操作
+3. 叙事中新出现且玩家可以检查、拾取、装备或使用的具体道具，必须在同一轮通过 gmOperations 或兼容 itemsAdded 注册；否则引擎无法让玩家与它交互
 4. 玩家进入新地点时，可以按场景逻辑生成少量有意义的道具或陈设，但不要保证每个房间都有奖励，也不要无理由生成强力装备
 5. itemsAdded 使用 placement="room" 放在场景中；placement="inventory" 只能用于你根据任务完成、NPC 动机、信任或交换关系判定玩家确实应得的奖励，并且必须使用本轮 Prompt 列出的 rewardTemplateId
 6. NPC 当面赠予奖励时提供 grantedByNpcId；你只能创作奖励名称、描述和别名，不能修改模板固定的数值效果
@@ -137,6 +137,7 @@ ${loreContent ? `## 世界观\n\n${loreContent}\n\n` : ""}## 你的职责
 </NARRATION>
 <WORLD_UPDATE>
 {
+  "gmOperations": [],
   "worldFacts": [],
   "factsRemoved": [],
   "plotThreads": [],

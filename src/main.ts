@@ -8,12 +8,10 @@ import { createInterface as createPromptInterface } from "node:readline/promises
 import { loadConfig } from "./config.ts";
 import type { Config } from "./config.ts";
 import { listWorldPacks, loadStoryOutcomes, loadWorldPack, loadWorldPackSummary } from "./engine/world-loader.ts";
-import { loadState, loadTurns, saveState, initSave } from "./store/persist.ts";
+import { loadState, loadTurns, initSave } from "./store/persist.ts";
 import { validatePlayerName } from "./engine/player-name.ts";
 import { loadWorldConflictResolver } from "./engine/conflict-script.ts";
 import { effectivePlayerStats } from "./engine/parameters.ts";
-import { settleRuntimeMutation } from "./store/domain-settlement.ts";
-import { nextLegacyProposalId } from "./store/legacy-settlement.ts";
 import { GameRuntime } from "./runtime/game-runtime.ts";
 import type { GameOutput } from "./runtime/game-output.ts";
 import { runMudTui } from "./adapters/tui.ts";
@@ -21,8 +19,7 @@ import { startTelnetServer } from "./adapters/telnet.ts";
 import { Interpreter } from "./ai/interpreter.ts";
 import { DmSession } from "./ai/dm-session.ts";
 import { NpcSessionRegistry } from "./ai/npc-session-registry.ts";
-import { buildDmPrompt, buildDmRecoveryPrompt } from "./ai/dm-prompt.ts";
-import { parseDmResponse } from "./ai/dm-parser.ts";
+import { buildDmRecoveryPrompt } from "./ai/dm-prompt.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
 import { backendLabel } from "./ai/backend.ts";
 import type { ProtagonistProfile, WorldState } from "./types/world.ts";
@@ -378,31 +375,6 @@ async function main() {
   printRoom(state);
   print(`输入 help 查看指令，输入 status 查看属性`);
 
-  // Only a new game gets an opening turn. A resumed Pi session continues as-is.
-  if (isNewGame) {
-    print("\nDM 正在开场...\n");
-    const openingPrompt = buildDmPrompt(state, "开始游戏，玩家刚刚进入世界", [], undefined, [], storyOutcomes);
-    const openingRaw = await dm.ask(openingPrompt);
-    const opening = parseDmResponse(
-    openingRaw,
-    state.schema,
-    state.player.roomId,
-    storyOutcomes,
-    state.turn,
-    state.player.id
-  );
-    const openingCorrelationId = nextLegacyProposalId("opening");
-    for (const mutation of opening.mutations) {
-      settleRuntimeMutation(state, mutation, {
-        proposalId: nextLegacyProposalId("opening-dm"),
-        correlationId: openingCorrelationId,
-        sourceId: "dm",
-      }, storyOutcomes);
-    }
-    await saveState(state);
-    print(`\x1b[32m${opening.narration}\x1b[0m\n`);
-  }
-
   const conflictResolver = await loadWorldConflictResolver(state.worldPack, state.conflictScript);
   const runtime = new GameRuntime({
     state,
@@ -413,6 +385,14 @@ async function main() {
     dmModelLabel: backendLabel(config, "dm"),
     conflictResolver,
   });
+
+  // Only a new game gets an opening turn. It uses the same authoritative
+  // settlement, correction, Journal, Outbox and TurnRecord path as later turns.
+  if (isNewGame) {
+    print("\nDM 正在开场...\n");
+    const opening = await runtime.processOpening();
+    for (const output of opening.outputs) renderGameOutput(output, state);
+  }
 
   if (args.telnet) {
     const server = startTelnetServer({

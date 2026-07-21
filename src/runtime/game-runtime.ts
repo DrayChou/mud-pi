@@ -174,9 +174,23 @@ export class GameRuntime {
     }
   }
 
+  async processOpening(): Promise<GameTurnResult> {
+    await this.recoverNpcPerceptions();
+    return await this.processParsedInput("开始游戏，玩家刚刚进入世界", {
+      verb: "look",
+      args: {},
+      confidence: 1,
+      raw: "开始游戏，玩家刚刚进入世界",
+    });
+  }
+
   async processInput(input: string): Promise<GameTurnResult> {
     await this.recoverNpcPerceptions();
     const parsed = await this.interpreter.parse(input);
+    return await this.processParsedInput(input, parsed);
+  }
+
+  private async processParsedInput(input: string, parsed: ParsedCommand): Promise<GameTurnResult> {
     const correlationId = nextLegacyProposalId("turn");
     const result = executeCommand(this.state, parsed, this.conflictResolver);
 
