@@ -491,7 +491,7 @@ T41 + T42 + T43
   → T51 最终框架 Gate 与真实游玩验证
 ```
 
-T40 是当前唯一应立即启动的设计任务。Contract 草案位于 [`docs/settlement-contract.md`](settlement-contract.md)。T41/T42/T43 只有在 Contract 人工批准后才并行派发；T44 和涉及 `GameRuntime` 的修改由 Integration Agent 串行完成。
+T40–T50 已完成。T50 的最终候选为 `ee5c164df6beec941532f0ca7d61f827c88da580`，Primary QA、Cross QA 与 Final Gate 均为 `PASS`，P0/P1/P2/P3 为 `0`。当前只执行 T51：最终框架 Gate 与真实游玩验证。T51 完成后默认冻结通用 Engine；后续工作必须由世界包、Prompt、NPC persona 或真实 playthrough 中观察到的问题驱动。
 
 ---
 
