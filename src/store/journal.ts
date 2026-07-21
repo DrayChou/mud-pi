@@ -90,7 +90,8 @@ export async function readJournal(worldId: string): Promise<JournalTransaction[]
       record = JSON.parse(trimmed) as JournalTransaction;
     } catch {
       const hasLaterContent = lines.slice(index + 1).some((line) => line.trim().length > 0);
-      if (!hasLaterContent) break;
+      const isUnterminatedFinalLine = !hasLaterContent && !text.endsWith("\n");
+      if (isUnterminatedFinalLine) break;
       throw new Error(`Corrupt journal JSON at line ${index + 1}`);
     }
     const { checksum, ...unsigned } = record;

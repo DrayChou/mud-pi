@@ -87,6 +87,8 @@ describe("world event journal", () => {
     expect(await readJournal(state.worldId)).toHaveLength(1);
 
     const records = await readJournal(state.worldId);
+    await Bun.write(path, JSON.stringify(records[0]) + "\n" + "THIS IS NOT JSON\n");
+    expect(readJournal(state.worldId)).rejects.toThrow(/Corrupt journal JSON/);
     await Bun.write(path, JSON.stringify({ ...records[0], checksum: "bad" }) + "\n");
     expect(readJournal(state.worldId)).rejects.toThrow(/checksum mismatch/);
   });

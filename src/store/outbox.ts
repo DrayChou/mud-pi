@@ -78,7 +78,8 @@ async function completedEffectIds(worldId: string): Promise<Set<string>> {
 export async function pendingOutbox(worldId: string): Promise<PendingRecord[]> {
   const file = Bun.file(outboxPath(worldId));
   if (!(await file.exists())) return [];
-  const lines = (await file.text()).split("\n");
+  const text = await file.text();
+  const lines = text.split("\n");
   const pending = new Map<string, PendingRecord>();
   const completed = new Set<string>();
   for (let index = 0; index < lines.length; index++) {
@@ -93,7 +94,8 @@ export async function pendingOutbox(worldId: string): Promise<PendingRecord[]> {
       }
     } catch {
       const hasLaterContent = lines.slice(index + 1).some((line) => line.trim().length > 0);
-      if (!hasLaterContent) break;
+      const isUnterminatedFinalLine = !hasLaterContent && !text.endsWith("\n");
+      if (isUnterminatedFinalLine) break;
       throw new Error(`Corrupt outbox JSON at line ${index + 1}`);
     }
   }
