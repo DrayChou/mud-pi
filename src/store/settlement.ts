@@ -8,7 +8,7 @@ import type {
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
 import { EventInvariantError, evolve } from "./evolve.ts";
-import { appendJournalTransaction, journalEnabled } from "./journal.ts";
+import { appendJournalTransaction, journalEnabled, type JournalTransaction } from "./journal.ts";
 import { enqueueOutbox } from "./outbox.ts";
 
 export type Settlement<TResult = unknown> =
@@ -173,6 +173,10 @@ export function commitPreparedSettlement<TResult>(
         source: settlement.proposal.source,
         correlationId: settlement.proposal.correlationId,
         causationId: settlement.proposal.causationId,
+        proposalId: settlement.proposal.proposalId,
+        proposal: structuredClone(settlement.proposal),
+        result: structuredClone(settlement.result),
+        warnings: structuredClone(settlement.warnings),
         events: settlement.committedEvents.map((committed) => committed.event),
       });
       for (const pending of journalRecord.outbox ?? []) {
@@ -195,6 +199,34 @@ export function commitPreparedSettlement<TResult>(
   for (const key of Object.keys(liveState) as Array<keyof WorldState>) delete liveState[key];
   Object.assign(liveState, replacement);
   return settlement;
+}
+
+export function restoreJournalSettlements(state: WorldState, records: readonly JournalTransaction[]): void {
+  for (const record of records) {
+    const committedEvents = record.events.map((event, index): CommittedWorldEvent => ({
+      eventId: `${record.transactionId}:${index}`,
+      transactionId: record.transactionId,
+      index,
+      revision: record.revisionAfter,
+      turn: record.turn,
+      source: structuredClone(record.source),
+      correlationId: record.correlationId,
+      causationId: record.causationId,
+      event: structuredClone(event),
+    }));
+    rememberSettlement(state, record.proposalId, {
+      accepted: true,
+      transactionId: record.transactionId,
+      proposal: structuredClone(record.proposal),
+      result: structuredClone(record.result),
+      revisionBefore: record.revisionBefore,
+      revisionAfter: record.revisionAfter,
+      turn: record.turn,
+      committedEvents,
+      warnings: structuredClone(record.warnings),
+      nextState: structuredClone(state),
+    });
+  }
 }
 
 function rememberSettlement(state: WorldState, proposalId: string, settlement: Settlement<unknown>): void {

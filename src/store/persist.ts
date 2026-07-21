@@ -18,6 +18,7 @@ import type {
 import type { TurnRecord } from "../types/mutations.ts";
 import { checksumWorldState, enableJournal, initializeJournal, readJournal, replayJournal, type JournalTransaction } from "./journal.ts";
 import { drainPersistenceOutbox, initializeOutbox, recoverJournalOutbox } from "./outbox.ts";
+import { restoreJournalSettlements } from "./settlement.ts";
 
 interface SnapshotJournalAnchor {
   transactionId: string;
@@ -85,6 +86,7 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   if (!(await initial.exists())) await Bun.write(initialStateFile(worldId), JSON.stringify(state, null, 2));
   const replayed = replayJournal(state, journal);
   enableJournal(state);
+  restoreJournalSettlements(state, journal);
   await recoverJournalOutbox(worldId, journal);
   await drainPersistenceOutbox(worldId, state, {
     saveSnapshot: saveState,

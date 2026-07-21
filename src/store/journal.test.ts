@@ -24,17 +24,23 @@ async function durableState() {
 describe("world event journal", () => {
   test("replays committed transactions after an older snapshot", async () => {
     const state = await durableState();
-    const settlement = settleGmOperation(state, {
-      proposalId: "journal-fact", correlationId: "turn-1", source: { kind: "dm", id: "dm" },
+    const proposal = {
+      proposalId: "journal-fact", correlationId: "turn-1", source: { kind: "dm" as const, id: "dm" },
       expectedRevision: state.revision, observedTurn: state.turn,
-      payload: { kind: "record_fact", text: "The journal remembers." },
-    }, []);
+      payload: { kind: "record_fact" as const, text: "The journal remembers." },
+    };
+    const settlement = settleGmOperation(state, proposal, []);
     expect(settlement.accepted).toBe(true);
     expect(state.revision).toBe(1);
 
     const loaded = await loadState(state.worldId);
     expect(loaded?.revision).toBe(1);
     expect(loaded?.worldFacts.some((fact) => fact.text === "The journal remembers.")).toBe(true);
+    expect(await readJournal(state.worldId)).toHaveLength(1);
+
+    const retry = settleGmOperation(loaded!, proposal, []);
+    expect(retry.accepted).toBe(true);
+    expect(retry.transactionId).toBe(settlement.transactionId);
     expect(await readJournal(state.worldId)).toHaveLength(1);
   });
 

@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { ProposalSource } from "../types/proposals.ts";
+import type { ProposalEnvelope, ProposalSource, SettlementWarning } from "../types/proposals.ts";
 import type { WorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
 import { evolve } from "./evolve.ts";
@@ -16,6 +16,10 @@ export interface JournalTransaction {
   source: ProposalSource;
   correlationId: string;
   causationId?: string;
+  proposalId: string;
+  proposal: ProposalEnvelope<unknown>;
+  result: unknown;
+  warnings: SettlementWarning[];
   events: WorldEvent[];
   outbox?: Array<{ effectId: string; effect: OutboxEffect }>;
   stateChecksum: string;
@@ -111,6 +115,9 @@ export async function readJournal(worldId: string): Promise<JournalTransaction[]
     if (
       record.schemaVersion !== 1
       || !record.transactionId?.trim()
+      || !record.proposalId?.trim()
+      || record.proposal?.proposalId !== record.proposalId
+      || !Array.isArray(record.warnings)
       || !Number.isInteger(record.revisionBefore)
       || record.revisionBefore < 0
       || record.revisionAfter !== record.revisionBefore + 1
