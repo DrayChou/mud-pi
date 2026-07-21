@@ -263,6 +263,8 @@ git diff --check
 - [Pi 与 Engine 的职责边界](docs/pi-role-boundary.md)
 - [权威结算契约](docs/settlement-contract.md)
 - [开发状态与路线图](docs/development-plan.md)
+- [世界包开发指南](docs/world-pack-guide.md)
+- [发布检查清单](docs/release-checklist.md)
 - [参考完整游玩记录](docs/playtests/station-dream-reference-playthrough.md)
 
 ## 项目状态
@@ -272,6 +274,8 @@ git diff --check
 ## 安全
 
 漏洞报告、存档与日志敏感信息、Web 部署和世界脚本信任边界见 [SECURITY.md](SECURITY.md)。
+
+贡献代码或世界包前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

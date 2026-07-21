@@ -26,6 +26,7 @@
 | 文档 | 内容 |
 |---|---|
 | [`development-plan.md`](development-plan.md) | 已完成能力、当前限制和后续优先级 |
+| [`release-checklist.md`](release-checklist.md) | 版本、仓库卫生、干净 clone、手动体验和 Tag 发布清单 |
 | [`playtests/station-dream-reference-playthrough.md`](playtests/station-dream-reference-playthrough.md) | 一条可恢复、可重放的参考完整游玩记录 |
 
 项目统一质量门：
