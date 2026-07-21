@@ -49,7 +49,7 @@ export class Interpreter {
 
   async parse(input: string): Promise<ParsedCommand> {
     if (!this.config) throw new Error("Interpreter not initialized — call init() first");
-    // Fast path: single-word exact matches
+    // Fast path: exact commands and common compound physical actions.
     const fast = fastParse(input.trim().toLowerCase());
     if (fast) return { ...fast, raw: input };
 
@@ -95,7 +95,22 @@ function fastParse(
   const dir = DIRECTION_MAP[input];
   if (dir) return { verb: "go", args: { direction: dir }, confidence: 1 };
 
+  const pickupItem = extractPickupItem(input);
+  if (pickupItem) return { verb: "get", args: { item: pickupItem }, confidence: 0.96 };
+
   return null;
+}
+
+function extractPickupItem(input: string): string | null {
+  if (!/(捡起|拾取|拿起|拿起来|放进(?:我的)?背包|收到(?:我的)?背包)/.test(input)) return null;
+  const beforeAction = input.split(/拿起来|拿起|捡起|拾取|放进(?:我的)?背包|收到(?:我的)?背包/, 1)[0]
+    ?.replace(/^.*?(?:地上(?:的)?|桌上(?:的)?|旁边(?:的)?)\s*/, "")
+    .replace(/(?:上面|里面)(?:写着|是什么|有什么)?[\s\S]*$/, "")
+    .replace(/[，,。！？!?：:]\s*$/, "")
+    .trim();
+  if (beforeAction && beforeAction.length <= 40) return beforeAction;
+  const afterAction = input.match(/(?:捡起|拾取|拿起(?:来)?)\s*([^，,。！？!?]{1,40})/)?.[1]?.trim();
+  return afterAction || null;
 }
 
 // ── LLM call through configured backend ───────────────────────────────────

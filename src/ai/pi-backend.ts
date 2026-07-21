@@ -85,7 +85,7 @@ class PiAiSession implements AiSession {
     });
 
     try {
-      await this.session.prompt(prompt);
+      await promptWithTimeout(this.session, prompt, aiRequestTimeoutMs());
     } finally {
       unsub();
     }
@@ -95,6 +95,32 @@ class PiAiSession implements AiSession {
   dispose(): void {
     this.session.dispose();
   }
+}
+
+export async function promptWithTimeout(
+  session: Pick<AgentSession, "prompt" | "abort">,
+  prompt: string,
+  timeoutMs: number,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    await Promise.race([session.prompt(prompt), timeout]);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("AI request timed out")) {
+      await session.abort().catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function aiRequestTimeoutMs(): number {
+  const configured = Number(Bun.env.AI_REQUEST_TIMEOUT_MS ?? 90_000);
+  return Number.isFinite(configured) && configured >= 5_000 ? configured : 90_000;
 }
 
 export function sessionManagerFor(options: AiSessionOptions): SessionManager {

@@ -305,6 +305,7 @@ export function buildDmPrompt(
 6. **具体物品必须实体化**：若某个新对象之后可以被检查、拾取、装备、消耗或作为奖励，必须在同一轮注册；纯背景陈设无需全部实体化。
 7. **不要替独立 NPC 决策**：上方“独立 NPC 的已确定行动”来自它自己的持久 Session。你可以连接叙事，但不能重写它的意图或私有记忆。
 8. **候选叙述必须可修正**：WORLD_UPDATE 只是 Proposal。若某项操作可能被 Engine 拒绝，叙述应避免把未经确认的机械结果写成不可撤销事实。
+9. **携带变化必须落桌**：如果玩家明确拿走当前房间已有的可携带物品，而本轮已结算事件中没有拾取事件，可用 transfer_card 将该 itemId 转入玩家 inventory。叙述声称“收进背包、夹进报纸、带在身上”时，必须已有拾取事件或在同一响应提交 transfer_card；否则只能描述检查，不能声称已经携带。
 
 裁定示例：
 - 玩家根据两条已知线索准确指出机关规律：可以直接成功，不必掷骰。
@@ -337,9 +338,10 @@ ${Object.values(state.conditionDefinitions).map((condition) => `- ${condition.id
 - 揭示或修改出口：{"kind":"set_exit","roomId":"当前房间ID","direction":"north","toRoomId":"已存在房间ID"}
 - 施加状态：{"kind":"apply_condition","conditionId":"允许的ID","targetEntityId":"${state.player.id}","durationTurns":3}
 - 移除状态：{"kind":"remove_condition","conditionId":"允许的ID","targetEntityId":"${state.player.id}","reason":"原因"}
+- 将当前房间已有物品放入玩家背包：{"kind":"transfer_card","itemId":"地面物品括号中的精确ID","to":{"kind":"inventory","ownerId":"${state.player.id}"}}
 - 调整参数：{"kind":"adjust_parameter","entityId":"${state.player.id}","parameterId":"参数ID","delta":-1,"cause":"明确原因"}
 - 完成语义目标：{"kind":"complete_objective","objectiveId":"仅限 gmCompletionAllowed 的目标ID","reason":"成立原因"}
-如果叙述声称出口出现、跨回合状态生效、参数改变或目标完成，对应 gmOperations 不得为空。不要把这些变化只写进 NARRATION。
+如果叙述声称出口出现、物品已进入或离开背包、跨回合状态生效、参数改变或目标完成，对应的已结算事件或 gmOperations 不得缺失。不要把这些变化只写进 NARRATION。
 
 严格按以下格式返回：
 

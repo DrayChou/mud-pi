@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { sessionManagerFor } from "./pi-backend.ts";
+import { promptWithTimeout, sessionManagerFor } from "./pi-backend.ts";
 
 const dirs: string[] = [];
 
@@ -13,6 +13,16 @@ function tempSessionDir(): string {
 
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+test("Pi request timeout aborts provider retries instead of waiting indefinitely", async () => {
+  let aborted = false;
+  const session = {
+    prompt: async () => await new Promise<void>(() => {}),
+    abort: async () => { aborted = true; },
+  };
+  await expect(promptWithTimeout(session as never, "prompt", 5)).rejects.toThrow("timed out after 5ms");
+  expect(aborted).toBe(true);
 });
 
 describe("Pi session persistence", () => {

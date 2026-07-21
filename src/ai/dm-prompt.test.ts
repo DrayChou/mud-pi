@@ -31,6 +31,8 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("EchoGate");
     expect(prompt).toContain("列车已经载其归去");
     expect(prompt).toContain("就必须在同一响应设置对应 outcomeReached");
+    expect(prompt).toContain('"kind":"transfer_card"');
+    expect(prompt).toContain("物品已进入或离开背包");
     expect(prompt).toContain('"gmOperations": []');
   });
 });

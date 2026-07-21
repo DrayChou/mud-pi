@@ -30,6 +30,8 @@ describe("MudTuiComponent", () => {
     expect(wide.some((line) => line.includes("房间 / 地图"))).toBe(true);
     expect(wide.some((line) => line.includes("这是经过权威结算的开场"))).toBe(true);
     expect(narrow.some((line) => line.includes("状态"))).toBe(true);
+    expect(narrow.some((line) => line.includes("背包") && line.includes("旧车票"))).toBe(true);
+    expect(narrow.some((line) => line.includes("目标") && line.includes("询问归途"))).toBe(true);
     expect(wide.every((line) => visibleWidth(line) <= 120)).toBe(true);
     expect(narrow.every((line) => visibleWidth(line) <= 72)).toBe(true);
   });

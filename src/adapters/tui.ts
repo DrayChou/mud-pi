@@ -184,9 +184,38 @@ export class MudTuiComponent implements Component, Focusable {
   }
 
   private renderNarrow(state: WorldState, width: number): string[] {
-    const narrative = panel("叙事", this.narrativeLines(width - 2, 13), width, 15);
-    const status = panel("状态", [...this.leftLines(state), "", ...this.rightLines(state)], width, 12);
+    const statusContent = this.compactStatusLines(state, width - 2);
+    const status = panel("状态", statusContent, width, statusContent.length + 2);
+    const narrativeHeight = Math.max(9, 27 - status.length);
+    const narrative = panel("叙事", this.narrativeLines(width - 2, narrativeHeight - 2), width, narrativeHeight);
     return [this.header(state, width), ...narrative, ...status, ...this.inputLines(width)];
+  }
+
+  private compactStatusLines(state: WorldState, width: number): string[] {
+    const effectiveStats = effectivePlayerStats(state);
+    const stats = state.schema.defs
+      .filter((def) => def.display !== "hidden")
+      .map((def) => {
+        const current = effectiveStats[def.key] ?? def.default;
+        const max = state.player.maxStats[`${def.key}Max`] ?? def.max;
+        return `${def.label} ${def.display === "bar" ? `${current}/${max}` : current}`;
+      });
+    const objectives = Object.values(state.objectives)
+      .filter((objective) => !objective.hidden || objective.status === "completed")
+      .map((objective) => `${objective.status === "completed" ? "✓" : "○"}${objective.title}`);
+    const inventory = state.player.inventory.map((id) => {
+      const item = state.items[id];
+      const equipped = Object.values(state.player.equipment).includes(id);
+      return `${equipped ? "◆" : ""}${item?.name ?? id}`;
+    });
+    const room = state.rooms[state.player.roomId];
+    const groups = [
+      `${stats.join(" │ ")} │ 阶段 ${state.player.lifecycle}`,
+      `目标 ${objectives.join(" │ ") || "无"}`,
+      `背包 ${inventory.join(" │ ") || "空"}`,
+      `位置 ${room?.title ?? state.player.roomId} │ 出口 ${room ? Object.keys(room.exits).join(" ") || "无" : "无"}`,
+    ];
+    return groups.flatMap((line) => wrapTextWithAnsi(line, Math.max(1, width)));
   }
 
   private header(state: WorldState, width: number): string {

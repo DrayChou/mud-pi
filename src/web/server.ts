@@ -2,12 +2,11 @@ import index from "./index.html";
 import { WebGameManager } from "./game-manager.ts";
 
 const manager = new WebGameManager();
-const port = Number(Bun.env.WEB_PORT ?? 3000);
+const preferredPort = Number(Bun.env.WEB_PORT ?? 3000);
 const hostname = Bun.env.WEB_HOST ?? "0.0.0.0";
 
-const server = Bun.serve({
+const serveOptions = {
   hostname,
-  port,
   routes: {
     "/": index,
     "/api/worlds": {
@@ -25,21 +24,45 @@ const server = Bun.serve({
       }),
     },
     "/api/games/:worldId": {
-      GET: (request) => route(() => manager.resume(request.params.worldId, bearer(request))),
+      GET: (request) => route(() => manager.resume(request.params.worldId!, bearer(request))),
     },
     "/api/games/:worldId/input": {
       POST: (request) => route(async () => {
         const body = await request.json() as Record<string, unknown>;
         const input = String(body.input ?? "").trim();
         if (!input || input.length > 2000) throw new Error("请输入 1–2000 字的行动");
-        return await manager.input(request.params.worldId, bearer(request), input);
+        return await manager.input(request.params.worldId!, bearer(request), input);
       }),
     },
   },
   development: Bun.env.NODE_ENV !== "production" ? { hmr: true, console: true } : false,
-});
+} satisfies Omit<Parameters<typeof Bun.serve>[0], "port">;
 
+const server = startOnAvailablePort(preferredPort);
 console.log(`mud-pi Web：http://${hostname === "0.0.0.0" ? "localhost" : hostname}:${server.port}`);
+if (server.port !== preferredPort) console.log(`[web] 端口 ${preferredPort} 已占用，已自动使用 ${server.port}`);
+
+function startOnAvailablePort(preferred: number) {
+  const first = Number.isInteger(preferred) && preferred > 0 && preferred <= 65535 ? preferred : 3000;
+  let lastError: unknown;
+  for (let port = first; port <= Math.min(65535, first + 20); port++) {
+    try {
+      return Bun.serve({ ...serveOptions, port });
+    } catch (error) {
+      lastError = error;
+      if (!isAddressInUse(error)) throw error;
+    }
+  }
+  try {
+    return Bun.serve({ ...serveOptions, port: 0 });
+  } catch (error) {
+    throw lastError ?? error;
+  }
+}
+
+function isAddressInUse(error: unknown): boolean {
+  return error instanceof Error && (error.message.includes("EADDRINUSE") || error.message.includes("Failed to start server"));
+}
 
 async function route<T>(handler: () => Promise<T>): Promise<Response> {
   try {
