@@ -84,9 +84,12 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
 
   await normalizeLoadedState(state);
   if (!(await initial.exists())) await Bun.write(initialStateFile(worldId), JSON.stringify(state, null, 2));
+  const idempotencyBaseline = journal.length > 0
+    ? await loadInitialBaseline(worldId)
+    : structuredClone(state);
   const replayed = replayJournal(state, journal);
   enableJournal(state);
-  restoreJournalSettlements(state, journal);
+  restoreJournalSettlements(state, journal, idempotencyBaseline);
   await recoverJournalOutbox(worldId, journal);
   await drainPersistenceOutbox(worldId, state, {
     saveSnapshot: saveState,
@@ -94,6 +97,16 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   });
   if (replayed > 0) await saveState(state);
   return state;
+}
+
+async function loadInitialBaseline(worldId: string): Promise<WorldState> {
+  try {
+    const baseline = await Bun.file(initialStateFile(worldId)).json() as WorldState;
+    await normalizeLoadedState(baseline);
+    return baseline;
+  } catch {
+    throw new Error(`Initial recovery state is corrupt for ${worldId}`);
+  }
 }
 
 async function normalizeLoadedState(state: WorldState): Promise<void> {

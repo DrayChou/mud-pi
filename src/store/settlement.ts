@@ -201,8 +201,18 @@ export function commitPreparedSettlement<TResult>(
   return settlement;
 }
 
-export function restoreJournalSettlements(state: WorldState, records: readonly JournalTransaction[]): void {
+export function restoreJournalSettlements(
+  state: WorldState,
+  records: readonly JournalTransaction[],
+  baselineState: WorldState,
+): void {
+  const historicalState = structuredClone(baselineState);
   for (const record of records) {
+    if (historicalState.revision !== record.revisionBefore) {
+      throw new Error(`Cannot restore settlement ${record.transactionId} from revision ${historicalState.revision}`);
+    }
+    for (const event of record.events) evolve(historicalState, event);
+    historicalState.revision = record.revisionAfter;
     const committedEvents = record.events.map((event, index): CommittedWorldEvent => ({
       eventId: `${record.transactionId}:${index}`,
       transactionId: record.transactionId,
@@ -224,7 +234,7 @@ export function restoreJournalSettlements(state: WorldState, records: readonly J
       turn: record.turn,
       committedEvents,
       warnings: structuredClone(record.warnings),
-      nextState: structuredClone(state),
+      nextState: structuredClone(historicalState),
     });
   }
 }

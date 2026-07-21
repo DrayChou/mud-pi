@@ -44,6 +44,29 @@ describe("world event journal", () => {
     expect(await readJournal(state.worldId)).toHaveLength(1);
   });
 
+  test("restores the original historical nextState for durable proposal retries", async () => {
+    const state = await durableState();
+    const firstProposal = {
+      proposalId: "historical-first", correlationId: "turn-1", source: { kind: "dm" as const, id: "dm" },
+      expectedRevision: 0, observedTurn: state.turn,
+      payload: { kind: "record_fact" as const, text: "First fact." },
+    };
+    settleGmOperation(state, firstProposal, []);
+    settleGmOperation(state, {
+      proposalId: "historical-second", correlationId: "turn-1", source: { kind: "dm", id: "dm" },
+      expectedRevision: 1, observedTurn: state.turn,
+      payload: { kind: "record_fact", text: "Second fact." },
+    }, []);
+
+    const loaded = await loadState(state.worldId);
+    const retry = settleGmOperation(loaded!, firstProposal, []);
+    expect(retry.accepted).toBe(true);
+    if (!retry.accepted) return;
+    expect(retry.nextState.revision).toBe(1);
+    expect(retry.nextState.worldFacts.map((fact) => fact.text)).toEqual(["First fact."]);
+    expect(loaded?.revision).toBe(2);
+  });
+
   test("recovers from a corrupt snapshot using initial state and journal", async () => {
     const state = await durableState();
     settleGmOperation(state, {
