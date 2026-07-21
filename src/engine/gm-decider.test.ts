@@ -53,6 +53,14 @@ test("GM card operations are explicit and player-style inventory actions remain 
   const consumed = settle(state, envelope(state, { kind: "consume_card", itemId }, "gm-consume"), decideGmProposal, { storyOutcomes: [] });
   expect(consumed.accepted).toBe(true);
   expect(state.items[itemId]?.location).toEqual({ kind: "destroyed" });
+
+  const nonConsumable = Object.values(state.items).find((item) => item.location.kind !== "destroyed" && item.consumable !== true);
+  if (nonConsumable) {
+    const invalidTransfer = envelope(state, { kind: "transfer_card", itemId: nonConsumable.id, to: { kind: "room", roomId: state.player.roomId } }, "invalid-transfer");
+    (invalidTransfer.payload as unknown as { to: { kind: string } }).to = { kind: "destroyed" };
+    expect(settle(state, invalidTransfer, decideGmProposal, { storyOutcomes: [] }).accepted).toBe(false);
+    expect(state.items[nonConsumable.id]?.location.kind).not.toBe("destroyed");
+  }
 });
 
 test("GM protocol only completes allowed objectives and outcomes", async () => {

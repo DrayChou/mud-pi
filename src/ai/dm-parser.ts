@@ -119,7 +119,12 @@ function isValidRawGmOperation(value: unknown): value is GmTableProposal {
     case "set_exit": return string("roomId") && string("direction") && string("toRoomId");
     case "adjust_parameter": return string("entityId") && string("parameterId") && string("cause") && typeof operation.delta === "number" && Number.isFinite(operation.delta);
     case "move_npc": return string("npcId") && string("toRoomId");
-    case "transfer_card": return string("itemId") && Boolean(operation.to && typeof operation.to === "object");
+    case "transfer_card": {
+      if (!string("itemId") || !operation.to || typeof operation.to !== "object") return false;
+      const to = operation.to as Record<string, unknown>;
+      return (to.kind === "room" && typeof to.roomId === "string" && to.roomId.trim().length > 0)
+        || (to.kind === "inventory" && typeof to.ownerId === "string" && to.ownerId.trim().length > 0);
+    }
     case "consume_card": return string("itemId");
     case "emit_signal": return string("signalId") && string("roomId") && string("message") && (operation.targetId === undefined || string("targetId"));
     case "complete_objective": return string("objectiveId");

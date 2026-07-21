@@ -103,8 +103,9 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
       if (!item) return reject("entity_not_found", `Card not found: ${proposal.itemId}`);
       if (item.location.kind === "destroyed") return reject("precondition_failed", `Card has been consumed: ${proposal.itemId}`);
       if (item.portable === false || item.kind === "scenery") return reject("permission_denied", `Scenery cannot be transferred as a card: ${proposal.itemId}`);
-      if (proposal.to.kind === "room" && !state.rooms[proposal.to.roomId]) return reject("invalid_location", `Card destination room not found: ${proposal.to.roomId}`);
-      if (proposal.to.kind === "inventory" && proposal.to.ownerId !== state.player.id) return reject("invalid_location", `Unsupported card owner: ${proposal.to.ownerId}`);
+      if (proposal.to.kind !== "room" && proposal.to.kind !== "inventory") return reject("invalid_location", `Unsupported card destination: ${proposal.itemId}`);
+      if (proposal.to.kind === "room" && (!proposal.to.roomId || !state.rooms[proposal.to.roomId])) return reject("invalid_location", `Card destination room not found: ${proposal.to.roomId}`);
+      if (proposal.to.kind === "inventory" && (!proposal.to.ownerId || proposal.to.ownerId !== state.player.id)) return reject("invalid_location", `Unsupported card owner: ${proposal.to.ownerId}`);
       if (JSON.stringify(item.location) === JSON.stringify(proposal.to)) return reject("already_applied", `Card is already at the requested location: ${proposal.itemId}`);
       return { accepted: true, result: proposal, events: [{ kind: "item_transferred", itemId: item.id, from: structuredClone(item.location), to: structuredClone(proposal.to) }], warnings: [] };
     }
