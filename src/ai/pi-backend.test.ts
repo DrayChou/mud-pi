@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { aiRequestTimeoutMs, promptWithTimeout, recordPiSessionEvent, retrySettingsForRole, sessionManagerFor } from "./pi-backend.ts";
+import { aiRequestTimeoutMs, assertPiResponse, promptWithTimeout, recordPiSessionEvent, retrySettingsForRole, sessionManagerFor } from "./pi-backend.ts";
 import { runWithDiagnosticContext } from "../diagnostics/logger.ts";
 
 const dirs: string[] = [];
@@ -14,6 +14,12 @@ function tempSessionDir(): string {
 
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+test("surfaces provider error messages even when Pi resolves the prompt promise", () => {
+  expect(() => assertPiResponse("", "error", "Request timed out.")).toThrow("Pi provider error: Request timed out.");
+  expect(() => assertPiResponse("", "stop", undefined)).toThrow("empty response");
+  expect(assertPiResponse(" ok ", "stop", undefined)).toBe("ok");
 });
 
 test("uses a short interpreter deadline and bounded narrative deadlines", () => {
@@ -31,8 +37,8 @@ test("bounds Pi SDK retry layers inside the application deadline", () => {
     provider: { timeoutMs: 10_000, maxRetries: 0, maxRetryDelayMs: 5_000 },
   });
   expect(retrySettingsForRole("dm", 30_000)).toMatchObject({
-    maxRetries: 1,
-    provider: { timeoutMs: 14_000, maxRetries: 0 },
+    maxRetries: 0,
+    provider: { timeoutMs: 20_000, maxRetries: 0 },
   });
 });
 

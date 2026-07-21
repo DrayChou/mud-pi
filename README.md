@@ -132,18 +132,18 @@ Web 入口为每个匿名访客创建独立存档、DM/NPC Session 和访问 tok
 | `DM_BACKEND` | 可选：DM 单独使用的 backend | 继承 `AI_BACKEND` |
 | `INTERPRETER_BACKEND` | 可选：指令解析单独使用的 backend | 继承 `AI_BACKEND` |
 | `CHARACTER_BACKEND` | 可选：角色生成单独使用的 backend | 继承 `AI_BACKEND` |
-| `DM_PROVIDER` | Pi backend 下 DM 大模型 provider | `openai-proxy` |
-| `DM_MODEL` | Pi backend 下 DM 大模型名称 | `claude-sonnet-4.6` |
-| `INTERPRETER_PROVIDER` | Pi backend 下指令解析小模型 provider | `openai-proxy` |
-| `INTERPRETER_MODEL` | Pi backend 下指令解析小模型名称 | `gpt-5.4-mini` |
+| `DM_PROVIDER` | Pi backend 下 DM 大模型 provider | `ac` |
+| `DM_MODEL` | Pi backend 下 DM 大模型名称；优先低延迟 | `gemini-3.5-flash` |
+| `INTERPRETER_PROVIDER` | Pi backend 下指令解析小模型 provider | `ac` |
+| `INTERPRETER_MODEL` | Pi backend 下指令解析小模型名称 | `gemini-3.1-flash-lite` |
 | `CODEX_MODEL` | Codex backend 默认模型；留空使用 Codex 自己的默认模型 | — |
 | `CODEX_DM_MODEL` | 可选：Codex backend 下 DM 模型 | 继承 `CODEX_MODEL` |
 | `CODEX_INTERPRETER_MODEL` | 可选：Codex backend 下指令解析模型 | 继承 `CODEX_MODEL` |
 | `CODEX_CHARACTER_MODEL` | 可选：Codex backend 下角色生成模型 | 继承 `CODEX_MODEL` |
 | `DM_THINKING` | DM 思考深度：off/minimal/low/medium/high | `low` |
 | `AI_INTERPRETER_TIMEOUT_MS` | 指令解析超时；失败后快速回退 | `15000` |
-| `AI_DM_TIMEOUT_MS` | DM 单次请求总超时；内部最多一次有界重试 | `30000` |
-| `AI_NPC_TIMEOUT_MS` | NPC 单次请求总超时；内部最多一次有界重试 | `30000` |
+| `AI_DM_TIMEOUT_MS` | DM 单次请求总超时；默认不隐藏重试 | `30000` |
+| `AI_NPC_TIMEOUT_MS` | NPC 单次请求总超时；默认不隐藏重试 | `30000` |
 | `AI_CHARACTER_TIMEOUT_MS` | 角色生成总超时 | `45000` |
 | `AI_REQUEST_TIMEOUT_MS` | 可选：所有角色的共享超时后备值 | — |
 | `WORLD_PACK` | 默认世界包；非交互启动或直接回车时使用 | `station-dream` |

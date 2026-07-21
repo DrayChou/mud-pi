@@ -65,12 +65,12 @@ export function loadConfig(): Config {
     ),
     characterBackend: backend("CHARACTER_BACKEND", optional("CHARACTER_BACKEND", defaultBackend)),
 
-    dmProvider: optional("DM_PROVIDER", "openai-proxy"),
-    dmModel: optional("DM_MODEL", "claude-sonnet-4.6"),
+    dmProvider: optional("DM_PROVIDER", "ac"),
+    dmModel: optional("DM_MODEL", "gemini-3.5-flash"),
     dmThinking: thinking as Config["dmThinking"],
 
-    interpreterProvider: optional("INTERPRETER_PROVIDER", "openai-proxy"),
-    interpreterModel: optional("INTERPRETER_MODEL", "gpt-5.4-mini"),
+    interpreterProvider: optional("INTERPRETER_PROVIDER", "ac"),
+    interpreterModel: optional("INTERPRETER_MODEL", "gemini-3.1-flash-lite"),
 
     codexDmModel: optionalMaybe("CODEX_DM_MODEL", optionalMaybe("CODEX_MODEL")),
     codexInterpreterModel: optionalMaybe(

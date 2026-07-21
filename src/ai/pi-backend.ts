@@ -103,6 +103,8 @@ class PiAiSession implements AiSession {
     const startedAt = performance.now();
     let firstEventRecorded = false;
     let firstTextRecorded = false;
+    let assistantStopReason: unknown;
+    let assistantErrorMessage: unknown;
     if (context?.aiCallId) {
       appendAiLog(context.worldId, {
         kind: "pi_request_policy",
@@ -139,6 +141,10 @@ class PiAiSession implements AiSession {
           });
         }
       }
+      if (event.type === "message_end" && event.message.role === "assistant") {
+        assistantStopReason = event.message.stopReason;
+        assistantErrorMessage = event.message.errorMessage;
+      }
       recordPiSessionEvent(event, Math.round(performance.now() - startedAt));
     });
 
@@ -147,12 +153,13 @@ class PiAiSession implements AiSession {
     } finally {
       unsub();
     }
+    const trimmed = assertPiResponse(response, assistantStopReason, assistantErrorMessage);
     if (context?.aiCallId) appendAiLog(context.worldId, {
       kind: "pi_prompt_completed",
       elapsedMs: Math.round(performance.now() - startedAt),
       responseChars: response.length,
     });
-    return response.trim();
+    return trimmed;
   }
 
   dispose(): void {
@@ -181,13 +188,23 @@ export async function promptWithTimeout(
   }
 }
 
+export function assertPiResponse(response: string, stopReason: unknown, errorMessage: unknown): string {
+  const trimmed = response.trim();
+  if (stopReason === "error" || !trimmed) {
+    throw new Error(typeof errorMessage === "string" && errorMessage
+      ? `Pi provider error: ${errorMessage}`
+      : `Pi provider returned ${stopReason === "error" ? "an error" : "an empty response"}`);
+  }
+  return trimmed;
+}
+
 export function retrySettingsForRole(role: AiSessionOptions["role"], timeoutMs: number) {
   const providerTimeoutMs = role === "interpreter"
     ? Math.max(5_000, timeoutMs - 5_000)
-    : Math.max(5_000, Math.min(20_000, Math.floor((timeoutMs - 2_000) / 2)));
+    : Math.max(5_000, Math.min(20_000, timeoutMs - 5_000));
   return {
     enabled: true,
-    maxRetries: role === "interpreter" ? 0 : 1,
+    maxRetries: role === "character" ? 1 : 0,
     baseDelayMs: 1_000,
     provider: {
       timeoutMs: providerTimeoutMs,
