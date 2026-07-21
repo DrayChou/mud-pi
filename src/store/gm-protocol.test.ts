@@ -43,4 +43,14 @@ test("Pi GM batch requires the DM source for privileged operations", async () =>
   expect(result.accepted).toBe(true);
   expect(result.settlements[0]?.accepted).toBe(false);
   expect(state.revision).toBe(0);
+
+  const scriptBatch: ProposalBatchEnvelope<GmTableProposal> = {
+    ...batch,
+    batchId: "script-response",
+    source: { kind: "world_script", id: "direct-script" },
+    proposals: [{ proposalId: "script-card", payload: { kind: "create_item", item: { id: "script-card", name: "Script Card", desc: "Denied", location: { kind: "room", roomId: state.player.roomId } } } }],
+  };
+  const scriptResult = settleGmBatch(state, scriptBatch, []);
+  expect(scriptResult.settlements[0]?.accepted).toBe(false);
+  expect(state.items["script-card"]).toBeUndefined();
 });

@@ -5,6 +5,17 @@ import { applyMutations } from "../store/apply.ts";
 import { executeCommand } from "../engine/commands.ts";
 import type { ParsedCommand } from "./interpreter.ts";
 
+test("parses the bounded GM operation batch from a Pi response", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  const response = parseDmResponse(
+    `<NARRATION>远处传来两声钟响。</NARRATION><WORLD_UPDATE>{"gmOperations":[{"kind":"record_fact","text":"The bell rang twice."},{"kind":"emit_signal","signalId":"bell","roomId":"${state.player.roomId}","message":"Two bells ring."},{"kind":"invented_operation"}]}</WORLD_UPDATE>`,
+    state.schema,
+    state.player.roomId,
+  );
+
+  expect(response.gmOperations.map((operation) => operation.kind)).toEqual(["record_fact", "emit_signal"]);
+});
+
 describe("DM-created interactive items", () => {
   test("registers a narrated item in the current room", async () => {
     const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });

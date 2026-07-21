@@ -32,7 +32,6 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
   if (
     envelope.source.kind !== "dm"
     && envelope.source.kind !== "engine"
-    && envelope.source.kind !== "world_script"
     && !(envelope.source.kind === "npc" && proposal.kind === "move_npc" && envelope.source.id === proposal.npcId)
   ) {
     return reject("permission_denied", `${envelope.source.kind} cannot use the GM table protocol.`);
@@ -125,7 +124,6 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
     }
 
     case "complete_objective": {
-      if (envelope.source.kind === "world_script") return reject("permission_denied", "World scripts cannot complete objectives directly.");
       const objective = state.objectives[proposal.objectiveId];
       if (!objective) return reject("entity_not_found", `Objective not found: ${proposal.objectiveId}`);
       if (objective.status === "completed") return reject("already_applied", `Objective already completed: ${proposal.objectiveId}`);

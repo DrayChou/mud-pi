@@ -15,6 +15,19 @@ const itemKinds = new Set<ItemProposal["kind"]>([
 ]);
 
 export const decideGmTableProposal: Decider<GmTableProposal, GmTableProposal> = (state, envelope, context) => {
+  if (envelope.source.kind === "world_script") {
+    return {
+      accepted: false,
+      rejection: {
+        code: "permission_denied",
+        safeMessage: "That world rule cannot directly operate the GM table.",
+        diagnostic: "World scripts must use an explicitly authorized engine host operation.",
+        retryable: false,
+      },
+      events: [],
+      warnings: [],
+    };
+  }
   if (envelope.payload.kind === "move_player") {
     return decideMovement(state, envelope as ProposalEnvelope<MovementProposal>, context);
   }

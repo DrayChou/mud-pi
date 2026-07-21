@@ -75,11 +75,14 @@ test("GM protocol only completes allowed objectives and outcomes", async () => {
   expect(state.outcome).toMatchObject({ id: definition.id, reason: "GM adjudication", reachedTurn: state.turn + 1 });
 });
 
-test("GM protocol denies player sources and independently controlled NPC movement", async () => {
+test("GM protocol denies player and world-script sources and independently controlled NPC movement", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const playerEnvelope = envelope(state, { kind: "record_fact", text: "Forged fact" }, "forged");
   playerEnvelope.source = { kind: "player", id: state.player.id };
   expect(settle(state, playerEnvelope, decideGmProposal, { storyOutcomes: [] }).accepted).toBe(false);
+  const scriptEnvelope = envelope(state, { kind: "adjust_parameter", entityId: state.player.id, parameterId: state.schema.defs[0]!.key, delta: -1, cause: "script" }, "script");
+  scriptEnvelope.source = { kind: "world_script", id: "untrusted-direct-call" };
+  expect(settle(state, scriptEnvelope, decideGmProposal, { storyOutcomes: [] }).accepted).toBe(false);
 
   const npc = Object.values(state.npcs).find((candidate) => candidate.controller && candidate.controller !== "dm");
   if (npc) {
