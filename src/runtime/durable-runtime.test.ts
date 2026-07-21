@@ -5,6 +5,7 @@ import { loadWorldPack } from "../engine/world-loader.ts";
 import { initSave, loadState } from "../store/persist.ts";
 import { pendingOutbox } from "../store/outbox.ts";
 import type { ParsedCommand } from "../ai/interpreter.ts";
+import type { NpcDecision } from "../types/npc.ts";
 import { GameRuntime } from "./game-runtime.ts";
 
 const saveIds: string[] = [];
@@ -15,6 +16,39 @@ afterEach(async () => {
 function parsed(verb: string, args: Record<string, string> = {}): ParsedCommand {
   return { verb, args, confidence: 1, raw: verb };
 }
+
+test("NPC response remains pending until returned decisions finish settlement", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  state.worldId = `runtime-npc-ack-${Date.now()}-${crypto.randomUUID()}`;
+  saveIds.push(state.worldId);
+  await initSave(state);
+
+  const runtime = new GameRuntime({
+    state,
+    storyOutcomes: [],
+    interpreter: { parse: async () => parsed("go", { direction: "east" }) },
+    dm: { ask: async () => `<NARRATION>你走上站台。</NARRATION><WORLD_UPDATE>{}</WORLD_UPDATE>` },
+    npcSessions: {
+      respondToPlayerSay: async () => [],
+      respondToEvents: async () => [{} as NpcDecision],
+    },
+    persist: true,
+  });
+
+  expect(runtime.processInput("向东走")).rejects.toThrow();
+  expect((await pendingOutbox(state.worldId)).some((record) => record.effect.kind === "npc_perception")).toBe(true);
+
+  const recovered = await loadState(state.worldId);
+  const recoveryRuntime = new GameRuntime({
+    state: recovered!, storyOutcomes: [],
+    interpreter: { parse: async () => parsed("status") },
+    dm: { ask: async () => "" },
+    npcSessions: { respondToPlayerSay: async () => [], respondToEvents: async () => [] },
+    persist: true,
+  });
+  await recoveryRuntime.processInput("状态");
+  expect((await pendingOutbox(state.worldId)).some((record) => record.effect.kind === "npc_perception")).toBe(false);
+});
 
 test("NPC delivery failure does not roll back committed facts and remains recoverable", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });

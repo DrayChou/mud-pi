@@ -139,8 +139,8 @@ export class GameRuntime {
     maxWakeups: number,
     correlationId: string,
     phase: "pre_dm" | "post_dm" | "recovery",
-  ): Promise<NpcDecision[]> {
-    if (!this.npcSessions.respondToEvents) return [];
+  ): Promise<{ decisions: NpcDecision[]; effectId?: string }> {
+    if (!this.npcSessions.respondToEvents) return { decisions: [] };
     const effectId = this.persist
       ? enqueueOutbox(this.state.worldId, {
           kind: "npc_perception",
@@ -152,8 +152,7 @@ export class GameRuntime {
         })
       : undefined;
     const decisions = await this.npcSessions.respondToEvents(this.state, events, maxWakeups);
-    if (effectId) completeOutbox(this.state.worldId, effectId);
-    return decisions;
+    return { decisions, effectId };
   }
 
   private async recoverNpcPerceptions(): Promise<void> {
@@ -230,17 +229,18 @@ export class GameRuntime {
     const playerProgressEvents = playerProgressSettlement.gameEvents;
     const npcPerceptionEvents = [...engineEvents, ...playerProgressEvents];
 
-    const sessionDecisions = result.combatContext
-      ? []
-      : this.npcSessions.respondToEvents
+    const durableNpcResponse = !result.combatContext && this.npcSessions.respondToEvents
       ? await this.respondToEventsDurably(npcPerceptionEvents, 2, correlationId, "pre_dm")
-      : parsed.verb === "say"
+      : undefined;
+    const sessionDecisions = durableNpcResponse?.decisions ?? (
+      !result.combatContext && parsed.verb === "say"
         ? await this.npcSessions.respondToPlayerSay(
             this.state,
             parsed.args.message ?? input,
             parsed.args.target
           )
-        : [];
+        : []
+    );
     const npcDecisions = sessionDecisions;
     const npcActions: NpcPublicAction[] = [];
     const npcMutations: EngineMutation[] = [];
@@ -265,6 +265,7 @@ export class GameRuntime {
         npcActions.push(npcResult.action);
       }
     }
+    if (durableNpcResponse?.effectId) completeOutbox(this.state.worldId, durableNpcResponse.effectId);
 
     const speechTarget = resolveSpeechTarget(stateBeforeTurn, parsed, npcDecisions);
     const preDmBaseEvents = withPlayerSpeech(
@@ -374,8 +375,8 @@ export class GameRuntime {
     const postDmEvents = [...gmBatchEvents, ...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
     const remainingNpcWakeups = Math.max(0, 2 - sessionDecisions.length);
     if (!result.combatContext && remainingNpcWakeups > 0 && postDmEvents.length > 0 && this.npcSessions.respondToEvents) {
-      const postDmNpcDecisions = await this.respondToEventsDurably(postDmEvents, remainingNpcWakeups, correlationId, "post_dm");
-      for (const decision of postDmNpcDecisions) {
+      const postDmNpcResponse = await this.respondToEventsDurably(postDmEvents, remainingNpcWakeups, correlationId, "post_dm");
+      for (const decision of postDmNpcResponse.decisions) {
         const npcResult = executeNpcDecision(this.state, decision);
         const npcSettlement = this.settleLegacyMutations(npcResult.mutations, correlationId, npcResult.action.npcId);
         const accepted = npcSettlement.mutations.length === npcResult.mutations.length;
@@ -388,6 +389,7 @@ export class GameRuntime {
           npcActions.push({ ...npcResult.action, succeeded: false, reason: "动作在最终权威结算中被拒绝" });
         }
       }
+      if (postDmNpcResponse.effectId) completeOutbox(this.state.worldId, postDmNpcResponse.effectId);
     }
     const proposedPostDmProgressMutations = evaluateProgress(this.state, postDmEvents);
     const postDmProgressSettlement = this.settleLegacyMutations(
