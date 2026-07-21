@@ -23,6 +23,7 @@ import { buildDmRecoveryPrompt } from "./ai/dm-prompt.ts";
 import { generateProtagonistCandidates } from "./ai/character-generator.ts";
 import { backendLabel } from "./ai/backend.ts";
 import type { ProtagonistProfile, WorldState } from "./types/world.ts";
+import { runWithDiagnosticContext } from "./diagnostics/logger.ts";
 
 // ── Parse CLI args ─────────────────────────────────────────────────────────
 
@@ -213,13 +214,17 @@ async function createCustomCharacter(
     print("\nAI 正在根据世界观生成候选主角...");
     let candidates: ProtagonistProfile[];
     try {
-      candidates = await generateProtagonistCandidates(
+      candidates = await runWithDiagnosticContext({
+        worldId: "_bootstrap",
+        requestId: crypto.randomUUID(),
+        channel: "cli",
+      }, () => generateProtagonistCandidates(
         config,
         worldPack,
         description,
         requestedName,
         3
-      );
+      ));
     } catch (e: any) {
       print(`\x1b[31m生成失败：${e.message}\x1b[0m`);
       const fallback = (await rl.question("使用你的描述创建基础自定义角色？[Y/n]: ")).trim().toLowerCase();
@@ -365,7 +370,13 @@ async function main() {
   if (dmInit.recoveryNeeded) {
     print("检测到旧存档或缺失的 DM Session，正在从权威存档恢复 Pi 上下文...");
     const turns = await loadTurns(state.worldId);
-    await dm.ask(buildDmRecoveryPrompt(state, turns.slice(-20)));
+    await runWithDiagnosticContext({
+      worldId: state.worldId,
+      requestId: crypto.randomUUID(),
+      channel: args.tui ? "tui" : args.telnet ? "telnet" : "cli",
+      turn: state.turn,
+      revision: state.revision,
+    }, () => dm.ask(buildDmRecoveryPrompt(state, turns.slice(-20))));
   }
   print(`DM：${backendLabel(config, "dm")}`);
   print(`指令解析：${backendLabel(config, "interpreter")}`);

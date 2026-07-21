@@ -12,6 +12,7 @@ import { GameRuntime } from "../runtime/game-runtime.ts";
 import { initSave, loadState, loadTurns } from "../store/persist.ts";
 import type { GameOutput } from "../runtime/game-output.ts";
 import type { WorldState } from "../types/world.ts";
+import { runWithDiagnosticContext } from "../diagnostics/logger.ts";
 
 interface ManagedGame {
   runtime: GameRuntime;
@@ -134,7 +135,13 @@ export class WebGameManager {
     ]);
     if (dmInit.recoveryNeeded) {
       const turns = await loadTurns(state.worldId);
-      await dm.ask(buildDmRecoveryPrompt(state, turns.slice(-20)));
+      await runWithDiagnosticContext({
+        worldId: state.worldId,
+        requestId: crypto.randomUUID(),
+        channel: "web",
+        turn: state.turn,
+        revision: state.revision,
+      }, () => dm.ask(buildDmRecoveryPrompt(state, turns.slice(-20))));
     }
     return {
       token,
