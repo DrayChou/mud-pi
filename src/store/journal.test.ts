@@ -3,7 +3,7 @@ import { appendFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { loadWorldPack } from "../engine/world-loader.ts";
 import { settleGmOperation } from "./gm-protocol.ts";
-import { initSave, loadState, loadTurns } from "./persist.ts";
+import { initSave, loadState, loadTurns, saveState } from "./persist.ts";
 import { readJournal, stageJournalOutbox } from "./journal.ts";
 
 const saveIds: string[] = [];
@@ -50,6 +50,29 @@ describe("world event journal", () => {
     const loaded = await loadState(state.worldId);
     expect(loaded?.revision).toBe(1);
     expect(loaded?.worldFacts.some((fact) => fact.text === "Recovered fact.")).toBe(true);
+  });
+
+  test("rejects a shape-valid snapshot fork at an existing revision", async () => {
+    const state = await durableState();
+    settleGmOperation(state, {
+      proposalId: "fork-fact", correlationId: "turn-1", source: { kind: "dm", id: "dm" },
+      expectedRevision: state.revision, observedTurn: state.turn,
+      payload: { kind: "record_fact", text: "Canonical fact." },
+    }, []);
+    await saveState(state);
+
+    const path = join(saveDir(state.worldId), "state.json");
+    const snapshot = await Bun.file(path).json() as {
+      state: typeof state;
+      journalAnchor: unknown;
+    };
+    snapshot.state.worldFacts = snapshot.state.worldFacts.map((fact) => ({
+      ...fact,
+      text: "Fork-only fact.",
+    }));
+    await Bun.write(path, JSON.stringify(snapshot));
+
+    expect(loadState(state.worldId)).rejects.toThrow(/journal fork/i);
   });
 
   test("recovers journal-staged outbox effects when the outbox append was lost", async () => {

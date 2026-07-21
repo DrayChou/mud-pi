@@ -16,8 +16,20 @@ import type {
   WorldState,
 } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
-import { enableJournal, initializeJournal, readJournal, replayJournal } from "./journal.ts";
+import { checksumWorldState, enableJournal, initializeJournal, readJournal, replayJournal, type JournalTransaction } from "./journal.ts";
 import { drainPersistenceOutbox, initializeOutbox, recoverJournalOutbox } from "./outbox.ts";
+
+interface SnapshotJournalAnchor {
+  transactionId: string;
+  checksum: string;
+  revision: number;
+}
+
+interface WorldSnapshotEnvelope {
+  schemaVersion: 1;
+  journalAnchor?: SnapshotJournalAnchor;
+  state: WorldState;
+}
 
 function savesDir(worldId: string): string {
   return join(import.meta.dir, "../../saves", worldId);
@@ -42,11 +54,21 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
   const initial = Bun.file(initialStateFile(worldId));
   if (!(await snapshot.exists()) && !(await initial.exists())) return null;
 
+  const journal = await readJournal(worldId);
   let state: WorldState | null = null;
   if (await snapshot.exists()) {
     try {
-      state = await snapshot.json() as WorldState;
-    } catch {
+      const persisted = await snapshot.json() as WorldState | WorldSnapshotEnvelope;
+      if (isSnapshotEnvelope(persisted)) {
+        validateSnapshotAnchor(persisted, journal);
+        state = persisted.state;
+      } else if (journal.length === 0) {
+        state = persisted;
+      } else {
+        console.warn(`[persist] unanchored legacy snapshot for ${worldId}; rebuilding from initial state and journal`);
+      }
+    } catch (error) {
+      if (error instanceof SnapshotForkError) throw error;
       console.warn(`[persist] corrupt state.json for ${worldId}; attempting journal recovery`);
     }
   }
@@ -61,7 +83,6 @@ export async function loadState(worldId: string): Promise<WorldState | null> {
 
   await normalizeLoadedState(state);
   if (!(await initial.exists())) await Bun.write(initialStateFile(worldId), JSON.stringify(state, null, 2));
-  const journal = await readJournal(worldId);
   const replayed = replayJournal(state, journal);
   enableJournal(state);
   await recoverJournalOutbox(worldId, journal);
@@ -213,13 +234,66 @@ function isItemLocation(value: unknown): value is ItemLocation {
   return kind === "room" || kind === "inventory" || kind === "equipped" || kind === "destroyed";
 }
 
+class SnapshotForkError extends Error {}
+
+function isSnapshotEnvelope(value: WorldState | WorldSnapshotEnvelope): value is WorldSnapshotEnvelope {
+  return value !== null
+    && typeof value === "object"
+    && "state" in value
+    && value.schemaVersion === 1;
+}
+
+function validateSnapshotAnchor(snapshot: WorldSnapshotEnvelope, journal: readonly JournalTransaction[]): void {
+  const { journalAnchor, state } = snapshot;
+  if (!journalAnchor) {
+    if (journal.some((record) => record.revisionAfter <= state.revision)) {
+      throw new SnapshotForkError(`Snapshot revision ${state.revision} has no journal anchor`);
+    }
+    return;
+  }
+  if (journalAnchor.revision !== state.revision) {
+    throw new SnapshotForkError(`Snapshot revision ${state.revision} does not match anchor revision ${journalAnchor.revision}`);
+  }
+  const record = journal.find((candidate) => candidate.revisionAfter === journalAnchor.revision);
+  if (
+    !record
+    || record.transactionId !== journalAnchor.transactionId
+    || record.checksum !== journalAnchor.checksum
+    || record.stateChecksum !== checksumWorldState(state)
+  ) {
+    throw new SnapshotForkError(`Snapshot journal fork detected at revision ${journalAnchor.revision}`);
+  }
+}
+
+function snapshotAnchor(state: WorldState, journal: readonly JournalTransaction[]): SnapshotJournalAnchor | undefined {
+  const record = journal.find((candidate) => candidate.revisionAfter === state.revision);
+  if (!record) {
+    if (journal.some((candidate) => candidate.revisionAfter < state.revision)) {
+      throw new Error(`Cannot save revision ${state.revision}: journal does not contain its transaction anchor`);
+    }
+    return undefined;
+  }
+  return {
+    transactionId: record.transactionId,
+    checksum: record.checksum,
+    revision: record.revisionAfter,
+  };
+}
+
 export async function saveState(state: WorldState): Promise<void> {
   state.revision ??= 0;
   const dir = savesDir(state.worldId);
   await mkdir(dir, { recursive: true });
+  const journal = await readJournal(state.worldId);
+  const anchor = snapshotAnchor(state, journal);
+  const envelope: WorldSnapshotEnvelope = {
+    schemaVersion: 1,
+    ...(anchor ? { journalAnchor: anchor } : {}),
+    state,
+  };
   const target = stateFile(state.worldId);
   const temporary = `${target}.tmp-${crypto.randomUUID()}`;
-  await Bun.write(temporary, JSON.stringify(state, null, 2));
+  await Bun.write(temporary, JSON.stringify(envelope, null, 2));
   await rename(temporary, target);
 }
 

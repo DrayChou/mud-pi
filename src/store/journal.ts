@@ -18,6 +18,7 @@ export interface JournalTransaction {
   causationId?: string;
   events: WorldEvent[];
   outbox?: Array<{ effectId: string; effect: OutboxEffect }>;
+  stateChecksum: string;
   checksum: string;
 }
 
@@ -46,21 +47,33 @@ export function clearStagedJournalOutbox(state: WorldState): void {
   stagedOutbox.delete(state);
 }
 
-function checksumPayload(transaction: Omit<JournalTransaction, "checksum">): string {
+function sha256(value: unknown): string {
   const hasher = new Bun.CryptoHasher("sha256");
-  hasher.update(JSON.stringify(transaction));
+  hasher.update(JSON.stringify(value));
   return hasher.digest("hex");
+}
+
+export function checksumWorldState(state: WorldState): string {
+  return sha256(state);
+}
+
+function checksumPayload(transaction: Omit<JournalTransaction, "checksum">): string {
+  return sha256(transaction);
 }
 
 export function appendJournalTransaction(
   state: WorldState,
-  transaction: Omit<JournalTransaction, "schemaVersion" | "checksum">,
+  transaction: Omit<JournalTransaction, "schemaVersion" | "stateChecksum" | "checksum">,
 ): JournalTransaction {
   const outbox = stagedOutbox.get(state);
+  const resultingState = structuredClone(state);
+  for (const event of transaction.events) evolve(resultingState, event);
+  resultingState.revision = transaction.revisionAfter;
   const unsigned = {
     schemaVersion: 1 as const,
     ...structuredClone(transaction),
     ...(outbox?.length ? { outbox: structuredClone(outbox) } : {}),
+    stateChecksum: checksumWorldState(resultingState),
   };
   const record: JournalTransaction = { ...unsigned, checksum: checksumPayload(unsigned) };
   const dir = join(import.meta.dir, "../../saves", state.worldId);
@@ -103,12 +116,17 @@ export async function readJournal(worldId: string): Promise<JournalTransaction[]
       || record.revisionAfter !== record.revisionBefore + 1
       || !Array.isArray(record.events)
       || record.events.length === 0
+      || !record.stateChecksum?.trim()
       || checksum !== checksumPayload(unsigned)
     ) {
       throw new Error(`Journal checksum mismatch at line ${index + 1}`);
     }
     if (transactionIds.has(record.transactionId)) throw new Error(`Duplicate journal transaction: ${record.transactionId}`);
     transactionIds.add(record.transactionId);
+    const previous = records.at(-1);
+    if (previous && record.revisionBefore !== previous.revisionAfter) {
+      throw new Error(`Journal revision gap at line ${index + 1}: ${previous.revisionAfter}->${record.revisionBefore}`);
+    }
     records.push(record);
   }
   return records;
@@ -124,6 +142,9 @@ export function replayJournal(state: WorldState, records: readonly JournalTransa
     const draft = structuredClone(state);
     for (const event of record.events) evolve(draft, event);
     draft.revision = record.revisionAfter;
+    if (checksumWorldState(draft) !== record.stateChecksum) {
+      throw new Error(`Journal state checksum mismatch at ${record.transactionId}`);
+    }
     const replacement = structuredClone(draft);
     for (const key of Object.keys(state) as Array<keyof WorldState>) delete state[key];
     Object.assign(state, replacement);
