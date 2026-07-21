@@ -32,7 +32,7 @@ export function executeCommand(
   cmd: ParsedCommand,
   conflictResolver: ConflictResolver = defaultConflictResolver
 ): CommandResult {
-  const informational = new Set(["look", "inv", "status", "objectives", "map", "help", "quit"]);
+  const informational = new Set(["look", "inv", "status", "objectives", "story_status", "map", "help", "quit"]);
   if (state.outcome?.terminal && !informational.has(cmd.verb)) {
     return { mutations: [], directReply: "这个故事已经结束。你仍可以查看状态、目标或退出。" };
   }
@@ -57,6 +57,7 @@ export function executeCommand(
     case "inv":    return cmdInv(state);
     case "status": return cmdStatus(state);
     case "objectives": return cmdObjectives(state);
+    case "story_status": return { mutations: [] }; // The Pi GM evaluates semantic outcome criteria.
     case "map":    return { mutations: [], directReply: formatTextMap(buildMapSnapshot(state)) };
     case "help":   return cmdHelp(state);
     case "say":    return { mutations: [] };

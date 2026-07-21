@@ -42,6 +42,8 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("不要让 set_exit 指向尚未创建的房间");
     expect(prompt).toContain("可交互对象必须实体化");
     expect(prompt).toContain("允许玩家主动施暴");
+    expect(prompt).toContain("结局询问必须由 GM 回答");
+    expect(prompt).toContain("绝不能用“当前没有明确目标”");
     expect(prompt).toContain("npcsAdded");
     expect(prompt).toContain('"kind":"move_player"');
     expect(prompt).toContain("完整回应复合意图");

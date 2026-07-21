@@ -211,6 +211,32 @@
       "inRoom": "MiskULibrary"
     }
   ],
+  "outcomes": [
+    {
+      "id": "arkham_tide_averted",
+      "type": "success",
+      "title": "退去的黑潮",
+      "summary": "异端手稿化为灰烬，港口阵眼也已崩碎。黑潮暂时退去，阿卡姆从今夜的献祭中幸存下来；你知道深海并未永远沉默。",
+      "criteria": "权威事实已经同时确认：地下特藏室用于献祭的异端手稿被销毁或永久失效；港口用于引导仪式的阵眼被摧毁或永久切断；当前没有另一个已建立且仍在运行的同类仪式节点。满足时可以在玩家确认危机结果、离开现场或明确收束故事时触发。",
+      "terminal": true
+    },
+    {
+      "id": "arkham_claimed_by_tide",
+      "type": "failure",
+      "title": "沉没的阿卡姆",
+      "summary": "仪式终于完成。黑潮越过港堤，古老的阴影在街道间升起，阿卡姆的灯火一盏接一盏熄灭。",
+      "criteria": "权威事实明确确认献祭仪式已经完成且阿卡姆遭到不可逆的毁灭；仅仅时间紧迫、阵眼尚未摧毁或玩家暂时离开不能触发。",
+      "terminal": true
+    },
+    {
+      "id": "investigator_lost",
+      "type": "death",
+      "title": "真相的最后读者",
+      "summary": "你的调查停在最后一页，而阿卡姆的雾吞没了尚未说出口的真相。",
+      "criteria": "玩家的权威生命阶段已经变为 dead，且当前 fiction 没有已建立的救援、复苏或可继续扮演的替代角色。",
+      "terminal": true
+    }
+  ],
   "conflictRules": {
     "mode": "auto_combat",
     "algorithm": "gauge-random-v1",

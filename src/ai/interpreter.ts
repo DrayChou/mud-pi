@@ -27,7 +27,8 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
   interact — 操作门、机关、家具、墙壁等场景对象，需要 target，可附加 approach/intent；如果同时明确要穿过门、沿楼梯进入，必须附加 direction
   inv    — 查看背包
   status — 查看状态
-  objectives — 查看目标、任务或当前进度
+  objectives — 查看仍需完成的目标、任务清单或任务进度
+  story_status — 询问危机是否解除、故事是否结束、是否已经获胜或当前结局
   map    — 查看已探索地图
   help   — 帮助
   quit   — 退出
@@ -41,6 +42,9 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
 {"verb":"say","args":{"target":"售票员","message":"这张票能去哪里？","intent":"询问车票目的地"},"confidence":0.95}
 {"verb":"attack","args":{"target":"深渊之物","weapon":"左轮手枪","question":"这到底是什么","approach":"瞄准眼睛开枪"},"confidence":0.95}
 {"verb":"interact","args":{"target":"铁门","direction":"down","approach":"轻轻推开并潜行下楼","intent":"进入门后的石阶且不发出声音"},"confidence":0.95}
+{"verb":"story_status","args":{"question":"城市的危险解除了吗，游戏结束了吗"},"confidence":0.98}
+
+“游戏结束了吗、得救了吗、危险解除了吗、我赢了吗、这是结局吗”属于 story_status，不是 objectives。不要因为它们包含进度含义就返回 objectives。
 
 门、窗、石阶、按钮、机关和家具默认是场景对象，不是背包物品。“开门、推门、踹门、拉动机关”必须解析为 interact，不得解析为 use。带有潜行、观察或提问的移动要保留 approach/question/intent。
 

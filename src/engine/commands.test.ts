@@ -9,6 +9,12 @@ function command(verb: string, args: Record<string, string>): ParsedCommand {
 }
 
 describe("progress commands", () => {
+  test("routes semantic story-ending questions to the Pi GM", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    const result = executeCommand(state, { ...command("story_status", { question: "游戏结束了吗" }), raw: "游戏结束了吗" });
+    expect(result.directReply).toBeUndefined();
+  });
+
   test("shows visible objectives and a reached story outcome", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.objectives.ask_ticket_clerk!.status = "completed";
