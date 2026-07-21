@@ -8,6 +8,8 @@ import type {
 import type { CommittedWorldEvent } from "../types/world-events.ts";
 import type { WorldState } from "../types/world.ts";
 import { EventInvariantError, evolve } from "./evolve.ts";
+import { appendJournalTransaction, journalEnabled } from "./journal.ts";
+import { enqueueOutbox } from "./outbox.ts";
 
 export type Settlement<TResult = unknown> =
   | {
@@ -54,13 +56,11 @@ export type BatchSettlement<TResult = unknown> =
       rejection: SettlementRejection;
     };
 
-let nextTransactionSequence = 0;
 const settlementsByState = new WeakMap<WorldState, Map<string, Settlement<unknown>>>();
 const activeBatchStates = new WeakSet<WorldState>();
 
 function transactionId(): string {
-  nextTransactionSequence += 1;
-  return `txn-${nextTransactionSequence}`;
+  return `txn-${crypto.randomUUID()}`;
 }
 
 function currentRevision(state: WorldState): number {
@@ -162,6 +162,34 @@ export function commitPreparedSettlement<TResult>(
       diagnostic: `Prepared revision ${settlement.revisionBefore}, current revision is ${currentRevision(liveState)}.`,
       retryable: true,
     });
+  }
+  if (journalEnabled(liveState)) {
+    try {
+      const journalRecord = appendJournalTransaction(liveState, {
+        transactionId: settlement.transactionId,
+        revisionBefore: settlement.revisionBefore,
+        revisionAfter: settlement.revisionAfter,
+        turn: settlement.turn,
+        source: settlement.proposal.source,
+        correlationId: settlement.proposal.correlationId,
+        causationId: settlement.proposal.causationId,
+        events: settlement.committedEvents.map((committed) => committed.event),
+      });
+      for (const pending of journalRecord.outbox ?? []) {
+        try {
+          enqueueOutbox(liveState.worldId, pending.effect, pending.effectId);
+        } catch {
+          // The journal is authoritative and retains the pending effect for startup recovery.
+        }
+      }
+    } catch (error) {
+      return rejected(settlement.transactionId, liveState, settlement.proposal, {
+        code: "commit_failed",
+        safeMessage: "That action could not be recorded safely.",
+        diagnostic: error instanceof Error ? error.message : String(error),
+        retryable: true,
+      });
+    }
   }
   const replacement = structuredClone(settlement.nextState);
   for (const key of Object.keys(liveState) as Array<keyof WorldState>) delete liveState[key];

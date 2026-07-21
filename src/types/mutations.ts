@@ -70,6 +70,8 @@ export type AnyMutation = EngineMutation | DmMutation;
 // ── Turn Record ────────────────────────────────────────────────────────────
 
 export interface TurnRecord {
+  /** Durable outbox id used to make turn projection retries idempotent. */
+  outboxEffectId?: string;
   turn: number;
   ts: number;
   playerInput: string;

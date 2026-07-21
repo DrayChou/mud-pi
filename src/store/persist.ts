@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rename } from "node:fs/promises";
 import { appendFileSync } from "node:fs";
 import type {
   ConditionDefinition,
@@ -16,6 +16,8 @@ import type {
   WorldState,
 } from "../types/world.ts";
 import type { TurnRecord } from "../types/mutations.ts";
+import { enableJournal, initializeJournal, readJournal, replayJournal } from "./journal.ts";
+import { drainPersistenceOutbox, initializeOutbox, recoverJournalOutbox } from "./outbox.ts";
 
 function savesDir(worldId: string): string {
   return join(import.meta.dir, "../../saves", worldId);
@@ -29,25 +31,56 @@ function turnsFile(worldId: string): string {
   return join(savesDir(worldId), "turns.jsonl");
 }
 
+function initialStateFile(worldId: string): string {
+  return join(savesDir(worldId), "initial-state.json");
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 export async function loadState(worldId: string): Promise<WorldState | null> {
-  const f = Bun.file(stateFile(worldId));
-  if (!(await f.exists())) return null;
-  try {
-    const state = await f.json() as WorldState;
-    normalizeRevision(state);
-    normalizePlayerLifecycle(state);
-    normalizeParameterSchema(state);
-    await normalizeConflictRules(state);
-    normalizeRoomDiscovery(state);
-    await normalizeItemLocations(state);
-    await normalizeProgressState(state);
-    return state;
-  } catch {
-    console.error(`[persist] corrupt state.json for ${worldId}`);
-    return null;
+  const snapshot = Bun.file(stateFile(worldId));
+  const initial = Bun.file(initialStateFile(worldId));
+  if (!(await snapshot.exists()) && !(await initial.exists())) return null;
+
+  let state: WorldState | null = null;
+  if (await snapshot.exists()) {
+    try {
+      state = await snapshot.json() as WorldState;
+    } catch {
+      console.warn(`[persist] corrupt state.json for ${worldId}; attempting journal recovery`);
+    }
   }
+  if (!state && await initial.exists()) {
+    try {
+      state = await initial.json() as WorldState;
+    } catch {
+      throw new Error(`Both snapshot and initial state are corrupt for ${worldId}`);
+    }
+  }
+  if (!state) throw new Error(`Snapshot is corrupt and no initial recovery state exists for ${worldId}`);
+
+  await normalizeLoadedState(state);
+  if (!(await initial.exists())) await Bun.write(initialStateFile(worldId), JSON.stringify(state, null, 2));
+  const journal = await readJournal(worldId);
+  const replayed = replayJournal(state, journal);
+  enableJournal(state);
+  await recoverJournalOutbox(worldId, journal);
+  await drainPersistenceOutbox(worldId, state, {
+    saveSnapshot: saveState,
+    appendTurn: (record) => appendTurn(worldId, record),
+  });
+  if (replayed > 0) await saveState(state);
+  return state;
+}
+
+async function normalizeLoadedState(state: WorldState): Promise<void> {
+  normalizeRevision(state);
+  normalizePlayerLifecycle(state);
+  normalizeParameterSchema(state);
+  await normalizeConflictRules(state);
+  normalizeRoomDiscovery(state);
+  await normalizeItemLocations(state);
+  await normalizeProgressState(state);
 }
 
 function normalizeRevision(state: WorldState): void {
@@ -184,7 +217,10 @@ export async function saveState(state: WorldState): Promise<void> {
   state.revision ??= 0;
   const dir = savesDir(state.worldId);
   await mkdir(dir, { recursive: true });
-  await Bun.write(stateFile(state.worldId), JSON.stringify(state, null, 2));
+  const target = stateFile(state.worldId);
+  const temporary = `${target}.tmp-${crypto.randomUUID()}`;
+  await Bun.write(temporary, JSON.stringify(state, null, 2));
+  await rename(temporary, target);
 }
 
 // ── Turns (append-only) ────────────────────────────────────────────────────
@@ -192,8 +228,11 @@ export async function saveState(state: WorldState): Promise<void> {
 export async function appendTurn(worldId: string, record: TurnRecord): Promise<void> {
   const dir = savesDir(worldId);
   await mkdir(dir, { recursive: true });
-  // appendFileSync keeps this atomic per-line — no partial writes mid-record
-  appendFileSync(turnsFile(worldId), JSON.stringify(record) + "\n");
+  if (record.outboxEffectId) {
+    const existing = await loadTurns(worldId);
+    if (existing.some((candidate) => candidate.outboxEffectId === record.outboxEffectId)) return;
+  }
+  appendFileSync(turnsFile(worldId), JSON.stringify(record) + "\n", { flush: true });
 }
 
 export async function loadTurns(worldId: string): Promise<TurnRecord[]> {
@@ -216,7 +255,14 @@ export async function loadTurns(worldId: string): Promise<TurnRecord[]> {
 // ── New save from world pack ───────────────────────────────────────────────
 
 export async function initSave(state: WorldState): Promise<void> {
-  const existing = await loadState(state.worldId);
-  if (existing) throw new Error(`Save already exists: ${state.worldId}`);
+  const snapshot = Bun.file(stateFile(state.worldId));
+  const initial = Bun.file(initialStateFile(state.worldId));
+  if (await snapshot.exists() || await initial.exists()) throw new Error(`Save already exists: ${state.worldId}`);
+  const dir = savesDir(state.worldId);
+  await mkdir(dir, { recursive: true });
+  await Bun.write(initialStateFile(state.worldId), JSON.stringify(state, null, 2));
+  await initializeJournal(state.worldId);
+  await initializeOutbox(state.worldId);
   await saveState(state);
+  enableJournal(state);
 }

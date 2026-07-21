@@ -19,6 +19,8 @@ import { isMigratedTableMutation, settleRuntimeMutation } from "../store/domain-
 import { settleGmBatch, settleGmOperation } from "../store/gm-protocol.ts";
 import { nextLegacyProposalId } from "../store/legacy-settlement.ts";
 import { appendTurn, saveState } from "../store/persist.ts";
+import { completeOutbox, drainPersistenceOutbox, enqueueOutbox, pendingOutbox } from "../store/outbox.ts";
+import { clearStagedJournalOutbox, stageJournalOutbox } from "../store/journal.ts";
 import type { GameEvent } from "../types/events.ts";
 import type { AnyMutation, EngineMutation } from "../types/mutations.ts";
 import type { ProposalBatchEnvelope } from "../types/proposals.ts";
@@ -132,7 +134,48 @@ export class GameRuntime {
     return { mutations: accepted, committedEvents, gameEvents, narrationIssues };
   }
 
+  private async respondToEventsDurably(
+    events: GameEvent[],
+    maxWakeups: number,
+    correlationId: string,
+    phase: "pre_dm" | "post_dm" | "recovery",
+  ): Promise<NpcDecision[]> {
+    if (!this.npcSessions.respondToEvents) return [];
+    const effectId = this.persist
+      ? enqueueOutbox(this.state.worldId, {
+          kind: "npc_perception",
+          worldId: this.state.worldId,
+          events,
+          maxWakeups,
+          correlationId,
+          phase,
+        })
+      : undefined;
+    const decisions = await this.npcSessions.respondToEvents(this.state, events, maxWakeups);
+    if (effectId) completeOutbox(this.state.worldId, effectId);
+    return decisions;
+  }
+
+  private async recoverNpcPerceptions(): Promise<void> {
+    if (!this.persist || !this.npcSessions.respondToEvents) return;
+    const pending = await pendingOutbox(this.state.worldId);
+    for (const record of pending) {
+      if (record.effect.kind !== "npc_perception") continue;
+      const decisions = await this.npcSessions.respondToEvents(
+        this.state,
+        record.effect.events,
+        record.effect.maxWakeups,
+      );
+      for (const decision of decisions) {
+        const npcResult = executeNpcDecision(this.state, decision);
+        this.settleLegacyMutations(npcResult.mutations, record.effect.correlationId, npcResult.action.npcId);
+      }
+      completeOutbox(this.state.worldId, record.effectId);
+    }
+  }
+
   async processInput(input: string): Promise<GameTurnResult> {
+    await this.recoverNpcPerceptions();
     const parsed = await this.interpreter.parse(input);
     const correlationId = nextLegacyProposalId("turn");
     const result = executeCommand(this.state, parsed, this.conflictResolver);
@@ -176,7 +219,7 @@ export class GameRuntime {
     const sessionDecisions = result.combatContext
       ? []
       : this.npcSessions.respondToEvents
-      ? await this.npcSessions.respondToEvents(this.state, npcPerceptionEvents, 2)
+      ? await this.respondToEventsDurably(npcPerceptionEvents, 2, correlationId, "pre_dm")
       : parsed.verb === "say"
         ? await this.npcSessions.respondToPlayerSay(
             this.state,
@@ -317,7 +360,7 @@ export class GameRuntime {
     const postDmEvents = [...gmBatchEvents, ...worldDmSettlement.gameEvents, ...postDmEngineGameEvents];
     const remainingNpcWakeups = Math.max(0, 2 - sessionDecisions.length);
     if (!result.combatContext && remainingNpcWakeups > 0 && postDmEvents.length > 0 && this.npcSessions.respondToEvents) {
-      const postDmNpcDecisions = await this.npcSessions.respondToEvents(this.state, postDmEvents, remainingNpcWakeups);
+      const postDmNpcDecisions = await this.respondToEventsDurably(postDmEvents, remainingNpcWakeups, correlationId, "post_dm");
       for (const decision of postDmNpcDecisions) {
         const npcResult = executeNpcDecision(this.state, decision);
         const npcSettlement = this.settleLegacyMutations(npcResult.mutations, correlationId, npcResult.action.npcId);
@@ -373,12 +416,8 @@ export class GameRuntime {
       ));
       narration = parseNarrationCorrection(correctionRaw) ?? fallbackNarration(this.state, narrationIssues);
     }
-    this.settleLegacyMutations([{ kind: "engine/turn_advanced" }], correlationId, "turn_engine");
-
-    if (this.persist) {
-      await saveState(this.state);
-      await appendTurn(this.state.worldId, {
-        turn: this.state.turn,
+    const turnRecord = this.persist ? {
+        turn: this.state.turn + 1,
         ts: Date.now(),
         playerInput: input,
         parsed: {
@@ -392,6 +431,20 @@ export class GameRuntime {
         npcActions,
         narration,
         dmModel: this.dmModelLabel,
+      } : undefined;
+    if (turnRecord) {
+      stageJournalOutbox(this.state, [
+        { kind: "snapshot", worldId: this.state.worldId, revision: this.state.revision + 1 },
+        { kind: "turn_record", worldId: this.state.worldId, record: turnRecord },
+      ]);
+    }
+    const turnSettlement = this.settleLegacyMutations([{ kind: "engine/turn_advanced" }], correlationId, "turn_engine");
+    if (turnRecord && turnSettlement.mutations.length === 0) clearStagedJournalOutbox(this.state);
+
+    if (this.persist) {
+      await drainPersistenceOutbox(this.state.worldId, this.state, {
+        saveSnapshot: saveState,
+        appendTurn: (record) => appendTurn(this.state.worldId, record),
       });
     }
 
