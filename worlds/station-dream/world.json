@@ -236,18 +236,31 @@
     {
       "id": "Compartment2",
       "title": "列车第二节车厢",
-      "desc": "这节车厢里的灯只有一盏还亮着，发出橘黄色的微光。角落里堆着一些遗落的行李，没有人来认领。",
+      "desc": "这节车厢里的灯只有一盏还亮着，发出橘黄色的微光。角落里堆着一些遗落的行李，没有人来认领。北侧车门后传来比你慢半拍的脚步回声。",
       "exits": {
         "south": "Compartment1",
-        "north": "Compartment3"
+        "north": "EchoGate"
       }
+    },
+    {
+      "id": "EchoGate",
+      "title": "回声检票廊",
+      "desc": "狭窄过道尽头没有门，只有一层像水面般颤动的黑暗。每当你靠近，回声便用你的声音问：『你究竟想回到哪里？』蛮力、观察、欺骗、坦白、交换或借助线索都可能成为方案；只有 Pi DM 裁定方案真正突破阻隔后，才应揭示向北通往 Compartment3 的出口。倾听回声时，DM 可以施加 echo_mark 供后续裁定引用。",
+      "exits": {
+        "south": "Compartment2"
+      },
+      "tags": [
+        "key_location",
+        "open_ended_obstacle",
+        "echo"
+      ]
     },
     {
       "id": "Compartment3",
       "title": "列车第三节车厢",
       "desc": "列车的最后一节车厢，前方是一道焊死的铁门。墙上有人用指甲刻下：「每一次出发都是一次回归。」",
       "exits": {
-        "south": "Compartment2"
+        "south": "EchoGate"
       },
       "tags": [
         "key_location"
@@ -271,11 +284,14 @@
         "speechStyle": "句子简短、克制，常用车站、时刻、车票和归途作隐喻。避免一次解释太多。",
         "goals": [
           "判断旅客是否准备好面对自己的目的地",
-          "保护车站的规则，不让旅客用虚假的答案通过"
+          "保护车站的规则，不让旅客用虚假的答案通过",
+          "在旅客真诚询问、帮助或交换后，给出一条可用于回声检票廊的线索"
         ],
         "constraints": [
           "不直接说出玩家内心的答案",
-          "不知道其他车厢刚发生的事情，除非有人亲口告诉你"
+          "不知道其他车厢刚发生的事情，除非有人亲口告诉你",
+          "普通寒暄不发奖励；只有建立真实信任或完成有意义交换后才可使用世界包允许的奖励模板",
+          "知道回声检票廊会重复旅客最不愿承认的话，但不会替旅客回答"
         ]
       },
       "hostile": false,
@@ -395,11 +411,24 @@
       }
     },
     {
+      "id": "cross_echo_gate",
+      "title": "回答回声",
+      "description": "在回声检票廊提出并完成一个能够突破阻隔的方案。Pi DM 负责判断坦白、欺骗、调查、交换、道具利用或其他创造性方案是否成立；成功后应使用 set_exit 揭示 EchoGate 向北通往 Compartment3 的出口。",
+      "requires": [
+        "board_train"
+      ],
+      "completion": {
+        "kind": "visit_room",
+        "roomId": "Compartment3"
+      },
+      "gmCompletionAllowed": true
+    },
+    {
       "id": "face_shadow",
       "title": "面对最后的阴影",
       "description": "抵达最后一节车厢，并击败阻挡归途的车厢阴影。",
       "requires": [
-        "board_train"
+        "cross_echo_gate"
       ],
       "completion": {
         "kind": "defeat_entity",

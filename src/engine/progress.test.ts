@@ -36,6 +36,7 @@ describe("objective progress", () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.objectives.ask_ticket_clerk!.status = "completed";
     state.objectives.board_train!.status = "completed";
+    state.objectives.cross_echo_gate!.status = "completed";
     state.npcs.shadow!.alive = false;
 
     const mutations = evaluateProgress(state, [{

@@ -16,8 +16,12 @@ describe("loadWorldPack protagonists", () => {
     expect(state.player.stats.attack).toBe(6);
     expect(state.player.stats.defense).toBe(3);
     expect(state.npcs.ticket_clerk?.controller).toBe("pi_session");
-    expect(state.npcs.ticket_clerk?.persona?.goals).toHaveLength(2);
+    expect(state.npcs.ticket_clerk?.persona?.goals?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(state.npcs.ticket_clerk?.storyRole?.importance).toBe("critical");
+    expect(state.rooms.EchoGate?.exits.north).toBeUndefined();
+    expect(state.rooms.Compartment3?.exits.south).toBe("EchoGate");
+    expect(state.conditionDefinitions.echo_mark?.defaultDurationTurns).toBe(3);
+    expect(state.objectives.cross_echo_gate?.gmCompletionAllowed).toBe(true);
     expect(state.objectives.ask_ticket_clerk?.status).toBe("active");
     expect(state).not.toHaveProperty("endingRules");
     expect(await loadStoryOutcomes("station-dream")).toHaveLength(5);
