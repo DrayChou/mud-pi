@@ -121,6 +121,13 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
     case "emit_signal": {
       if (!proposal.signalId.trim() || !proposal.message.trim()) return reject("invalid_value", "A perceptible signal requires an id and message.");
       if (!state.rooms[proposal.roomId]) return reject("entity_not_found", `Signal room not found: ${proposal.roomId}`);
+      if (proposal.targetId) {
+        const target = state.npcs[proposal.targetId];
+        if (!target) return reject("entity_not_found", `Signal target not found: ${proposal.targetId}`);
+        if (!target.alive || target.controller !== "pi_session" || target.roomId !== proposal.roomId) {
+          return reject("invalid_location", `Signal target cannot perceive the signal in ${proposal.roomId}: ${proposal.targetId}`);
+        }
+      }
       return { accepted: true, result: proposal, events: [{ kind: "perceptible_signal_emitted", signalId: proposal.signalId, roomId: proposal.roomId, message: proposal.message, targetId: proposal.targetId }], warnings: [] };
     }
 

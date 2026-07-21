@@ -28,6 +28,11 @@ test("GM protocol records facts, switches exits, and emits perceptible signals",
   expect(state.rooms[from]?.exits.secret).toBe(to);
   if (!signal.accepted) throw new Error("signal rejected");
   expect(projectPublicEvents(signal.committedEvents[0]!)).toEqual([{ kind: "perceptible_signal", turn: state.turn, signalId: "lamp-lit", roomId: from, message: "The signal lamp flashes twice.", targetId: undefined }]);
+  expect(settle(state, envelope(state, { kind: "emit_signal", signalId: "missing", roomId: from, message: "No one hears it.", targetId: "missing" }, "missing-target"), decideGmProposal, context).accepted).toBe(false);
+  const remoteTarget = Object.values(state.npcs).find((npc) => npc.controller === "pi_session" && npc.roomId !== from);
+  if (remoteTarget) {
+    expect(settle(state, envelope(state, { kind: "emit_signal", signalId: "remote", roomId: from, message: "Too far away.", targetId: remoteTarget.id }, "remote-target"), decideGmProposal, context).accepted).toBe(false);
+  }
 });
 
 test("GM parameter adjustment clamps explicitly and changes lifecycle atomically", async () => {
