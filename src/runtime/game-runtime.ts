@@ -10,6 +10,7 @@ import {
 } from "../ai/dm-correction.ts";
 import { parseDmResponse } from "../ai/dm-parser.ts";
 import { executeCommand } from "../engine/commands.ts";
+import { actionIntentFromParsed, resolveActionIntent } from "../engine/action-intent.ts";
 import { defaultConflictResolver, type ConflictResolver } from "../engine/conflict-script.ts";
 import { deriveGameEvents, type GameEventContext } from "../engine/game-events.ts";
 import { projectPublicEvents } from "../engine/public-events.ts";
@@ -284,6 +285,7 @@ export class GameRuntime {
 
   private async processParsedInput(input: string, parsed: ParsedCommand): Promise<GameTurnResult> {
     const correlationId = nextLegacyProposalId("turn");
+    const resolvedIntent = resolveActionIntent(this.state, actionIntentFromParsed(parsed));
     const result = executeCommand(this.state, parsed, this.conflictResolver);
 
     if (result.directReply !== undefined) {
@@ -387,7 +389,7 @@ export class GameRuntime {
       npcActions,
       this.storyOutcomes,
       preDmEvents,
-      { verb: parsed.verb, args: parsed.args, confidence: parsed.confidence },
+      resolvedIntent,
     );
     let dmRaw: string;
     try {

@@ -518,3 +518,111 @@ T40–T50 已完成。T50 的最终候选为 `ee5c164df6beec941532f0ca7d61f827c8
 4. 角色卡、道具卡、奖励卡和 condition 卡内容；
 5. 真实游玩记录、失败案例和 Prompt/世界包修正；
 6. 新世界包，而不是新的自动模拟子系统。
+
+---
+
+## 12. 真实游玩后的 Pi-first 编排演进（T79–T84）
+
+`cthulhu-1784624134577` 的连续实玩暴露出一个跨领域共因：Settlement 内核已经是 Pi-first 权威架构，但 Runtime 前半段仍然是 `ParsedCommand → executeCommand → directReply → DM` 的传统命令优先顺序。门、动态出口、教授、核心邪石、目标别名和结局询问因此重复出现“叙述中存在、权威状态中不存在，且 Engine 在 Pi 介入前直接拒绝”的问题。
+
+本阶段不解冻或重写 Settlement、Journal、Outbox、NPC scheduler、Conflict Engine；只重构玩家输入到 Proposal 之间的语义编排层。
+
+### 目标链路
+
+```text
+玩家原始表达
+  → ActionIntent（目标、方法、问题、约束、工具、目的地）
+  → Entity Reference Resolution（精确、别名、上下文、未注册叙事对象、歧义、缺失）
+  → 已完全解析的确定性桌面操作，或 Pi AdjudicationPlan
+  → 有序 TableOperation 结算
+  → committed state
+  → NarrativeClaim 校验
+  → 最终叙述与 post-commit effects
+```
+
+### T79 — 规划与契约
+
+- 冻结本阶段的范围、数据结构和兼容策略；
+- 保留 `ParsedCommand`、旧 WORLD_UPDATE 和 legacy settlement 作为迁移适配器；
+- 明确 direct reply 只用于真正 UI 查询和精确快捷命令；
+- 禁止用更多中文 fast path 替代语义裁定。
+
+### T80 — ActionIntent 与引用解析
+
+新增兼容数据层：
+
+```ts
+interface ActionIntent {
+  primaryKind: "observe" | "navigate" | "interact" | "communicate" | "combat" | "inventory" | "story_status" | "unknown";
+  goal?: string;
+  approach?: string;
+  questions: string[];
+  constraints: string[];
+  targets: EntityReference[];
+  tools: EntityReference[];
+  destination?: EntityReference;
+  raw: string;
+  confidence: number;
+}
+```
+
+引用解析结果区分 `exact / alias / contextual / narrated_unregistered / ambiguous / missing`，先覆盖 Room、NPC、Item 和玩家；不在此阶段新增完整知识图谱。
+
+### T81 — Pi-first 语义编排
+
+- Runtime 根据引用和动作性质选择确定性桌面执行或 Pi 语义裁定；
+- AI 解析出的未解决引用不得产生传统 MUD direct reply；
+- 用通用 unresolved-intent completion 替代 `get/go/attack` 的 verb-specific retry；
+- 精确 `inv/status/map/help/quit` 继续走低延迟 UI fast path；
+- 玩家自然语言中的地点名称与方向分离，避免“回到大街”被错误多走一步。
+
+### T82 — 统一操作与叙述声明
+
+- 将 `roomsAdded/exitsAdded/itemsAdded/npcsAdded/...` 在 parser 边界标准化为统一 TableOperation；
+- 旧协议继续可读，但 Runtime 内部只消费一种操作模型；
+- 支持同一裁定中的依赖顺序：创建房间 → 建立出口 → 移动 → 创建 NPC → 发起冲突；
+- 增加关键 NarrativeClaim：玩家位置、实体出现、出口、物品位置、生命周期、Outcome；
+- claim 与 committed state 不一致时触发现有有界 correction。
+
+### T83 — 最小 SceneObject 与稳定 Fact
+
+新增最小环境名词，不建设自动机关系统：
+
+```ts
+interface SceneObject {
+  id: string;
+  name: string;
+  aliases: string[];
+  roomId: string;
+  description: string;
+  capabilities: ("inspectable" | "operable" | "openable" | "breakable" | "targetable" | "blocks_exit")[];
+  state: Record<string, string | number | boolean>;
+  lifecycle: "active" | "disabled" | "destroyed";
+}
+```
+
+同时为 NPC 增加 aliases，为 WorldFact 增加可选稳定 `key`。门、祭坛、邪石、机关和封印优先使用 SceneObject；普通一次性气氛仍留在 narration。
+
+### T84 — 三个垂直案例 Gate
+
+必须用真实 Pi 持久 Session 通过：
+
+1. 门 → 创建目的地 → 建立出口 → 玩家移动；
+2. 教授 → 注册 NPC/别名 → 玩家主动攻击 → 其他人反应；
+3. 邪石 → SceneObject 被摧毁 → 稳定事实 → StoryOutcome。
+
+每个案例必须同时证明：
+
+- 玩家不需要猜固定命令；
+- 没有 verb-specific 特判；
+- narration 不超前于 committed state；
+- Journal replay 后位置、实体、生命周期和 Outcome 一致；
+- CLI/TUI/Telnet/Web 共用同一 Runtime 行为。
+
+### 非目标
+
+- 不增加多人、生态、天气、NPC 日程或自动 Quest FSM；
+- 不把所有门和家具做成复杂模拟对象；
+- 不用提高 thinking level 掩盖路由和协议问题；
+- 不移除当前已经通过 Gate 的 Settlement/Journal/Outbox 能力；
+- 不进行 Big Bang，所有阶段必须保持旧存档可恢复。

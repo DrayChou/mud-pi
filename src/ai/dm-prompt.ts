@@ -7,6 +7,7 @@ import type { EngineMutation, TurnRecord } from "../types/mutations.ts";
 import type { CombatContext } from "../engine/commands.ts";
 import type { NpcPublicAction } from "../types/npc.ts";
 import type { GameEvent } from "../types/events.ts";
+import type { ResolvedActionIntent } from "../types/action-intent.ts";
 import { effectivePlayerStats } from "../engine/parameters.ts";
 
 function describeMutation(m: EngineMutation): string | null {
@@ -137,7 +138,7 @@ export function buildDmPrompt(
   npcActions: NpcPublicAction[] = [],
   outcomes: StoryOutcomeDef[] = [],
   gameEvents: GameEvent[] = [],
-  interpretedIntent?: { verb: string; args: Record<string, string>; confidence: number },
+  interpretedIntent?: { verb: string; args: Record<string, string>; confidence: number } | ResolvedActionIntent,
 ): string {
   const room = state.rooms[state.player.roomId];
   const parts: string[] = [];
@@ -247,9 +248,20 @@ export function buildDmPrompt(
 
   // ── Interpreter hint (never a replacement for the raw utterance) ──
   if (interpretedIntent) {
-    parts.push(
-      `[Interpreter 辅助理解]\n主要机械动词：${interpretedIntent.verb}\n参数：${JSON.stringify(interpretedIntent.args)}\n置信度：${interpretedIntent.confidence}\n这只是 Engine 执行主要机械动作的辅助标签，不是玩家完整意图。你必须重新阅读原始输入，回应其中的提问、情绪、方法、条件和次要动作；不要因标签只有一个 verb 就忽略复合表达。`
-    );
+    if ("primaryKind" in interpretedIntent) {
+      const references = [
+        ...interpretedIntent.resolvedTargets,
+        ...interpretedIntent.resolvedTools,
+        ...(interpretedIntent.resolvedDestination ? [interpretedIntent.resolvedDestination] : []),
+      ];
+      parts.push(
+        `[ActionIntent 辅助理解]\n主要意图：${interpretedIntent.primaryKind}\n目标：${interpretedIntent.goal ?? "未单独提取"}\n方法：${interpretedIntent.approach ?? "未单独提取"}\n问题：${interpretedIntent.questions.join("；") || "无"}\n约束：${interpretedIntent.constraints.join("；") || "无"}\n方向：${interpretedIntent.direction ?? "无"}\n引用解析：${JSON.stringify(references.map((ref) => ({ text: ref.text, role: ref.role, resolution: ref.resolution, entityId: ref.entityId, candidates: ref.candidates })))}\n需要语义裁定：${interpretedIntent.requiresSemanticAdjudication ? "是" : "否"}\n置信度：${interpretedIntent.confidence}\n引用为 missing 或 ambiguous 时不要机械宣称不存在；结合当前 fiction 裁定它是否是曾叙述但未注册的对象、真正不存在，或需要澄清。`
+      );
+    } else {
+      parts.push(
+        `[Interpreter 辅助理解]\n主要机械动词：${interpretedIntent.verb}\n参数：${JSON.stringify(interpretedIntent.args)}\n置信度：${interpretedIntent.confidence}\n这只是 Engine 执行主要机械动作的辅助标签，不是玩家完整意图。你必须重新阅读原始输入，回应其中的提问、情绪、方法、条件和次要动作；不要因标签只有一个 verb 就忽略复合表达。`
+      );
+    }
   }
 
   // ── Combat context ──
