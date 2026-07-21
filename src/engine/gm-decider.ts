@@ -172,6 +172,7 @@ export const decideGmProposal: Decider<GmProposal, GmProposal> = (state, envelop
         return { accepted: true, result: proposal, events: [{ kind: "condition_applied", condition: base }], warnings };
       }
       if (definition.stacking === "refresh") {
+        if (requestedStacks > maxStacks) warnings.push({ code: "value_clamped", message: `${definition.id} stacks were clamped to ${maxStacks}.`, details: { requested: requestedStacks, accepted: prior.stacks }, narrationRelevant: true });
         const after = { ...structuredClone(prior), sourceEntityId: proposal.sourceEntityId ?? prior.sourceEntityId, appliedRevision: state.revision + 1, appliedTurn: state.turn, expiresAtTurn };
         if (JSON.stringify(after) === JSON.stringify(prior)) return reject("already_applied", `Condition is already current: ${key}`);
         return { accepted: true, result: proposal, events: [{ kind: "condition_refreshed", key, before: structuredClone(prior), after }], warnings };

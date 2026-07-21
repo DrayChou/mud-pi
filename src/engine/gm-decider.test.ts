@@ -99,6 +99,17 @@ test("GM protocol applies, stacks, refreshes, removes, and expires world-defined
   expect(state.conditions[`${state.player.id}:focused`]).toBeUndefined();
 });
 
+test("refresh conditions report narration-relevant stack clamps", async () => {
+  const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
+  state.conditionDefinitions.afraid = { id: "afraid", label: "恐惧", stacking: "refresh", defaultDurationTurns: 2 };
+  const context = { storyOutcomes: [] };
+  settle(state, envelope(state, { kind: "apply_condition", conditionId: "afraid", targetEntityId: state.player.id }, "fear-1"), decideGmProposal, context);
+  const refreshed = settle(state, envelope(state, { kind: "apply_condition", conditionId: "afraid", targetEntityId: state.player.id, stacks: 99 }, "fear-2"), decideGmProposal, context);
+  expect(refreshed.accepted).toBe(true);
+  expect(refreshed.accepted && refreshed.warnings).toContainEqual(expect.objectContaining({ code: "value_clamped", narrationRelevant: true }));
+  expect(state.conditions[`${state.player.id}:afraid`]?.stacks).toBe(1);
+});
+
 test("GM protocol only completes allowed objectives and outcomes", async () => {
   const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
   const storyOutcomes = await loadStoryOutcomes(state.worldPack);
