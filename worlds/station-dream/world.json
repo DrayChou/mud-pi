@@ -26,6 +26,22 @@
       "accuracy": "accuracy"
     }
   },
+  "conditions": [
+    {
+      "id": "echo_mark",
+      "label": "回声印记",
+      "description": "车站的回声暂时附着在旅客身上，可供后续调查、NPC 反应或机关裁定引用。",
+      "stacking": "refresh",
+      "maxStacks": 1,
+      "defaultDurationTurns": 3,
+      "traits": [
+        {
+          "code": "station.echo_sensitive",
+          "value": 1
+        }
+      ]
+    }
+  ],
   "proceduralMap": {
     "generator": "seeded-mst-v1",
     "totalRooms": {

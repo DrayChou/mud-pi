@@ -27,7 +27,7 @@ const RED = (text: string) => `\x1b[31m${text}${RESET}`;
 
 export async function runMudTui(
   runtime: GameRuntime,
-  options: { title?: string } = {}
+  options: { title?: string; initialOutputs?: GameOutput[] } = {}
 ): Promise<void> {
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal, true);
@@ -38,7 +38,7 @@ export async function runMudTui(
     const component = new MudTuiComponent(runtime, tui, () => {
       tui.stop();
       resolve();
-    });
+    }, options.initialOutputs);
     tui.addChild(component);
     tui.setFocus(component);
     tui.start();
@@ -69,13 +69,14 @@ export class MudTuiComponent implements Component, Focusable {
     this.input.focused = value;
   }
 
-  constructor(runtime: GameRuntime, tui: TUI, onQuit: () => void) {
+  constructor(runtime: GameRuntime, tui: TUI, onQuit: () => void, initialOutputs: GameOutput[] = []) {
     this.runtime = runtime;
     this.tui = tui;
     this.onQuit = onQuit;
     const state = runtime.getSnapshot();
     const room = state.rooms[state.player.roomId];
     this.log.push(GREEN(room ? `${room.title}\n${room.desc}` : "故事开始。"));
+    for (const output of initialOutputs) this.appendOutput(output);
     this.input.onSubmit = (value) => void this.submit(value);
     this.input.onEscape = () => this.onQuit();
   }

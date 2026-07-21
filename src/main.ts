@@ -388,10 +388,14 @@ async function main() {
 
   // Only a new game gets an opening turn. It uses the same authoritative
   // settlement, correction, Journal, Outbox and TurnRecord path as later turns.
+  let openingOutputs: GameOutput[] = [];
   if (isNewGame) {
     print("\nDM 正在开场...\n");
     const opening = await runtime.processOpening();
-    for (const output of opening.outputs) renderGameOutput(output, state);
+    openingOutputs = opening.outputs;
+    if (!args.tui && !args.telnet) {
+      for (const output of openingOutputs) renderGameOutput(output, state);
+    }
   }
 
   if (args.telnet) {
@@ -400,6 +404,7 @@ async function main() {
       hostname: args.host ?? "127.0.0.1",
       port: args.port ?? 4000,
       onLog: print,
+      initialOutputs: openingOutputs,
     });
     await new Promise<void>((resolve) => {
       const stop = () => {
@@ -419,7 +424,10 @@ async function main() {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new Error("--tui 需要交互式终端");
     }
-    await runMudTui(runtime, { title: `mud-pi · ${state.worldPack}` });
+    await runMudTui(runtime, {
+      title: `mud-pi · ${state.worldPack}`,
+      initialOutputs: openingOutputs,
+    });
     await runtime.save();
     dm.dispose();
     npcSessions.dispose();

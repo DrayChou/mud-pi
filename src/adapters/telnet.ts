@@ -21,6 +21,7 @@ export interface TelnetServerOptions {
   hostname?: string;
   port?: number;
   onLog?: (message: string) => void;
+  initialOutputs?: GameOutput[];
 }
 
 interface ConnectionState {
@@ -58,7 +59,7 @@ export function startTelnetServer(options: TelnetServerOptions) {
         activeConnection = socket;
         onLog(`[telnet] client connected: ${socket.remoteAddress}`);
         sendText(socket, "\x1b[1;36m欢迎来到 mud-pi\x1b[0m");
-        sendInitialState(socket, runtime);
+        sendInitialState(socket, runtime, options.initialOutputs ?? []);
       },
       data(socket, data) {
         const decoded = socket.data.decoder.push(data);
@@ -118,13 +119,15 @@ async function processTelnetInput(
 
 function sendInitialState(
   socket: Socket<ConnectionState>,
-  runtime: GameRuntime
+  runtime: GameRuntime,
+  initialOutputs: GameOutput[]
 ): void {
   const state = runtime.getSnapshot();
   const room = state.rooms[state.player.roomId];
   sendText(socket, `\x1b[1;33m${room?.title ?? state.player.roomId}\x1b[0m`);
   if (room) sendText(socket, room.desc);
   sendText(socket, `出口: ${room ? Object.keys(room.exits).join(" ") || "无" : "无"}`);
+  for (const output of initialOutputs) sendGameOutput(socket, output, runtime);
   sendGmcpState(socket, runtime);
   sendPrompt(socket);
 }

@@ -18,7 +18,9 @@ describe("MudTuiComponent", () => {
       persist: false,
     });
     const tui = new TUI(new ProcessTerminal());
-    const component = new MudTuiComponent(runtime, tui, () => {});
+    const component = new MudTuiComponent(runtime, tui, () => {}, [
+      { kind: "narration", text: "这是经过权威结算的开场。" },
+    ]);
 
     const wide = component.render(120);
     component.invalidate();
@@ -26,6 +28,7 @@ describe("MudTuiComponent", () => {
 
     expect(wide.some((line) => line.includes("玩家 / 目标"))).toBe(true);
     expect(wide.some((line) => line.includes("房间 / 地图"))).toBe(true);
+    expect(wide.some((line) => line.includes("这是经过权威结算的开场"))).toBe(true);
     expect(narrow.some((line) => line.includes("状态"))).toBe(true);
     expect(wide.every((line) => visibleWidth(line) <= 120)).toBe(true);
     expect(narrow.every((line) => visibleWidth(line) <= 72)).toBe(true);
