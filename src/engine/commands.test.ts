@@ -58,6 +58,21 @@ describe("lifecycle command guards", () => {
 });
 
 describe("combat commands", () => {
+  test("resolves pronouns or body parts against the only hostile target and equips an explicit firearm", async () => {
+    const state = await loadWorldPack("cthulhu", { fallbackPlayerName: "调查员" });
+    state.player.roomId = "HarborsideWharf";
+    const revolver = state.items.revolver!;
+    revolver.location = { kind: "inventory", ownerId: state.player.id };
+    state.player.inventory.push(revolver.id);
+
+    const result = executeCommand(state, command("attack", { target: "眼睛", weapon: "左轮手枪" }));
+
+    expect(result.directReply).toBeUndefined();
+    expect(result.mutations[0]).toEqual({ kind: "engine/item_equipped", itemId: "revolver", slot: "weapon" });
+    expect(result.mutations[1]).toEqual({ kind: "engine/combat_started", npcId: "deep_one" });
+    expect(result.combatContext?.player.attack).toBe(23);
+  });
+
   test("resolves the whole fight once and returns presentation frames", async () => {
     const state = await loadWorldPack("station-dream", { fallbackPlayerName: "旅行者" });
     state.player.roomId = "Compartment3";

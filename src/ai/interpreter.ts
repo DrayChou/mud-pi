@@ -19,7 +19,7 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
   look   — 查看（目标可选）
   go     — 移动，需要 direction: north/south/east/west/up/down 或中文方向
   say    — 对话，需要 message；若玩家明确点名对象，附加 target
-  attack — 攻击，需要 target
+  attack — 攻击，需要 target；若明确使用武器，附加 weapon
   get    — 拾取，需要 item
   drop   — 丢弃，需要 item
   equip  — 装备，需要 item
@@ -36,6 +36,7 @@ const SYSTEM = `你是一个文字MUD游戏的指令解析器。
 输出格式：
 {"verb":"go","args":{"direction":"east"},"confidence":0.95}
 {"verb":"say","args":{"target":"售票员","message":"这张票能去哪里？"},"confidence":0.95}
+{"verb":"attack","args":{"target":"深渊之物","weapon":"左轮手枪"},"confidence":0.95}
 
 无法解析时返回：
 {"verb":"unknown","args":{},"confidence":0.1}`;

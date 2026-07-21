@@ -184,33 +184,77 @@ function cmdUse(state: WorldState, cmd: ParsedCommand, conflictResolver: Conflic
 
 // ── Combat ─────────────────────────────────────────────────────────────────
 
+function isContextualAttackTarget(target: string): boolean {
+  return /^(他|它|她|怪物|敌人|对方|眼睛|头|头部|脑袋|要害|身体|躯干|爪子)$/.test(target.trim());
+}
+
+function selectExplicitWeapon(state: WorldState, cmd: ParsedCommand): WorldState["items"][string] | undefined {
+  const requested = cmd.args.weapon?.trim();
+  const firearmIntent = /开枪|射击|扣动扳机|瞄准/.test(cmd.raw);
+  if (!requested && !firearmIntent) return undefined;
+  return state.player.inventory
+    .map((id) => state.items[id])
+    .find((item) => item?.kind === "equipment" && item.equipSlot && (
+      (requested && itemMatches(item, requested)) ||
+      (firearmIntent && item.traits?.some((trait) => trait.code === "weapon_family" && trait.dataId === "firearm"))
+    ));
+}
+
+function stateWithEquippedItem(state: WorldState, itemId: string): WorldState {
+  const next = structuredClone(state);
+  const item = next.items[itemId];
+  if (!item?.equipSlot) return next;
+  const replacedId = next.player.equipment[item.equipSlot];
+  if (replacedId && replacedId !== itemId) {
+    const replaced = next.items[replacedId];
+    if (replaced) replaced.location = { kind: "inventory", ownerId: next.player.id };
+    if (!next.player.inventory.includes(replacedId)) next.player.inventory.push(replacedId);
+  }
+  next.player.inventory = next.player.inventory.filter((id) => id !== itemId);
+  next.player.equipment[item.equipSlot] = itemId;
+  item.location = { kind: "equipped", ownerId: next.player.id, slot: item.equipSlot };
+  return next;
+}
+
 function cmdAttack(state: WorldState, cmd: ParsedCommand, conflictResolver: ConflictResolver): CommandResult {
   const targetName = cmd.args.target;
   if (!targetName) return { mutations: [], directReply: "攻击什么？" };
 
-  const npc = Object.values(state.npcs).find(
-    (n) =>
-      n.roomId === state.player.roomId &&
-      n.alive &&
-      (n.name.includes(targetName) || n.id.includes(targetName))
+  const roomNpcs = Object.values(state.npcs).filter(
+    (npc) => npc.roomId === state.player.roomId && npc.alive
+  );
+  const explicitTarget = roomNpcs.find(
+    (npc) => npc.name.includes(targetName) || npc.id.includes(targetName)
+  );
+  const hostileNpcs = roomNpcs.filter((npc) => npc.hostile);
+  const npc = explicitTarget ?? (
+    hostileNpcs.length === 1 && isContextualAttackTarget(targetName)
+      ? hostileNpcs[0]
+      : undefined
   );
   if (!npc) return { mutations: [], directReply: `这里没有"${targetName}"可以攻击。` };
 
+  const selectedWeapon = selectExplicitWeapon(state, cmd);
+  const combatState = selectedWeapon ? stateWithEquippedItem(state, selectedWeapon.id) : state;
   const conflictRules = state.conflictRules ?? { mode: "auto_combat", algorithm: "gauge-random-v1" as const };
   const combatSeed = `${state.worldId}:turn:${state.turn + 1}:combat:${npc.id}`;
   const combat = validateCombatScriptResult(conflictResolver.resolve({
     schema: structuredClone(state.schema),
     actor: structuredClone({
       ...state.player,
-      stats: effectivePlayerStats(state),
-      traits: effectivePlayerTraits(state),
+      stats: effectivePlayerStats(combatState),
+      traits: effectivePlayerTraits(combatState),
     }),
     target: structuredClone(npc),
     rules: structuredClone(conflictRules),
     seed: combatSeed,
     options: structuredClone(state.conflictOptions ?? {}),
   }), state.player.id, npc.id);
-  const mutations: EngineMutation[] = [{ kind: "engine/combat_started", npcId: npc.id }];
+  const mutations: EngineMutation[] = [];
+  if (selectedWeapon && selectedWeapon.location.kind === "inventory" && selectedWeapon.equipSlot) {
+    mutations.push({ kind: "engine/item_equipped", itemId: selectedWeapon.id, slot: selectedWeapon.equipSlot });
+  }
+  mutations.push({ kind: "engine/combat_started", npcId: npc.id });
   const npcDelta = combat.npc.poolAfter - combat.npc.poolBefore;
   const effectivePlayerDelta = combat.player.poolAfter - combat.player.poolBefore;
   const playerDelta = baseDeltaForEffectivePlayerChange(state, combat.poolKey, effectivePlayerDelta);
