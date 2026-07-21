@@ -29,6 +29,8 @@ describe("Pi DM adjudication prompt", () => {
     expect(prompt).toContain("echo_mark：回声印记");
     expect(prompt).toContain("set_exit");
     expect(prompt).toContain("EchoGate");
+    expect(prompt).toContain("列车已经载其归去");
+    expect(prompt).toContain("就必须在同一响应设置对应 outcomeReached");
     expect(prompt).toContain('"gmOperations": []');
   });
 });

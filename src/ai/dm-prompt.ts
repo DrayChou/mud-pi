@@ -172,7 +172,7 @@ export function buildDmPrompt(
       outcomes.map((outcome) =>
         `• ${outcome.title}（id: ${outcome.id}，类型: ${outcome.type}，终止游戏: ${outcome.terminal ? "是" : "否"}）\n  判定标准：${outcome.criteria}\n  结果摘要：${outcome.summary}`
       ).join("\n") +
-      `\n结果判定由你依据上述剧本标准完成。只有标准已经明确满足时才返回 outcomeReached；不满足时必须返回 null。若本轮触发结果，NARRATION 必须作为与该结果一致的收束叙事。`
+      `\n结果判定由你依据上述剧本标准完成。只有标准已经明确满足时才返回 outcomeReached；不满足时必须返回 null。若本轮触发结果，NARRATION 必须作为与该结果一致的收束叙事。反过来，如果 NARRATION 声称玩家已经离开、列车已经载其归去、故事已经失败或身份已经转化，就必须在同一响应设置对应 outcomeReached；若不提交 Outcome，就只能叙述尚未完成的进展，不能写成终局。`
     );
   }
 
