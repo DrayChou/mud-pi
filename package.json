@@ -10,6 +10,7 @@
     "telnet": "bun run src/main.ts --telnet",
     "web": "bun run src/web/server.ts",
     "web:dev": "bun --hot src/web/server.ts",
+    "logs:ai": "bun run src/diagnostics/analyze-ai-logs.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

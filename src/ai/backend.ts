@@ -7,6 +7,7 @@ import {
   appendAiLog,
   appendErrorLog,
   currentDiagnosticContext,
+  runWithDiagnosticContext,
   serializeError,
 } from "../diagnostics/logger.ts";
 import { CodexBackend } from "./codex-backend.ts";
@@ -88,7 +89,7 @@ async function loggedAiCall(
   const aiCallId = crypto.randomUUID();
   const startedAt = performance.now();
   try {
-    const response = await call();
+    const response = await runWithDiagnosticContext({ ...context, aiCallId }, call);
     appendAiLog(context.worldId, {
       kind: "ai_request",
       aiCallId,

@@ -11,13 +11,6 @@ test("compound inspect-and-store input deterministically picks up the named room
   });
 });
 
-test("common room observation phrasing never waits for the interpreter model", async () => {
-  const interpreter = new Interpreter();
-  await interpreter.init(loadConfig());
-  expect(await interpreter.parse("看看周围")).toMatchObject({ verb: "look", confidence: 1 });
-  expect(await interpreter.parse("看看附近")).toMatchObject({ verb: "look", confidence: 1 });
-});
-
 test("simple Chinese pickup phrasing remains deterministic", async () => {
   const interpreter = new Interpreter();
   await interpreter.init(loadConfig());

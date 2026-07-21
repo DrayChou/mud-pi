@@ -10,6 +10,7 @@ export interface DiagnosticContext {
   channel: RuntimeChannel;
   turn?: number;
   revision?: number;
+  aiCallId?: string;
 }
 
 interface DiagnosticRecord {
