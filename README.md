@@ -109,11 +109,16 @@ bun run tui                         # 使用本地多面板 TUI
 bun start --tui --save <存档ID>     # 用 TUI 读取指定存档
 bun run telnet                      # 在 127.0.0.1:4000 启动 Telnet/GMCP
 bun start --telnet --host 0.0.0.0 --port 4001 --save <存档ID>
+bun run web                         # 在 0.0.0.0:3000 启动匿名 Web 试玩入口
 ```
 
 TUI 在宽终端中显示玩家/目标、叙事、房间/地图三个面板；窄终端自动切换为纵向布局。按 Enter 发送指令，Esc 或 Ctrl+C 保存并退出。传统逐行 CLI 仍是默认 adapter。
 
 Telnet adapter 第一版默认只监听本机并允许一个控制客户端连接；如需远程连接可显式传入 `--host 0.0.0.0`，并自行配置防火墙。支持 ANSI 文本及 GMCP：`Char.Vitals`、`Room.Info`、`MudPi.Inventory`、`MudPi.Objectives`、`MudPi.Map`、`MudPi.Combat`、`MudPi.Outcome`。可使用 Mudlet、TinTin++ 或普通 telnet 客户端连接；服务端按 Ctrl+C 保存并停止。
+
+Web 入口为每个匿名访客创建独立存档、DM/NPC Session 和访问 token，不是多人共享世界。浏览器会在本地保存恢复凭证；部署时可通过 `WEB_HOST` 和 `WEB_PORT` 设置监听地址。公开到互联网前仍应在前方配置 HTTPS 反向代理和基础限流。
+
+所有 CLI、TUI、Telnet 与 Web 回合都会在 `saves/<存档ID>/logs/` 记录关联后的 `operations.jsonl`、`ai-requests.jsonl` 和 `errors.jsonl`。日志包含匿名玩家输入、AI System Prompt/Prompt/Response、模型、阶段、耗时、Settlement 摘要和最终输出，用于后续分析优化；不会写入 API key。
 
 新游戏启动后会先进入剧本选择流程；选择剧本后再进入角色创建流程：选择故事包预设主角，或输入自己的姓名和角色描述，由 AI 根据世界观生成候选主角后再选择。玩家姓名限制为 1-16 个字符；背景、作品参考和人物描述请写到“角色描述”里。非交互环境会自动使用 `.env` 中的 `WORLD_PACK`。
 
@@ -304,6 +309,8 @@ bun run dev       # watch 模式启动
 bun start         # 启动传统 CLI
 bun run tui       # 启动多面板 TUI
 bun run telnet    # 启动 Telnet/GMCP 服务（默认端口 4000）
+bun run web       # 启动匿名 Web 入口（默认端口 3000）
+bun run web:dev   # Web 热更新开发模式
 bun test          # 运行测试
 bun run typecheck # TypeScript 类型检查
 ```

@@ -8,6 +8,8 @@
     "dev": "bun --watch src/main.ts",
     "tui": "bun run src/main.ts --tui",
     "telnet": "bun run src/main.ts --telnet",
+    "web": "bun run src/web/server.ts",
+    "web:dev": "bun --hot src/web/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
